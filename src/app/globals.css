@@ -33,26 +33,26 @@
 }
 
 :root {
-  /* Core palette - deep blacks and grays */
-  --background: #09090b;
-  --background-subtle: #0c0c0e;
-  --surface: #121214;
-  --surface-elevated: #18181b;
-  --surface-hover: #1f1f23;
+  /* Core palette - warm blacks */
+  --background: #0a0908;
+  --background-subtle: #0e0c0a;
+  --surface: #141210;
+  --surface-elevated: #1a1816;
+  --surface-hover: #211f1c;
 
-  /* Borders - subtle separation */
-  --border: #27272a;
-  --border-subtle: #1c1c1f;
+  /* Borders - subtle warm separation */
+  --border: #2a2724;
+  --border-subtle: #1e1c1a;
 
   /* Text hierarchy */
   --foreground: #fafafa;
-  --foreground-muted: #a1a1aa;
-  --foreground-subtle: #71717a;
+  --foreground-muted: #a8a5a0;
+  --foreground-subtle: #6b6762;
 
-  /* Accent - warm amber for creative tools */
-  --accent: #f59e0b;
-  --accent-muted: #d97706;
-  --accent-subtle: rgba(245, 158, 11, 0.15);
+  /* Accent - red */
+  --accent: #ef4444;
+  --accent-muted: #dc2626;
+  --accent-subtle: rgba(239, 68, 68, 0.15);
 
   /* Semantic colors */
   --destructive: #ef4444;

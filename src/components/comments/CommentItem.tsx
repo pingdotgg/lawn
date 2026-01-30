@@ -71,7 +71,7 @@ export function CommentItem({
       className={cn(
         "rounded-lg p-3 transition-all",
         isHighlighted
-          ? "bg-amber-500/10 ring-1 ring-amber-500/30"
+          ? "bg-red-500/10 ring-1 ring-red-500/30"
           : "bg-zinc-900/50 hover:bg-zinc-800/50",
         comment.resolved && "opacity-50"
       )}
@@ -91,7 +91,7 @@ export function CommentItem({
               </span>
               <button
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
-                className="text-xs text-amber-500 hover:text-amber-400 font-mono shrink-0"
+                className="text-xs text-red-500 hover:text-red-400 font-mono shrink-0"
               >
                 {formatTimestamp(comment.timestampSeconds)}
               </button>

@@ -28,23 +28,18 @@ export default function DashboardLayout({
     : [];
 
   return (
-    <div className="h-full flex bg-zinc-950">
+    <div className="h-full flex bg-[#0a0908]">
       {/* Sidebar - Compact, icon-focused */}
-      <aside className="w-16 border-r border-zinc-800/50 bg-zinc-900/30 flex flex-col items-center py-4">
+      <aside className="w-16 border-r border-white/5 bg-[#0e0c0a] flex flex-col items-center py-4">
         {/* Logo */}
         <Link href="/dashboard" className="mb-6 group">
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 transition-colors">
+          <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center group-hover:bg-red-400 transition-colors">
             <svg
-              className="w-5 h-5 text-amber-500"
+              className="w-4 h-4 text-white"
               viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              fill="currentColor"
             >
-              <polygon points="23 7 16 12 23 17 23 7" />
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              <path d="M8 5v14l11-7z" />
             </svg>
           </div>
         </Link>
@@ -64,8 +59,8 @@ export default function DashboardLayout({
                 className={cn(
                   "w-10 h-10 rounded-lg flex items-center justify-center transition-all",
                   pathname === item.href
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                    ? "bg-red-500/10 text-red-500"
+                    : "text-white/40 hover:text-white hover:bg-white/5"
                 )}
                 title={item.label}
               >
@@ -76,7 +71,7 @@ export default function DashboardLayout({
         )}
 
         {/* User */}
-        <div className="mt-auto pt-4 border-t border-zinc-800/50 w-full flex justify-center">
+        <div className="mt-auto pt-4 border-t border-white/5 w-full flex justify-center">
           <UserButton
             afterSignOutUrl="/"
             appearance={{
@@ -89,7 +84,7 @@ export default function DashboardLayout({
       </aside>
 
       {/* Main content - Full width */}
-      <main className="flex-1 overflow-auto bg-zinc-950">
+      <main className="flex-1 overflow-auto bg-[#0a0908]">
         {children}
       </main>
     </div>

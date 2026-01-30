@@ -69,7 +69,7 @@ export function CommentInput({
       {showTimestamp && (
         <div className="flex items-center gap-2 text-sm text-zinc-500">
           <span>Comment at</span>
-          <span className="font-mono text-amber-500">
+          <span className="font-mono text-red-500">
             {formatTimestamp(timestampSeconds)}
           </span>
         </div>

@@ -55,7 +55,7 @@ export function UploadProgress({
             <AlertCircle className="h-5 w-5 text-red-500" />
           )}
           {status === "processing" && (
-            <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
+            <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
           )}
           {(status === "pending" || status === "uploading") && onCancel && (
             <Button

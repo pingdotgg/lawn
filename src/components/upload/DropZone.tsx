@@ -59,8 +59,8 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
       className={cn(
         "relative border-2 border-dashed rounded-xl p-12 text-center transition-all",
         isDragActive
-          ? "border-amber-500/50 bg-amber-500/5"
-          : "border-zinc-800 hover:border-zinc-700 bg-zinc-900/30",
+          ? "border-red-500/50 bg-red-500/5"
+          : "border-white/10 hover:border-white/20 bg-white/[0.02]",
         disabled && "opacity-40 cursor-not-allowed",
         className
       )}
@@ -82,17 +82,17 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
           className={cn(
             "w-14 h-14 rounded-xl flex items-center justify-center transition-colors",
             isDragActive
-              ? "bg-amber-500/20 text-amber-500"
-              : "bg-zinc-800 text-zinc-500"
+              ? "bg-red-500/20 text-red-500"
+              : "bg-white/5 text-white/40"
           )}
         >
           <Upload className="h-6 w-6" />
         </div>
         <div>
-          <p className="font-medium text-zinc-200">
+          <p className="font-medium text-white">
             {isDragActive ? "Drop to upload" : "Drop videos or click to upload"}
           </p>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm text-white/40 mt-1">
             MP4, MOV, WebM supported
           </p>
         </div>

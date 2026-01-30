@@ -111,8 +111,8 @@ export default function InvitePage() {
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-amber-400" />
+            <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-400" />
             </div>
             <CardTitle>Different email address</CardTitle>
             <CardDescription>
