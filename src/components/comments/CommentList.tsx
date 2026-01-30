@@ -23,21 +23,24 @@ export function CommentList({
 
   if (comments === undefined) {
     return (
-      <div className="p-4 text-center text-neutral-500">Loading comments...</div>
+      <div className="p-4 text-center text-zinc-500">Loading...</div>
     );
   }
 
   if (comments.length === 0) {
     return (
-      <div className="p-4 text-center text-neutral-500">
-        No comments yet. Click on the timeline to add one.
+      <div className="h-full flex items-center justify-center p-6">
+        <p className="text-zinc-500 text-sm text-center">
+          No comments yet.<br />
+          Click on the timeline to add one.
+        </p>
       </div>
     );
   }
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-3">
         {comments.map((comment) => (
           <div key={comment._id}>
             <CommentItem
@@ -47,7 +50,7 @@ export function CommentList({
               canResolve={canResolve}
             />
             {comment.replies.length > 0 && (
-              <div className="ml-6 mt-2 space-y-2 border-l-2 border-neutral-100 pl-4">
+              <div className="ml-6 mt-2 space-y-2 border-l border-zinc-800 pl-4">
                 {comment.replies.map((reply) => (
                   <CommentItem
                     key={reply._id}

@@ -40,19 +40,19 @@ export default function InvitePage() {
 
   if (invite === undefined || !isLoaded) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="animate-pulse text-zinc-500">Loading...</div>
       </div>
     );
   }
 
   if (invite === null) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
+            <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-400" />
             </div>
             <CardTitle>Invalid or expired invite</CardTitle>
             <CardDescription>
@@ -74,11 +74,11 @@ export default function InvitePage() {
   // User not signed in
   if (!user) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <Users className="h-6 w-6 text-neutral-600" />
+            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+              <Users className="h-6 w-6 text-zinc-400" />
             </div>
             <CardTitle>You're invited to {invite.team?.name}</CardTitle>
             <CardDescription>
@@ -86,14 +86,14 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="p-3 bg-neutral-50 rounded-lg flex items-center gap-3">
-              <Mail className="h-5 w-5 text-neutral-500" />
+            <div className="p-3 bg-zinc-950 rounded-lg flex items-center gap-3">
+              <Mail className="h-5 w-5 text-zinc-500" />
               <div>
-                <p className="text-sm text-neutral-500">Invited email</p>
+                <p className="text-sm text-zinc-500">Invited email</p>
                 <p className="font-medium">{invite.email}</p>
               </div>
             </div>
-            <p className="text-sm text-neutral-500 text-center">
+            <p className="text-sm text-zinc-500 text-center">
               Sign in with the email address above to accept this invite.
             </p>
             <Link href={`/sign-in?redirect_url=/invite/${token}`} className="block">
@@ -108,11 +108,11 @@ export default function InvitePage() {
   // User signed in but with different email
   if (user.primaryEmailAddress?.emailAddress !== invite.email) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-yellow-600" />
+            <div className="mx-auto w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-amber-400" />
             </div>
             <CardTitle>Different email address</CardTitle>
             <CardDescription>
@@ -121,7 +121,7 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-neutral-500 text-center">
+            <p className="text-sm text-zinc-500 text-center">
               Please sign in with the correct email address to accept this invite.
             </p>
             <Link href={`/sign-in?redirect_url=/invite/${token}`} className="block">
@@ -137,11 +137,11 @@ export default function InvitePage() {
 
   // User signed in with correct email
   return (
-    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-            <Users className="h-6 w-6 text-neutral-600" />
+          <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+            <Users className="h-6 w-6 text-zinc-400" />
           </div>
           <CardTitle>Join {invite.team?.name}</CardTitle>
           <CardDescription>
@@ -151,7 +151,7 @@ export default function InvitePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+            <div className="p-3 bg-red-50 text-red-400 rounded-lg text-sm">
               {error}
             </div>
           )}

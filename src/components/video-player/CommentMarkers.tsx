@@ -46,12 +46,12 @@ export function CommentMarkers({
 
   return (
     <div
-      className="relative h-3 bg-neutral-100 rounded-full mt-2 cursor-pointer"
+      className="relative h-3 bg-zinc-800 rounded-full mt-2 cursor-pointer"
       onClick={onTimelineClick}
     >
       {/* Progress indicator */}
       <div
-        className="absolute top-0 left-0 h-full bg-neutral-300 rounded-full pointer-events-none"
+        className="absolute top-0 left-0 h-full bg-zinc-600 rounded-full pointer-events-none"
         style={{ width: `${(currentTime / duration) * 100}%` }}
       />
 

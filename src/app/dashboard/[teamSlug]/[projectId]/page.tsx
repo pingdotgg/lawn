@@ -3,9 +3,8 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadProgress, UploadStatus } from "@/components/upload/UploadProgress";
@@ -17,7 +16,8 @@ import {
   MoreVertical,
   Trash2,
   Link as LinkIcon,
-  MessageSquare,
+  Grid3X3,
+  LayoutList,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 
 interface UploadItem {
   id: string;
@@ -41,6 +42,8 @@ interface UploadItem {
   estimatedSecondsRemaining?: number | null;
   abortController?: AbortController;
 }
+
+type ViewMode = "grid" | "list";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -57,6 +60,7 @@ export default function ProjectPage() {
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
@@ -65,7 +69,6 @@ export default function ProjectPage() {
         const title = file.name.replace(/\.[^/.]+$/, "");
         const abortController = new AbortController();
 
-        // Add to uploads list
         setUploads((prev) => [
           ...prev,
           {
@@ -78,7 +81,6 @@ export default function ProjectPage() {
         ]);
 
         try {
-          // Create video record
           const videoId = await createVideo({
             projectId,
             title,
@@ -92,7 +94,6 @@ export default function ProjectPage() {
             )
           );
 
-          // Get presigned upload URL
           const { url, key } = await getUploadUrl({
             videoId,
             filename: file.name,
@@ -106,7 +107,6 @@ export default function ProjectPage() {
             )
           );
 
-          // Upload file with progress tracking using XMLHttpRequest
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             const startTime = Date.now();
@@ -166,7 +166,6 @@ export default function ProjectPage() {
               reject(new Error("Upload cancelled"));
             });
 
-            // Handle abort
             abortController.signal.addEventListener("abort", () => {
               xhr.abort();
             });
@@ -176,7 +175,6 @@ export default function ProjectPage() {
             xhr.send(file);
           });
 
-          // Mark upload as complete
           await markUploadComplete({ videoId, key });
 
           setUploads((prev) =>
@@ -185,7 +183,6 @@ export default function ProjectPage() {
             )
           );
 
-          // Remove from list after a delay
           setTimeout(() => {
             setUploads((prev) => prev.filter((u) => u.id !== uploadId));
           }, 3000);
@@ -201,7 +198,6 @@ export default function ProjectPage() {
             )
           );
 
-          // Mark as failed in database if we have a videoId
           const upload = uploads.find((u) => u.id === uploadId);
           if (upload?.videoId) {
             markUploadFailed({ videoId: upload.videoId }).catch(console.error);
@@ -235,7 +231,7 @@ export default function ProjectPage() {
   if (project === undefined || videos === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+        <div className="text-zinc-500">Loading...</div>
       </div>
     );
   }
@@ -243,7 +239,7 @@ export default function ProjectPage() {
   if (project === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-neutral-500">Project not found</div>
+        <div className="text-zinc-500">Project not found</div>
       </div>
     );
   }
@@ -251,29 +247,58 @@ export default function ProjectPage() {
   const canUpload = project.role !== "viewer";
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <Link
-          href={`/dashboard/${teamSlug}`}
-          className="inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 mb-4"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to projects
-        </Link>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{project.name}</h1>
-            {project.description && (
-              <p className="text-neutral-500 mt-1">{project.description}</p>
-            )}
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/dashboard/${teamSlug}`}
+              className="p-2 -ml-2 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-zinc-800/50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <h1 className="text-lg font-semibold text-zinc-100">{project.name}</h1>
+              {project.description && (
+                <p className="text-zinc-500 text-sm">{project.description}</p>
+              )}
+            </div>
           </div>
-          {canUpload && <UploadButton onFilesSelected={handleFilesSelected} />}
+          <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex items-center border border-zinc-800 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  viewMode === "grid"
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  viewMode === "list"
+                    ? "bg-zinc-800 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
+              >
+                <LayoutList className="h-4 w-4" />
+              </button>
+            </div>
+            {canUpload && <UploadButton onFilesSelected={handleFilesSelected} />}
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Upload progress */}
       {uploads.length > 0 && (
-        <div className="space-y-2 mb-6">
+        <div className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4 space-y-3">
           {uploads.map((upload) => (
             <UploadProgress
               key={upload.id}
@@ -290,73 +315,175 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {videos.length === 0 && uploads.length === 0 ? (
-        <DropZone
-          onFilesSelected={handleFilesSelected}
-          disabled={!canUpload}
-          className="max-w-2xl"
-        />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {videos.map((video) => (
-            <Card
-              key={video._id}
-              className="cursor-pointer hover:shadow-md transition-shadow group overflow-hidden"
-              onClick={() =>
-                router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
-              }
-            >
-              <div className="relative aspect-video bg-neutral-100">
-                {video.thumbnailUrl ? (
-                  <Image
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Play className="h-12 w-12 text-neutral-300" />
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {videos.length === 0 && uploads.length === 0 ? (
+          <div className="h-full flex items-center justify-center p-6">
+            <DropZone
+              onFilesSelected={handleFilesSelected}
+              disabled={!canUpload}
+              className="max-w-xl w-full"
+            />
+          </div>
+        ) : viewMode === "grid" ? (
+          /* Grid View - Responsive tiles */
+          <div className="p-6">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+              {videos.map((video) => (
+                <div
+                  key={video._id}
+                  className="group cursor-pointer"
+                  onClick={() =>
+                    router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
+                  }
+                >
+                  <div className="relative aspect-video bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800/50 hover:border-zinc-700 transition-colors">
+                    {video.thumbnailUrl ? (
+                      <Image
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="h-8 w-8 text-zinc-700" />
+                      </div>
+                    )}
+                    {video.status === "ready" && video.duration && (
+                      <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-zinc-200 text-[10px] font-mono px-1 py-0.5 rounded">
+                        {formatDuration(video.duration)}
+                      </div>
+                    )}
+                    {video.status !== "ready" && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Badge
+                          variant={
+                            video.status === "failed" ? "destructive" : "secondary"
+                          }
+                          className="text-[10px]"
+                        >
+                          {video.status === "uploading" && "Uploading"}
+                          {video.status === "processing" && "Processing"}
+                          {video.status === "failed" && "Failed"}
+                        </Badge>
+                      </div>
+                    )}
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <LinkIcon className="mr-2 h-4 w-4" />
+                            Share
+                          </DropdownMenuItem>
+                          {canUpload && (
+                            <DropdownMenuItem
+                              className="text-red-400 focus:text-red-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteVideo(video._id);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                )}
-                {video.status === "ready" && video.duration && (
-                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
-                    {formatDuration(video.duration)}
-                  </div>
-                )}
-                {video.status !== "ready" && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <Badge
-                      variant={
-                        video.status === "failed" ? "destructive" : "secondary"
-                      }
-                    >
-                      {video.status === "uploading" && "Uploading..."}
-                      {video.status === "processing" && "Processing..."}
-                      {video.status === "failed" && "Failed"}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-              <CardContent className="p-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{video.title}</p>
-                    <p className="text-xs text-neutral-500">
-                      {video.uploaderName} &middot;{" "}
+                  <div className="mt-1.5 px-0.5">
+                    <p className="text-sm text-zinc-200 truncate">{video.title}</p>
+                    <p className="text-[11px] text-zinc-600 truncate">
                       {formatRelativeTime(video._creationTime)}
                     </p>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* List View - Horizontal rows */
+          <div className="divide-y divide-zinc-800/50">
+            {videos.map((video) => (
+              <div
+                key={video._id}
+                className="group flex items-center gap-4 px-6 py-3 hover:bg-zinc-900/30 cursor-pointer transition-colors"
+                onClick={() =>
+                  router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
+                }
+              >
+                {/* Thumbnail */}
+                <div className="relative w-32 aspect-video bg-zinc-900 rounded-md overflow-hidden border border-zinc-800/50 shrink-0">
+                  {video.thumbnailUrl ? (
+                    <Image
+                      src={video.thumbnailUrl}
+                      alt={video.title}
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Play className="h-6 w-6 text-zinc-700" />
+                    </div>
+                  )}
+                  {video.status !== "ready" && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <Badge
+                        variant={
+                          video.status === "failed" ? "destructive" : "secondary"
+                        }
+                        className="text-[10px]"
+                      >
+                        {video.status === "uploading" && "Uploading"}
+                        {video.status === "processing" && "Processing"}
+                        {video.status === "failed" && "Failed"}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-zinc-200 truncate">{video.title}</p>
+                  <div className="flex items-center gap-3 text-sm text-zinc-500 mt-0.5">
+                    <span>{video.uploaderName}</span>
+                    <span className="text-zinc-700">·</span>
+                    <span>{formatRelativeTime(video._creationTime)}</span>
+                    {video.duration && (
+                      <>
+                        <span className="text-zinc-700">·</span>
+                        <span className="font-mono text-xs">{formatDuration(video.duration)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       asChild
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -364,7 +491,6 @@ export default function ProjectPage() {
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
-                          // TODO: Open share dialog
                         }}
                       >
                         <LinkIcon className="mr-2 h-4 w-4" />
@@ -372,7 +498,7 @@ export default function ProjectPage() {
                       </DropdownMenuItem>
                       {canUpload && (
                         <DropdownMenuItem
-                          className="text-red-600"
+                          className="text-red-400 focus:text-red-400"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteVideo(video._id);
@@ -385,11 +511,11 @@ export default function ProjectPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -67,9 +67,9 @@ export function CommentInput({
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       {showTimestamp && (
-        <div className="flex items-center gap-2 text-sm text-neutral-500">
+        <div className="flex items-center gap-2 text-sm text-zinc-500">
           <span>Comment at</span>
-          <span className="font-mono text-blue-600">
+          <span className="font-mono text-amber-500">
             {formatTimestamp(timestampSeconds)}
           </span>
         </div>
@@ -81,7 +81,7 @@ export function CommentInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="min-h-[80px] pr-20 resize-none"
+          className="min-h-[80px] pr-20"
         />
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
           {onCancel && (
@@ -89,7 +89,7 @@ export function CommentInput({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={onCancel}
             >
               <X className="h-4 w-4" />
@@ -98,15 +98,15 @@ export function CommentInput({
           <Button
             type="submit"
             size="icon"
-            className="h-8 w-8"
+            className="h-7 w-7"
             disabled={!text.trim() || isLoading}
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
-      <p className="text-xs text-neutral-400">
-        Press {navigator.platform?.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to submit
+      <p className="text-[11px] text-zinc-600">
+        {typeof navigator !== "undefined" && navigator.platform?.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to submit
       </p>
     </form>
   );

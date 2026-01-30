@@ -69,37 +69,41 @@ export function CommentItem({
   return (
     <div
       className={cn(
-        "rounded-lg p-3 transition-colors",
-        isHighlighted ? "bg-yellow-50 ring-2 ring-yellow-200" : "bg-neutral-50",
-        comment.resolved && "opacity-60"
+        "rounded-lg p-3 transition-all",
+        isHighlighted
+          ? "bg-amber-500/10 ring-1 ring-amber-500/30"
+          : "bg-zinc-900/50 hover:bg-zinc-800/50",
+        comment.resolved && "opacity-50"
       )}
     >
       <div className="flex items-start gap-3">
-        <Avatar className="h-8 w-8">
+        <Avatar className="h-7 w-7">
           <AvatarImage src={comment.userAvatarUrl} />
-          <AvatarFallback className="text-xs">
+          <AvatarFallback className="text-[10px] bg-zinc-800 text-zinc-400">
             {getInitials(comment.userName)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm">{comment.userName}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-sm text-zinc-200 truncate">
+                {comment.userName}
+              </span>
               <button
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
-                className="text-xs text-blue-600 hover:underline font-mono"
+                className="text-xs text-amber-500 hover:text-amber-400 font-mono shrink-0"
               >
                 {formatTimestamp(comment.timestampSeconds)}
               </button>
               {comment.resolved && (
-                <Badge variant="success" className="text-xs">
+                <Badge variant="success" className="text-[10px] shrink-0">
                   Resolved
                 </Badge>
               )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
                   <MoreVertical className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -117,7 +121,7 @@ export function CommentItem({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
-                  className="text-red-600"
+                  className="text-red-400 focus:text-red-400"
                   onClick={handleDelete}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -126,15 +130,17 @@ export function CommentItem({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="text-sm mt-1 whitespace-pre-wrap">{comment.text}</p>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-sm text-zinc-300 mt-1 whitespace-pre-wrap break-words">
+            {comment.text}
+          </p>
+          <p className="text-[11px] text-zinc-600 mt-1">
             {formatRelativeTime(comment._creationTime)}
           </p>
         </div>
       </div>
 
       {isReplying && (
-        <div className="mt-3 ml-11">
+        <div className="mt-3 ml-10">
           <CommentInput
             videoId={comment.videoId}
             timestampSeconds={comment.timestampSeconds}

@@ -34,7 +34,7 @@ export function QualitySelector({
           <DropdownMenuItem
             key={quality}
             onClick={() => onQualityChange(quality)}
-            className={currentQuality === quality ? "bg-neutral-100" : ""}
+            className={currentQuality === quality ? "bg-zinc-800" : ""}
           >
             {quality}
           </DropdownMenuItem>

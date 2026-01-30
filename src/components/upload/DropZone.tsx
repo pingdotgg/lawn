@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Upload, Video } from "lucide-react";
+import { Upload } from "lucide-react";
 
 interface DropZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -57,11 +57,11 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
   return (
     <div
       className={cn(
-        "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+        "relative border-2 border-dashed rounded-xl p-12 text-center transition-all",
         isDragActive
-          ? "border-neutral-400 bg-neutral-50"
-          : "border-neutral-200 hover:border-neutral-300",
-        disabled && "opacity-50 cursor-not-allowed",
+          ? "border-amber-500/50 bg-amber-500/5"
+          : "border-zinc-800 hover:border-zinc-700 bg-zinc-900/30",
+        disabled && "opacity-40 cursor-not-allowed",
         className
       )}
       onDragEnter={handleDrag}
@@ -78,19 +78,22 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
       />
       <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center">
-          {isDragActive ? (
-            <Upload className="h-6 w-6 text-neutral-600" />
-          ) : (
-            <Video className="h-6 w-6 text-neutral-600" />
+        <div
+          className={cn(
+            "w-14 h-14 rounded-xl flex items-center justify-center transition-colors",
+            isDragActive
+              ? "bg-amber-500/20 text-amber-500"
+              : "bg-zinc-800 text-zinc-500"
           )}
+        >
+          <Upload className="h-6 w-6" />
         </div>
         <div>
-          <p className="font-medium text-neutral-900">
-            {isDragActive ? "Drop videos here" : "Drop videos or click to upload"}
+          <p className="font-medium text-zinc-200">
+            {isDragActive ? "Drop to upload" : "Drop videos or click to upload"}
           </p>
-          <p className="text-sm text-neutral-500 mt-1">
-            MP4, MOV, WebM, or other video formats
+          <p className="text-sm text-zinc-500 mt-1">
+            MP4, MOV, WebM supported
           </p>
         </div>
       </div>

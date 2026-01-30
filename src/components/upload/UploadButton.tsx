@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
+import { Plus } from "lucide-react";
 
 interface UploadButtonProps {
   onFilesSelected: (files: File[]) => void;
@@ -26,7 +26,6 @@ export function UploadButton({
     if (files.length > 0) {
       onFilesSelected(files);
     }
-    // Reset input so same file can be selected again
     e.target.value = "";
   };
 
@@ -43,8 +42,8 @@ export function UploadButton({
       <Button onClick={handleClick} disabled={disabled}>
         {children || (
           <>
-            <Upload className="mr-2 h-4 w-4" />
-            Upload video
+            <Plus className="mr-1.5 h-4 w-4" />
+            Upload
           </>
         )}
       </Button>

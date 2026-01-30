@@ -66,8 +66,8 @@ export default function SharePage() {
 
   if (shareInfo === undefined || videoData === undefined) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="animate-pulse text-zinc-500">Loading...</div>
       </div>
     );
   }
@@ -75,11 +75,11 @@ export default function SharePage() {
   // Link not found or expired
   if (shareInfo === null || (shareInfo as any).expired) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-600" />
+            <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-red-400" />
             </div>
             <CardTitle>Link expired or invalid</CardTitle>
             <CardDescription>
@@ -101,11 +101,11 @@ export default function SharePage() {
   // Password required
   if (videoData?.hasPassword && !isPasswordVerified) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <Lock className="h-6 w-6 text-neutral-600" />
+            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+              <Lock className="h-6 w-6 text-zinc-400" />
             </div>
             <CardTitle>Password required</CardTitle>
             <CardDescription>
@@ -137,11 +137,11 @@ export default function SharePage() {
   // Video not found or not ready
   if (!videoData?.video) {
     return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <Video className="h-6 w-6 text-neutral-600" />
+            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+              <Video className="h-6 w-6 text-zinc-400" />
             </div>
             <CardTitle>Video not available</CardTitle>
             <CardDescription>
@@ -156,14 +156,14 @@ export default function SharePage() {
   const { video, allowDownload } = videoData;
 
   return (
-    <div className="min-h-screen bg-neutral-900">
+    <div className="min-h-screen bg-zinc-950">
       {/* Header */}
-      <header className="bg-neutral-800 border-b border-neutral-700 px-6 py-4">
+      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <Link
               href="/"
-              className="text-neutral-400 hover:text-white text-sm flex items-center gap-2"
+              className="text-zinc-400 hover:text-white text-sm flex items-center gap-2"
             >
               <Video className="h-4 w-4" />
               ReviewFlow
@@ -185,9 +185,9 @@ export default function SharePage() {
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-white">{video.title}</h1>
           {video.description && (
-            <p className="text-neutral-400 mt-1">{video.description}</p>
+            <p className="text-zinc-400 mt-1">{video.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-sm text-neutral-500">
+          <div className="flex items-center gap-4 mt-2 text-sm text-zinc-500">
             {video.duration && <span>{formatDuration(video.duration)}</span>}
           </div>
         </div>
@@ -199,21 +199,21 @@ export default function SharePage() {
             className="rounded-lg overflow-hidden"
           />
         ) : playbackError ? (
-          <div className="aspect-video bg-neutral-800 rounded-lg flex items-center justify-center">
+          <div className="aspect-video bg-zinc-900 rounded-lg flex items-center justify-center">
             <p className="text-red-500">{playbackError}</p>
           </div>
         ) : (
-          <div className="aspect-video bg-neutral-800 rounded-lg flex items-center justify-center">
-            <p className="text-neutral-500">Loading video...</p>
+          <div className="aspect-video bg-zinc-900 rounded-lg flex items-center justify-center">
+            <p className="text-zinc-500">Loading video...</p>
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-800 px-6 py-4 mt-8">
-        <div className="max-w-6xl mx-auto text-center text-sm text-neutral-500">
+      <footer className="border-t border-zinc-800/50 px-6 py-4 mt-8">
+        <div className="max-w-6xl mx-auto text-center text-sm text-zinc-500">
           Shared via{" "}
-          <Link href="/" className="text-neutral-400 hover:text-white">
+          <Link href="/" className="text-zinc-400 hover:text-white">
             ReviewFlow
           </Link>
         </div>

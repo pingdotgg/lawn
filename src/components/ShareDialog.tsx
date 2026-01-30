@@ -100,12 +100,12 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
         </DialogHeader>
 
         {/* Create new link section */}
-        <div className="space-y-4 border rounded-lg p-4 bg-neutral-50">
+        <div className="space-y-4 border rounded-lg p-4 bg-zinc-800/50">
           <h3 className="font-medium text-sm">Create new link</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-neutral-500">Expiration</label>
+              <label className="text-sm text-zinc-500">Expiration</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between mt-1">
@@ -148,7 +148,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
             </div>
 
             <div>
-              <label className="text-sm text-neutral-500">Allow download</label>
+              <label className="text-sm text-zinc-500">Allow download</label>
               <Button
                 variant={newLinkOptions.allowDownload ? "default" : "outline"}
                 className="w-full mt-1"
@@ -166,7 +166,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
           </div>
 
           <div>
-            <label className="text-sm text-neutral-500">Password (optional)</label>
+            <label className="text-sm text-zinc-500">Password (optional)</label>
             <Input
               type="password"
               placeholder="Leave empty for no password"
@@ -193,9 +193,9 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
         <div className="space-y-2">
           <h3 className="font-medium text-sm">Active links</h3>
           {shareLinks === undefined ? (
-            <p className="text-sm text-neutral-500">Loading...</p>
+            <p className="text-sm text-zinc-500">Loading...</p>
           ) : shareLinks.length === 0 ? (
-            <p className="text-sm text-neutral-500">No share links yet</p>
+            <p className="text-sm text-zinc-500">No share links yet</p>
           ) : (
             <div className="space-y-2">
               {shareLinks.map((link) => (
@@ -205,14 +205,14 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <code className="text-sm bg-neutral-100 px-2 py-0.5 rounded truncate max-w-[200px]">
+                      <code className="text-sm bg-zinc-800 px-2 py-0.5 rounded truncate max-w-[200px]">
                         /share/{link.token}
                       </code>
                       {link.isExpired && (
                         <Badge variant="destructive">Expired</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-neutral-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
                         {link.viewCount} views

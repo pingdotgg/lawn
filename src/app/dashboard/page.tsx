@@ -17,7 +17,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  // Redirect to first team if user has teams
   useEffect(() => {
     if (teams && teams.length > 0 && teams[0]) {
       router.push(`/dashboard/${teams[0].slug}`);
@@ -27,7 +26,7 @@ export default function DashboardPage() {
   if (teams === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+        <div className="text-zinc-500">Loading...</div>
       </div>
     );
   }
@@ -35,14 +34,14 @@ export default function DashboardPage() {
   if (teams.length === 0) {
     return (
       <div className="flex items-center justify-center h-full p-8">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <Users className="h-6 w-6 text-neutral-600" />
+        <Card className="max-w-sm w-full text-center">
+          <CardHeader>
+            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center mb-2">
+              <Users className="h-6 w-6 text-zinc-500" />
             </div>
-            <CardTitle>Create your first team</CardTitle>
+            <CardTitle className="text-lg">Create your first team</CardTitle>
             <CardDescription>
-              Teams help you organize projects and collaborate with others on video reviews.
+              Teams help you organize projects and collaborate on video reviews.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -50,7 +49,7 @@ export default function DashboardPage() {
               className="w-full"
               onClick={() => setCreateDialogOpen(true)}
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Create a team
             </Button>
           </CardContent>
@@ -64,42 +63,49 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Your teams</h1>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New team
-        </Button>
-      </div>
+    <div className="h-full flex flex-col">
+      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-100">Your teams</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">Select a team to continue</p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            New team
+          </Button>
+        </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {teams.map(
-          (team) =>
-            team && (
-              <Card
-                key={team._id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => router.push(`/dashboard/${team.slug}`)}
-              >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{team.name}</CardTitle>
-                    <Badge variant="secondary">{team.plan}</Badge>
-                  </div>
-                  <CardDescription>
-                    {team.role === "owner" ? "Owner" : team.role}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="ghost" className="w-full justify-between">
-                    Open team
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            )
-        )}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {teams.map(
+            (team) =>
+              team && (
+                <Card
+                  key={team._id}
+                  className="group cursor-pointer hover:border-zinc-700 transition-colors"
+                  onClick={() => router.push(`/dashboard/${team.slug}`)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{team.name}</CardTitle>
+                      <Badge variant="secondary">{team.plan}</Badge>
+                    </div>
+                    <CardDescription className="capitalize">
+                      {team.role}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between text-sm text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                      <span>Open team</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+          )}
+        </div>
       </div>
 
       <CreateTeamDialog

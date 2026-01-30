@@ -1,148 +1,242 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette - deep blacks and grays */
+  --background: #09090b;
+  --background-subtle: #0c0c0e;
+  --surface: #121214;
+  --surface-elevated: #18181b;
+  --surface-hover: #1f1f23;
+
+  /* Borders - subtle separation */
+  --border: #27272a;
+  --border-subtle: #1c1c1f;
+
+  /* Text hierarchy */
+  --foreground: #fafafa;
+  --foreground-muted: #a1a1aa;
+  --foreground-subtle: #71717a;
+
+  /* Accent - warm amber for creative tools */
+  --accent: #f59e0b;
+  --accent-muted: #d97706;
+  --accent-subtle: rgba(245, 158, 11, 0.15);
+
+  /* Semantic colors */
+  --destructive: #ef4444;
+  --destructive-subtle: rgba(239, 68, 68, 0.15);
+  --success: #22c55e;
+  --success-subtle: rgba(34, 197, 94, 0.15);
+
+  /* Focus states */
+  --ring: var(--accent);
+  --ring-offset: var(--background);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-subtle);
 }
 
 /* Video.js customizations */
 .video-js {
   font-family: inherit;
+  background-color: #000;
 }
 
 .video-js .vjs-big-play-button {
-  background-color: rgba(0, 0, 0, 0.6);
-  border: none;
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  width: 80px;
-  height: 80px;
-  line-height: 80px;
-  margin-top: -40px;
-  margin-left: -40px;
+  width: 72px;
+  height: 72px;
+  line-height: 72px;
+  margin-top: -36px;
+  margin-left: -36px;
+  transition: all 0.2s ease;
 }
 
 .video-js .vjs-big-play-button:hover {
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.05);
 }
 
 .video-js .vjs-control-bar {
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  height: 40px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+  height: 44px;
+  padding: 0 8px;
 }
 
 .video-js .vjs-progress-control {
   position: absolute;
-  bottom: 40px;
+  bottom: 44px;
   left: 0;
   right: 0;
   width: 100%;
-  height: 10px;
+  height: 12px;
+  padding: 0 12px;
 }
 
 .video-js .vjs-progress-holder {
   height: 4px;
   margin: 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .video-js .vjs-play-progress {
-  background-color: #3b82f6;
+  background-color: var(--accent);
+  border-radius: 2px;
+}
+
+.video-js .vjs-play-progress:before {
+  display: none;
 }
 
 .video-js .vjs-load-progress {
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
 }
 
 .video-js .vjs-slider:focus {
   box-shadow: none;
 }
 
+.video-js .vjs-time-control {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: var(--foreground-muted);
+}
+
 /* Animation keyframes */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @keyframes zoom-in {
-  from {
-    transform: scale(0.95);
-  }
-  to {
-    transform: scale(1);
-  }
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 @keyframes zoom-out {
-  from {
-    transform: scale(1);
-  }
-  to {
-    transform: scale(0.95);
-  }
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.96); opacity: 0; }
 }
 
 @keyframes slide-in-from-top {
-  from {
-    transform: translateY(-10px);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes slide-in-from-bottom {
-  from {
-    transform: translateY(10px);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes slide-in-from-left {
-  from {
-    transform: translateX(-10px);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(-8px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 @keyframes slide-in-from-right {
-  from {
-    transform: translateX(10px);
-  }
-  to {
-    transform: translateX(0);
-  }
+  from { transform: translateX(8px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-subtle); }
+  50% { box-shadow: 0 0 0 4px var(--accent-subtle); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 .animate-in {
-  animation-duration: 150ms;
+  animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   animation-fill-mode: forwards;
 }
@@ -153,34 +247,37 @@ body {
   animation-fill-mode: forwards;
 }
 
-.fade-in-0 {
-  animation-name: fade-in;
+.fade-in-0 { animation-name: fade-in; }
+.fade-out-0 { animation-name: fade-out; }
+.zoom-in-95 { animation-name: zoom-in; }
+.zoom-out-95 { animation-name: zoom-out; }
+.slide-in-from-top-2 { animation-name: slide-in-from-top; }
+.slide-in-from-bottom-2 { animation-name: slide-in-from-bottom; }
+.slide-in-from-left-2 { animation-name: slide-in-from-left; }
+.slide-in-from-right-2 { animation-name: slide-in-from-right; }
+
+/* Utility animations */
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
-.fade-out-0 {
-  animation-name: fade-out;
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 0%,
+    var(--surface-elevated) 50%,
+    var(--surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
-.zoom-in-95 {
-  animation-name: zoom-in;
+/* Focus visible styles */
+.focus-ring {
+  outline: none;
 }
 
-.zoom-out-95 {
-  animation-name: zoom-out;
-}
-
-.slide-in-from-top-2 {
-  animation-name: slide-in-from-top;
-}
-
-.slide-in-from-bottom-2 {
-  animation-name: slide-in-from-bottom;
-}
-
-.slide-in-from-left-2 {
-  animation-name: slide-in-from-left;
-}
-
-.slide-in-from-right-2 {
-  animation-name: slide-in-from-right;
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

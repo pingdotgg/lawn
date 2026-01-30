@@ -33,7 +33,7 @@ export default function TeamSettingsPage() {
   if (team === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+        <div className="animate-pulse text-zinc-500">Loading...</div>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export default function TeamSettingsPage() {
   if (team === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-neutral-500">Team not found</div>
+        <div className="text-zinc-500">Team not found</div>
       </div>
     );
   }
@@ -89,13 +89,13 @@ export default function TeamSettingsPage() {
     <div className="p-8 max-w-3xl">
       <Link
         href={`/dashboard/${teamSlug}`}
-        className="inline-flex items-center text-sm text-neutral-500 hover:text-neutral-700 mb-6"
+        className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-300 mb-6 transition-colors"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
         Back to team
       </Link>
 
-      <h1 className="text-2xl font-bold mb-6">Team Settings</h1>
+      <h1 className="text-2xl font-bold text-zinc-100 mb-6">Team Settings</h1>
 
       <div className="space-y-6">
         {/* General Settings */}
@@ -106,7 +106,7 @@ export default function TeamSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Team name</label>
+              <label className="text-sm font-medium text-zinc-300">Team name</label>
               {isEditingName ? (
                 <div className="flex gap-2 mt-1">
                   <Input
@@ -121,7 +121,7 @@ export default function TeamSettingsPage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-between mt-1">
-                  <p>{team.name}</p>
+                  <p className="text-zinc-100">{team.name}</p>
                   {isAdmin && (
                     <Button
                       variant="outline"
@@ -141,8 +141,8 @@ export default function TeamSettingsPage() {
             <Separator />
 
             <div>
-              <label className="text-sm font-medium">Team URL</label>
-              <p className="text-sm text-neutral-500 mt-1">
+              <label className="text-sm font-medium text-zinc-300">Team URL</label>
+              <p className="text-sm text-zinc-500 mt-1">
                 {typeof window !== "undefined" ? window.location.origin : ""}/{team.slug}
               </p>
             </div>
@@ -175,14 +175,14 @@ export default function TeamSettingsPage() {
                   className="flex items-center justify-between py-2"
                 >
                   <div>
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-sm text-neutral-500">{member.email}</p>
+                    <p className="font-medium text-zinc-100">{member.name}</p>
+                    <p className="text-sm text-zinc-500">{member.email}</p>
                   </div>
                   <Badge variant="secondary">{member.role}</Badge>
                 </div>
               ))}
               {members && members.length > 5 && (
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-zinc-500">
                   And {members.length - 5} more...
                 </p>
               )}
@@ -207,17 +207,17 @@ export default function TeamSettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center p-4 bg-neutral-50 rounded-lg">
-                <p className="text-2xl font-bold">{currentPlanFeatures.projects}</p>
-                <p className="text-sm text-neutral-500">Projects</p>
+              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.projects}</p>
+                <p className="text-sm text-zinc-500">Projects</p>
               </div>
-              <div className="text-center p-4 bg-neutral-50 rounded-lg">
-                <p className="text-2xl font-bold">{currentPlanFeatures.storage}</p>
-                <p className="text-sm text-neutral-500">Storage</p>
+              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.storage}</p>
+                <p className="text-sm text-zinc-500">Storage</p>
               </div>
-              <div className="text-center p-4 bg-neutral-50 rounded-lg">
-                <p className="text-2xl font-bold">{currentPlanFeatures.members}</p>
-                <p className="text-sm text-neutral-500">Members</p>
+              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.members}</p>
+                <p className="text-sm text-zinc-500">Members</p>
               </div>
             </div>
 
@@ -244,9 +244,9 @@ export default function TeamSettingsPage() {
 
         {/* Danger Zone */}
         {isOwner && (
-          <Card className="border-red-200">
+          <Card className="border-red-500/30">
             <CardHeader>
-              <CardTitle className="text-red-600">Danger Zone</CardTitle>
+              <CardTitle className="text-red-400">Danger Zone</CardTitle>
               <CardDescription>
                 Irreversible and destructive actions
               </CardDescription>

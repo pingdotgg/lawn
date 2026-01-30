@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Folder, Plus, Video, MoreVertical, Trash2, Users } from "lucide-react";
+import { Folder, Plus, MoreVertical, Trash2, Users } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +51,7 @@ export default function TeamPage() {
   if (team === undefined || projects === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-neutral-500">Loading...</div>
+        <div className="text-zinc-500">Loading...</div>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function TeamPage() {
   if (team === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-neutral-500">Team not found</div>
+        <div className="text-zinc-500">Team not found</div>
       </div>
     );
   }
@@ -97,106 +97,113 @@ export default function TeamPage() {
   const canCreateProject = team.role !== "viewer";
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{team.name}</h1>
-          <p className="text-neutral-500">Projects</p>
-        </div>
-        <div className="flex gap-2">
-          {canManageMembers && (
-            <Button variant="outline" onClick={() => setMemberDialogOpen(true)}>
-              <Users className="mr-2 h-4 w-4" />
-              Members
-            </Button>
-          )}
-          {canCreateProject && (
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New project
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {projects.length === 0 ? (
-        <Card className="max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
-              <Folder className="h-6 w-6 text-neutral-600" />
-            </div>
-            <CardTitle>No projects yet</CardTitle>
-            <CardDescription>
-              Create your first project to start uploading and reviewing videos.
-            </CardDescription>
-          </CardHeader>
-          {canCreateProject && (
-            <CardContent>
-              <Button
-                className="w-full"
-                onClick={() => setCreateDialogOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Create project
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-100">{team.name}</h1>
+            <p className="text-zinc-500 text-sm mt-0.5">Projects</p>
+          </div>
+          <div className="flex gap-2">
+            {canManageMembers && (
+              <Button variant="outline" onClick={() => setMemberDialogOpen(true)}>
+                <Users className="mr-1.5 h-4 w-4" />
+                Members
               </Button>
-            </CardContent>
-          )}
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <Card
-              key={project._id}
-              className="cursor-pointer hover:shadow-md transition-shadow group"
-              onClick={() => router.push(`/dashboard/${teamSlug}/${project._id}`)}
-            >
-              <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                <div>
-                  <CardTitle className="text-lg">{project.name}</CardTitle>
-                  <CardDescription className="flex items-center gap-1 mt-1">
-                    <Video className="h-3 w-3" />
-                    {project.videoCount} video{project.videoCount !== 1 ? "s" : ""}
-                  </CardDescription>
-                </div>
-                {canCreateProject && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteProject(project._id);
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </CardHeader>
-            </Card>
-          ))}
+            )}
+            {canCreateProject && (
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                New project
+              </Button>
+            )}
+          </div>
         </div>
-      )}
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-6">
+        {projects.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <Card className="max-w-sm text-center">
+              <CardHeader>
+                <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center mb-2">
+                  <Folder className="h-6 w-6 text-zinc-500" />
+                </div>
+                <CardTitle className="text-lg">No projects yet</CardTitle>
+                <CardDescription>
+                  Create your first project to start uploading videos.
+                </CardDescription>
+              </CardHeader>
+              {canCreateProject && (
+                <CardContent>
+                  <Button
+                    className="w-full"
+                    onClick={() => setCreateDialogOpen(true)}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Create project
+                  </Button>
+                </CardContent>
+              )}
+            </Card>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {projects.map((project) => (
+              <Card
+                key={project._id}
+                className="group cursor-pointer hover:border-zinc-700 transition-colors"
+                onClick={() => router.push(`/dashboard/${teamSlug}/${project._id}`)}
+              >
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base truncate">{project.name}</CardTitle>
+                    <CardDescription className="mt-1">
+                      {project.videoCount} video{project.videoCount !== 1 ? "s" : ""}
+                    </CardDescription>
+                  </div>
+                  {canCreateProject && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-red-400 focus:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProject(project._id);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent>
           <form onSubmit={handleCreateProject}>
             <DialogHeader>
-              <DialogTitle>Create a new project</DialogTitle>
+              <DialogTitle>Create project</DialogTitle>
               <DialogDescription>
                 Projects help you organize related videos together.
               </DialogDescription>
@@ -221,7 +228,7 @@ export default function TeamPage() {
                 type="submit"
                 disabled={!newProjectName.trim() || isLoading}
               >
-                {isLoading ? "Creating..." : "Create project"}
+                {isLoading ? "Creating..." : "Create"}
               </Button>
             </DialogFooter>
           </form>
