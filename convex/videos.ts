@@ -1,0 +1,250 @@
+import { v } from "convex/values";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { requireProjectAccess, requireVideoAccess, getUser } from "./auth";
+
+export const create = mutation({
+  args: {
+    projectId: v.id("projects"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    contentType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireProjectAccess(ctx, args.projectId, "member");
+
+    const videoId = await ctx.db.insert("videos", {
+      projectId: args.projectId,
+      uploadedBy: user._id,
+      title: args.title,
+      description: args.description,
+      fileSize: args.fileSize,
+      contentType: args.contentType,
+      status: "uploading",
+    });
+
+    return videoId;
+  },
+});
+
+export const list = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await requireProjectAccess(ctx, args.projectId);
+
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .order("desc")
+      .collect();
+
+    const videosWithUploader = await Promise.all(
+      videos.map(async (video) => {
+        const uploader = await ctx.db.get(video.uploadedBy);
+        return {
+          ...video,
+          uploaderName: uploader?.name ?? "Unknown",
+        };
+      })
+    );
+
+    return videosWithUploader;
+  },
+});
+
+export const get = query({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    const { video, membership } = await requireVideoAccess(ctx, args.videoId);
+    const uploader = await ctx.db.get(video.uploadedBy);
+    return {
+      ...video,
+      uploaderName: uploader?.name ?? "Unknown",
+      role: membership.role,
+    };
+  },
+});
+
+export const update = mutation({
+  args: {
+    videoId: v.id("videos"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+
+    const updates: Partial<{ title: string; description: string }> = {};
+    if (args.title !== undefined) updates.title = args.title;
+    if (args.description !== undefined) updates.description = args.description;
+
+    await ctx.db.patch(args.videoId, updates);
+  },
+});
+
+export const remove = mutation({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "admin");
+
+    // Delete comments
+    const comments = await ctx.db
+      .query("comments")
+      .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
+      .collect();
+    for (const comment of comments) {
+      await ctx.db.delete(comment._id);
+    }
+
+    // Delete share links
+    const shareLinks = await ctx.db
+      .query("shareLinks")
+      .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
+      .collect();
+    for (const link of shareLinks) {
+      await ctx.db.delete(link._id);
+    }
+
+    // TODO: Delete from S3 as well
+    await ctx.db.delete(args.videoId);
+  },
+});
+
+// Internal mutation to set upload info
+export const setUploadInfo = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    s3Key: v.string(),
+    s3UploadId: v.string(),
+    fileSize: v.number(),
+    contentType: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      s3Key: args.s3Key,
+      s3UploadId: args.s3UploadId,
+      fileSize: args.fileSize,
+      contentType: args.contentType,
+      status: "uploading",
+    });
+  },
+});
+
+// Internal mutation to mark video as ready
+export const markAsReady = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    s3Key: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      s3Key: args.s3Key,
+      s3UploadId: undefined, // Clear upload ID
+      status: "ready",
+    });
+  },
+});
+
+// Internal mutation to mark video as failed
+export const markAsFailed = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      status: "failed",
+    });
+  },
+});
+
+// Query to get video for playback (used by actions)
+export const getVideoForPlayback = query({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    return video;
+  },
+});
+
+// Get video by share token (public, no auth required)
+export const getByShareToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const shareLink = await ctx.db
+      .query("shareLinks")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+
+    if (!shareLink) return null;
+
+    // Check expiration
+    if (shareLink.expiresAt && shareLink.expiresAt < Date.now()) {
+      return null;
+    }
+
+    const video = await ctx.db.get(shareLink.videoId);
+    if (!video || video.status !== "ready") return null;
+
+    return {
+      video: {
+        _id: video._id,
+        title: video.title,
+        description: video.description,
+        duration: video.duration,
+        thumbnailUrl: video.thumbnailUrl,
+        s3Key: video.s3Key,
+      },
+      allowDownload: shareLink.allowDownload,
+      hasPassword: !!shareLink.password,
+    };
+  },
+});
+
+// Verify share link password
+export const verifySharePassword = mutation({
+  args: {
+    token: v.string(),
+    password: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const shareLink = await ctx.db
+      .query("shareLinks")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+
+    if (!shareLink || shareLink.password !== args.password) {
+      return false;
+    }
+
+    return true;
+  },
+});
+
+// Increment view count for share link
+export const incrementViewCount = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const shareLink = await ctx.db
+      .query("shareLinks")
+      .withIndex("by_token", (q) => q.eq("token", args.token))
+      .unique();
+
+    if (shareLink) {
+      await ctx.db.patch(shareLink._id, {
+        viewCount: shareLink.viewCount + 1,
+      });
+    }
+  },
+});
+
+// Update video duration (called after client gets video metadata)
+export const updateDuration = mutation({
+  args: {
+    videoId: v.id("videos"),
+    duration: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, { duration: args.duration });
+  },
+});
