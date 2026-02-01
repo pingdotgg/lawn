@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Check, CreditCard, Trash2, Users } from "lucide-react";
+import { ArrowLeft, CreditCard, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 
@@ -33,7 +33,7 @@ export default function TeamSettingsPage() {
   if (team === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="animate-pulse text-zinc-500">Loading...</div>
+        <div className="text-[#888]">Loading...</div>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export default function TeamSettingsPage() {
   if (team === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Team not found</div>
+        <div className="text-[#888]">Team not found</div>
       </div>
     );
   }
@@ -89,13 +89,13 @@ export default function TeamSettingsPage() {
     <div className="p-8 max-w-3xl">
       <Link
         href={`/dashboard/${teamSlug}`}
-        className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-300 mb-6 transition-colors"
+        className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
         Back to team
       </Link>
 
-      <h1 className="text-2xl font-bold text-zinc-100 mb-6">Team Settings</h1>
+      <h1 className="text-2xl font-black text-[#1a1a1a] mb-6">Team Settings</h1>
 
       <div className="space-y-6">
         {/* General Settings */}
@@ -106,7 +106,7 @@ export default function TeamSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-zinc-300">Team name</label>
+              <label className="text-sm font-bold text-[#1a1a1a]">Team name</label>
               {isEditingName ? (
                 <div className="flex gap-2 mt-1">
                   <Input
@@ -121,7 +121,7 @@ export default function TeamSettingsPage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-zinc-100">{team.name}</p>
+                  <p className="text-[#1a1a1a]">{team.name}</p>
                   {isAdmin && (
                     <Button
                       variant="outline"
@@ -141,8 +141,8 @@ export default function TeamSettingsPage() {
             <Separator />
 
             <div>
-              <label className="text-sm font-medium text-zinc-300">Team URL</label>
-              <p className="text-sm text-zinc-500 mt-1">
+              <label className="text-sm font-bold text-[#1a1a1a]">Team URL</label>
+              <p className="text-sm text-[#888] mt-1">
                 {typeof window !== "undefined" ? window.location.origin : ""}/{team.slug}
               </p>
             </div>
@@ -172,17 +172,17 @@ export default function TeamSettingsPage() {
               {members?.slice(0, 5).map((member) => (
                 <div
                   key={member._id}
-                  className="flex items-center justify-between py-2"
+                  className="flex items-center justify-between py-2 border-b-2 border-[#e8e8e0] last:border-0"
                 >
                   <div>
-                    <p className="font-medium text-zinc-100">{member.name}</p>
-                    <p className="text-sm text-zinc-500">{member.email}</p>
+                    <p className="font-bold text-[#1a1a1a]">{member.name}</p>
+                    <p className="text-sm text-[#888]">{member.email}</p>
                   </div>
                   <Badge variant="secondary">{member.role}</Badge>
                 </div>
               ))}
               {members && members.length > 5 && (
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-[#888]">
                   And {members.length - 5} more...
                 </p>
               )}
@@ -207,28 +207,25 @@ export default function TeamSettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.projects}</p>
-                <p className="text-sm text-zinc-500">Projects</p>
+              <div className="text-center p-4 bg-[#e8e8e0] border-2 border-[#1a1a1a]">
+                <p className="text-2xl font-black text-[#1a1a1a]">{currentPlanFeatures.projects}</p>
+                <p className="text-sm text-[#888]">Projects</p>
               </div>
-              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.storage}</p>
-                <p className="text-sm text-zinc-500">Storage</p>
+              <div className="text-center p-4 bg-[#e8e8e0] border-2 border-[#1a1a1a]">
+                <p className="text-2xl font-black text-[#1a1a1a]">{currentPlanFeatures.storage}</p>
+                <p className="text-sm text-[#888]">Storage</p>
               </div>
-              <div className="text-center p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                <p className="text-2xl font-bold text-zinc-100">{currentPlanFeatures.members}</p>
-                <p className="text-sm text-zinc-500">Members</p>
+              <div className="text-center p-4 bg-[#e8e8e0] border-2 border-[#1a1a1a]">
+                <p className="text-2xl font-black text-[#1a1a1a]">{currentPlanFeatures.members}</p>
+                <p className="text-sm text-[#888]">Members</p>
               </div>
             </div>
 
             {team.plan === "free" && isOwner && (
               <div className="space-y-2">
-                <Button className="w-full">
+                <Button variant="primary" className="w-full">
                   <CreditCard className="mr-2 h-4 w-4" />
-                  Upgrade to Pro - $19/mo
-                </Button>
-                <Button variant="outline" className="w-full">
-                  Upgrade to Team - $49/mo
+                  Upgrade to Pro - $5/mo
                 </Button>
               </div>
             )}
@@ -244,9 +241,9 @@ export default function TeamSettingsPage() {
 
         {/* Danger Zone */}
         {isOwner && (
-          <Card className="border-red-500/30">
+          <Card className="border-[#dc2626]">
             <CardHeader>
-              <CardTitle className="text-red-400">Danger Zone</CardTitle>
+              <CardTitle className="text-[#dc2626]">Danger Zone</CardTitle>
               <CardDescription>
                 Irreversible and destructive actions
               </CardDescription>

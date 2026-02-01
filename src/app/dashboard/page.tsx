@@ -26,7 +26,7 @@ export default function DashboardPage() {
   if (teams === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Loading...</div>
+        <div className="text-[#888]">Loading...</div>
       </div>
     );
   }
@@ -36,8 +36,8 @@ export default function DashboardPage() {
       <div className="flex items-center justify-center h-full p-8">
         <Card className="max-w-sm w-full text-center">
           <CardHeader>
-            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center mb-2">
-              <Users className="h-6 w-6 text-zinc-500" />
+            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
+              <Users className="h-6 w-6 text-[#888]" />
             </div>
             <CardTitle className="text-lg">Create your first team</CardTitle>
             <CardDescription>
@@ -64,11 +64,11 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
+      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-zinc-100">Your teams</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">Select a team to continue</p>
+            <h1 className="text-xl font-black text-[#1a1a1a]">Your teams</h1>
+            <p className="text-[#888] text-sm mt-0.5">Select a team to continue</p>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
@@ -84,7 +84,7 @@ export default function DashboardPage() {
               team && (
                 <Card
                   key={team._id}
-                  className="group cursor-pointer hover:border-zinc-700 transition-colors"
+                  className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
                   onClick={() => router.push(`/dashboard/${team.slug}`)}
                 >
                   <CardHeader className="pb-3">
@@ -97,7 +97,7 @@ export default function DashboardPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between text-sm text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                    <div className="flex items-center justify-between text-sm text-[#888] group-hover:text-[#1a1a1a] transition-colors">
                       <span>Open team</span>
                       <ArrowRight className="h-4 w-4" />
                     </div>

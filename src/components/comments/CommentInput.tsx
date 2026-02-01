@@ -67,9 +67,9 @@ export function CommentInput({
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       {showTimestamp && (
-        <div className="flex items-center gap-2 text-sm text-[#4a6a4a]">
+        <div className="flex items-center gap-2 text-sm text-[#888]">
           <span>Comment at</span>
-          <span className="font-mono text-[#7cb87c]">
+          <span className="font-mono text-[#2d5a2d] font-bold">
             {formatTimestamp(timestampSeconds)}
           </span>
         </div>
@@ -105,7 +105,7 @@ export function CommentInput({
           </Button>
         </div>
       </div>
-      <p className="text-[11px] text-[#3a5a3a]">
+      <p className="text-[11px] text-[#888]">
         {typeof navigator !== "undefined" && navigator.platform?.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to submit
       </p>
     </form>

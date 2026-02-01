@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Folder, Plus, MoreVertical, Trash2, Users } from "lucide-react";
+import { Folder, Plus, MoreVertical, Trash2, Users, ArrowRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +51,7 @@ export default function TeamPage() {
   if (team === undefined || projects === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Loading...</div>
+        <div className="text-[#888]">Loading...</div>
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function TeamPage() {
   if (team === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Team not found</div>
+        <div className="text-[#888]">Team not found</div>
       </div>
     );
   }
@@ -99,11 +99,11 @@ export default function TeamPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
+      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-zinc-100">{team.name}</h1>
-            <p className="text-zinc-500 text-sm mt-0.5">Projects</p>
+            <h1 className="text-xl font-black text-[#1a1a1a]">{team.name}</h1>
+            <p className="text-[#888] text-sm mt-0.5">Projects</p>
           </div>
           <div className="flex gap-2">
             {canManageMembers && (
@@ -128,8 +128,8 @@ export default function TeamPage() {
           <div className="h-full flex items-center justify-center">
             <Card className="max-w-sm text-center">
               <CardHeader>
-                <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center mb-2">
-                  <Folder className="h-6 w-6 text-zinc-500" />
+                <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
+                  <Folder className="h-6 w-6 text-[#888]" />
                 </div>
                 <CardTitle className="text-lg">No projects yet</CardTitle>
                 <CardDescription>
@@ -154,7 +154,7 @@ export default function TeamPage() {
             {projects.map((project) => (
               <Card
                 key={project._id}
-                className="group cursor-pointer hover:border-zinc-700 transition-colors"
+                className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
                 onClick={() => router.push(`/dashboard/${teamSlug}/${project._id}`)}
               >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
@@ -180,7 +180,7 @@ export default function TeamPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          className="text-red-400 focus:text-red-400"
+                          className="text-[#dc2626] focus:text-[#dc2626]"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteProject(project._id);
@@ -193,6 +193,12 @@ export default function TeamPage() {
                     </DropdownMenu>
                   )}
                 </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm text-[#888] group-hover:text-[#1a1a1a] transition-colors">
+                    <span>Open project</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </CardContent>
               </Card>
             ))}
           </div>

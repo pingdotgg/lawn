@@ -248,7 +248,7 @@ export default function ProjectPage() {
   if (project === undefined || videos === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Loading...</div>
+        <div className="text-[#888]">Loading...</div>
       </div>
     );
   }
@@ -256,7 +256,7 @@ export default function ProjectPage() {
   if (project === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500">Project not found</div>
+        <div className="text-[#888]">Project not found</div>
       </div>
     );
   }
@@ -266,32 +266,32 @@ export default function ProjectPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4">
+      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href={`/dashboard/${teamSlug}`}
-              className="p-2 -ml-2 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-zinc-800/50"
+              className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <div>
-              <h1 className="text-lg font-semibold text-zinc-100">{project.name}</h1>
+              <h1 className="text-lg font-black text-[#1a1a1a]">{project.name}</h1>
               {project.description && (
-                <p className="text-zinc-500 text-sm">{project.description}</p>
+                <p className="text-[#888] text-sm">{project.description}</p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
             {/* View toggle */}
-            <div className="flex items-center border border-zinc-800 rounded-lg p-0.5">
+            <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
               <button
                 onClick={() => setViewMode("grid")}
                 className={cn(
-                  "p-1.5 rounded-md transition-colors",
+                  "p-1.5 transition-colors",
                   viewMode === "grid"
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#1a1a1a] text-[#f0f0e8]"
+                    : "text-[#888] hover:text-[#1a1a1a]"
                 )}
               >
                 <Grid3X3 className="h-4 w-4" />
@@ -299,10 +299,10 @@ export default function ProjectPage() {
               <button
                 onClick={() => setViewMode("list")}
                 className={cn(
-                  "p-1.5 rounded-md transition-colors",
+                  "p-1.5 transition-colors",
                   viewMode === "list"
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#1a1a1a] text-[#f0f0e8]"
+                    : "text-[#888] hover:text-[#1a1a1a]"
                 )}
               >
                 <LayoutList className="h-4 w-4" />
@@ -315,7 +315,7 @@ export default function ProjectPage() {
 
       {/* Upload progress */}
       {uploads.length > 0 && (
-        <div className="flex-shrink-0 border-b border-zinc-800/50 px-6 py-4 space-y-3">
+        <div className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4 space-y-3">
           {uploads.map((upload) => (
             <UploadProgress
               key={upload.id}
@@ -354,7 +354,7 @@ export default function ProjectPage() {
                     router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
                   }
                 >
-                  <div className="relative aspect-video bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800/50 hover:border-zinc-700 transition-colors">
+                  <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors">
                     {video.thumbnailUrl ? (
                       <Image
                         src={video.thumbnailUrl}
@@ -364,7 +364,7 @@ export default function ProjectPage() {
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Play className="h-8 w-8 text-zinc-700" />
+                        <Play className="h-8 w-8 text-[#888]" />
                       </div>
                     )}
                     {video.status === "ready" && (
@@ -374,7 +374,7 @@ export default function ProjectPage() {
                           e.stopPropagation();
                           void handleDownloadVideo(video._id, video.title);
                         }}
-                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/90 opacity-80 transition hover:opacity-100 hover:border-white/30 hover:bg-black/75"
+                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-8 w-8 items-center justify-center border-2 border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a] opacity-80 transition hover:opacity-100 hover:bg-[#e8e8e0]"
                         aria-label={`Download ${video.title}`}
                         title="Download"
                       >
@@ -382,12 +382,12 @@ export default function ProjectPage() {
                       </button>
                     )}
                     {video.status === "ready" && video.duration && (
-                      <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-zinc-200 text-[10px] font-mono px-1 py-0.5 rounded">
+                      <div className="absolute bottom-1.5 right-1.5 bg-[#1a1a1a] text-[#f0f0e8] text-[10px] font-mono px-1 py-0.5">
                         {formatDuration(video.duration)}
                       </div>
                     )}
                     {video.status !== "ready" && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
                         <Badge
                           variant={
                             video.status === "failed" ? "destructive" : "secondary"
@@ -401,7 +401,7 @@ export default function ProjectPage() {
                       </div>
                     )}
                     {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           asChild
@@ -410,7 +410,7 @@ export default function ProjectPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 bg-black/50 hover:bg-black/70 text-white"
+                            className="h-8 w-8 bg-[#f0f0e8] hover:bg-[#e8e8e0] text-[#1a1a1a]"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
@@ -437,7 +437,7 @@ export default function ProjectPage() {
                           </DropdownMenuItem>
                           {canUpload && (
                             <DropdownMenuItem
-                              className="text-red-400 focus:text-red-400"
+                              className="text-[#dc2626] focus:text-[#dc2626]"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteVideo(video._id);
@@ -452,8 +452,8 @@ export default function ProjectPage() {
                     </div>
                   </div>
                   <div className="mt-1.5 px-0.5">
-                    <p className="text-sm text-zinc-200 truncate">{video.title}</p>
-                    <p className="text-[11px] text-zinc-600 truncate">
+                    <p className="text-sm text-[#1a1a1a] font-bold truncate">{video.title}</p>
+                    <p className="text-[11px] text-[#888] truncate">
                       {formatRelativeTime(video._creationTime)}
                     </p>
                   </div>
@@ -463,17 +463,17 @@ export default function ProjectPage() {
           </div>
         ) : (
           /* List View - Horizontal rows */
-          <div className="divide-y divide-zinc-800/50">
+          <div className="divide-y-2 divide-[#1a1a1a]">
             {videos.map((video) => (
               <div
                 key={video._id}
-                className="group flex items-center gap-4 px-6 py-3 hover:bg-zinc-900/30 cursor-pointer transition-colors"
+                className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
                 onClick={() =>
                   router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
                 }
               >
                 {/* Thumbnail */}
-                <div className="relative w-32 aspect-video bg-zinc-900 rounded-md overflow-hidden border border-zinc-800/50 shrink-0">
+                <div className="relative w-32 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
                   {video.thumbnailUrl ? (
                     <Image
                       src={video.thumbnailUrl}
@@ -483,11 +483,11 @@ export default function ProjectPage() {
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <Play className="h-6 w-6 text-zinc-700" />
+                      <Play className="h-6 w-6 text-[#888]" />
                     </div>
                   )}
                   {video.status !== "ready" && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
                       <Badge
                         variant={
                           video.status === "failed" ? "destructive" : "secondary"
@@ -504,14 +504,14 @@ export default function ProjectPage() {
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-zinc-200 truncate">{video.title}</p>
-                  <div className="flex items-center gap-3 text-sm text-zinc-500 mt-0.5">
+                  <p className="font-bold text-[#1a1a1a] truncate">{video.title}</p>
+                  <div className="flex items-center gap-3 text-sm text-[#888] mt-0.5">
                     <span>{video.uploaderName}</span>
-                    <span className="text-zinc-700">·</span>
+                    <span className="text-[#ccc]">·</span>
                     <span>{formatRelativeTime(video._creationTime)}</span>
                     {video.duration && (
                       <>
-                        <span className="text-zinc-700">·</span>
+                        <span className="text-[#ccc]">·</span>
                         <span className="font-mono text-xs">{formatDuration(video.duration)}</span>
                       </>
                     )}
@@ -566,7 +566,7 @@ export default function ProjectPage() {
                       </DropdownMenuItem>
                       {canUpload && (
                         <DropdownMenuItem
-                          className="text-red-400 focus:text-red-400"
+                          className="text-[#dc2626] focus:text-[#dc2626]"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteVideo(video._id);

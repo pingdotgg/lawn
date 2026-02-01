@@ -100,12 +100,12 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
         </DialogHeader>
 
         {/* Create new link section */}
-        <div className="space-y-4 border rounded-lg p-4 bg-zinc-800/50">
-          <h3 className="font-medium text-sm">Create new link</h3>
+        <div className="space-y-4 border-2 border-[#1a1a1a] p-4 bg-[#e8e8e0]">
+          <h3 className="font-bold text-sm text-[#1a1a1a]">Create new link</h3>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-zinc-500">Expiration</label>
+              <label className="text-sm text-[#888]">Expiration</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between mt-1">
@@ -148,7 +148,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
             </div>
 
             <div>
-              <label className="text-sm text-zinc-500">Allow download</label>
+              <label className="text-sm text-[#888]">Allow download</label>
               <Button
                 variant={newLinkOptions.allowDownload ? "default" : "outline"}
                 className="w-full mt-1"
@@ -166,7 +166,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
           </div>
 
           <div>
-            <label className="text-sm text-zinc-500">Password (optional)</label>
+            <label className="text-sm text-[#888]">Password (optional)</label>
             <Input
               type="password"
               placeholder="Leave empty for no password"
@@ -191,28 +191,28 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
 
         {/* Existing links */}
         <div className="space-y-2">
-          <h3 className="font-medium text-sm">Active links</h3>
+          <h3 className="font-bold text-sm text-[#1a1a1a]">Active links</h3>
           {shareLinks === undefined ? (
-            <p className="text-sm text-zinc-500">Loading...</p>
+            <p className="text-sm text-[#888]">Loading...</p>
           ) : shareLinks.length === 0 ? (
-            <p className="text-sm text-zinc-500">No share links yet</p>
+            <p className="text-sm text-[#888]">No share links yet</p>
           ) : (
             <div className="space-y-2">
               {shareLinks.map((link) => (
                 <div
                   key={link._id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
+                  className="flex items-center justify-between p-3 border-2 border-[#1a1a1a]"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <code className="text-sm bg-zinc-800 px-2 py-0.5 rounded truncate max-w-[200px]">
+                      <code className="text-sm bg-[#e8e8e0] px-2 py-0.5 font-mono truncate max-w-[200px]">
                         /share/{link.token}
                       </code>
                       {link.isExpired && (
                         <Badge variant="destructive">Expired</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-[#888]">
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
                         {link.viewCount} views
@@ -243,7 +243,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                       onClick={() => handleCopyLink(link.token)}
                     >
                       {copiedId === link.token ? (
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className="h-4 w-4 text-[#2d5a2d]" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -260,7 +260,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-red-500 hover:text-red-600"
+                      className="text-[#dc2626] hover:text-[#dc2626]"
                       onClick={() => handleDeleteLink(link._id)}
                     >
                       <Trash2 className="h-4 w-4" />

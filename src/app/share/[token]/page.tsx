@@ -85,8 +85,8 @@ export default function SharePage() {
 
   if (shareInfo === undefined || videoData === undefined) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="animate-pulse text-zinc-500">Loading...</div>
+      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center">
+        <div className="text-[#888]">Loading...</div>
       </div>
     );
   }
@@ -100,11 +100,11 @@ export default function SharePage() {
   // Link not found or expired
   if (shareInfo === null || isExpired) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-red-400" />
+            <div className="mx-auto w-12 h-12 bg-[#dc2626]/10 flex items-center justify-center mb-4 border-2 border-[#dc2626]">
+              <AlertCircle className="h-6 w-6 text-[#dc2626]" />
             </div>
             <CardTitle>Link expired or invalid</CardTitle>
             <CardDescription>
@@ -114,7 +114,7 @@ export default function SharePage() {
           <CardContent>
             <Link href="/" className="block">
               <Button variant="outline" className="w-full">
-                Go to ReviewFlow
+                Go to lawn
               </Button>
             </Link>
           </CardContent>
@@ -126,11 +126,11 @@ export default function SharePage() {
   // Password required
   if (videoData?.hasPassword && !isPasswordVerified) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-              <Lock className="h-6 w-6 text-zinc-400" />
+            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-4 border-2 border-[#1a1a1a]">
+              <Lock className="h-6 w-6 text-[#888]" />
             </div>
             <CardTitle>Password required</CardTitle>
             <CardDescription>
@@ -147,7 +147,7 @@ export default function SharePage() {
                 autoFocus
               />
               {passwordError && (
-                <p className="text-sm text-red-500">Incorrect password</p>
+                <p className="text-sm text-[#dc2626]">Incorrect password</p>
               )}
               <Button type="submit" className="w-full" disabled={!passwordInput}>
                 View video
@@ -162,11 +162,11 @@ export default function SharePage() {
   // Video not found or not ready
   if (!videoData?.video) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-              <Video className="h-6 w-6 text-zinc-400" />
+            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-4 border-2 border-[#1a1a1a]">
+              <Video className="h-6 w-6 text-[#888]" />
             </div>
             <CardTitle>Video not available</CardTitle>
             <CardDescription>
@@ -181,17 +181,16 @@ export default function SharePage() {
   const { video } = videoData;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#f0f0e8]">
       {/* Header */}
-      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-4">
+      <header className="bg-[#f0f0e8] border-b-2 border-[#1a1a1a] px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <Link
               href="/"
-              className="text-zinc-400 hover:text-white text-sm flex items-center gap-2"
+              className="text-[#888] hover:text-[#1a1a1a] text-sm flex items-center gap-2 font-bold"
             >
-              <Video className="h-4 w-4" />
-              ReviewFlow
+              lawn
             </Link>
           </div>
           {allowDownload && (
@@ -219,41 +218,42 @@ export default function SharePage() {
       {/* Video */}
       <main className="max-w-6xl mx-auto p-6">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-white">{video.title}</h1>
+          <h1 className="text-2xl font-black text-[#1a1a1a]">{video.title}</h1>
           {video.description && (
-            <p className="text-zinc-400 mt-1">{video.description}</p>
+            <p className="text-[#888] mt-1">{video.description}</p>
           )}
-          <div className="flex items-center gap-4 mt-2 text-sm text-zinc-500">
-            {video.duration && <span>{formatDuration(video.duration)}</span>}
+          <div className="flex items-center gap-4 mt-2 text-sm text-[#888]">
+            {video.duration && <span className="font-mono">{formatDuration(video.duration)}</span>}
           </div>
         </div>
 
         {playbackUrl ? (
-          <VideoPlayer
-            src={playbackUrl}
-            poster={video.thumbnailUrl}
-            className="rounded-lg overflow-hidden"
-            allowDownload={allowDownload}
-            downloadFilename={`${video.title}.mp4`}
-            onRequestDownload={requestDownload}
-          />
+          <div className="border-2 border-[#1a1a1a] overflow-hidden">
+            <VideoPlayer
+              src={playbackUrl}
+              poster={video.thumbnailUrl}
+              allowDownload={allowDownload}
+              downloadFilename={`${video.title}.mp4`}
+              onRequestDownload={requestDownload}
+            />
+          </div>
         ) : playbackError ? (
-          <div className="aspect-video bg-zinc-900 rounded-lg flex items-center justify-center">
-            <p className="text-red-500">{playbackError}</p>
+          <div className="aspect-video bg-[#e8e8e0] border-2 border-[#1a1a1a] flex items-center justify-center">
+            <p className="text-[#dc2626]">{playbackError}</p>
           </div>
         ) : (
-          <div className="aspect-video bg-zinc-900 rounded-lg flex items-center justify-center">
-            <p className="text-zinc-500">Loading video...</p>
+          <div className="aspect-video bg-[#e8e8e0] border-2 border-[#1a1a1a] flex items-center justify-center">
+            <p className="text-[#888]">Loading video...</p>
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-800/50 px-6 py-4 mt-8">
-        <div className="max-w-6xl mx-auto text-center text-sm text-zinc-500">
+      <footer className="border-t-2 border-[#1a1a1a] px-6 py-4 mt-8">
+        <div className="max-w-6xl mx-auto text-center text-sm text-[#888]">
           Shared via{" "}
-          <Link href="/" className="text-zinc-400 hover:text-white">
-            ReviewFlow
+          <Link href="/" className="text-[#1a1a1a] hover:text-[#2d5a2d] font-bold">
+            lawn
           </Link>
         </div>
       </footer>
