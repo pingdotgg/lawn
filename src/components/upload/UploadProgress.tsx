@@ -41,28 +41,28 @@ export function UploadProgress({
   onCancel,
 }: UploadProgressProps) {
   return (
-    <div className="border border-zinc-800 rounded-lg p-4 bg-zinc-900/50">
+    <div className="border border-[#2a4a2a] rounded-lg p-4 bg-[#0f1f0f]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-zinc-200 truncate text-sm">{fileName}</p>
-          <p className="text-xs text-zinc-500 mt-0.5">{formatBytes(fileSize)}</p>
+          <p className="font-medium text-[#c8e6c8] truncate text-sm">{fileName}</p>
+          <p className="text-xs text-[#4a6a4a] mt-0.5">{formatBytes(fileSize)}</p>
         </div>
         <div className="flex items-center gap-2">
           {status === "complete" && (
-            <CheckCircle className="h-5 w-5 text-emerald-500" />
+            <CheckCircle className="h-5 w-5 text-[#81c784]" />
           )}
           {status === "error" && (
-            <AlertCircle className="h-5 w-5 text-red-500" />
+            <AlertCircle className="h-5 w-5 text-[#e57373]" />
           )}
           {status === "processing" && (
-            <Loader2 className="h-5 w-5 text-red-500 animate-spin" />
+            <Loader2 className="h-5 w-5 text-[#7cb87c] animate-spin" />
           )}
           {(status === "pending" || status === "uploading") && onCancel && (
             <Button
               variant="ghost"
               size="icon"
               onClick={onCancel}
-              className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
+              className="h-7 w-7 text-[#4a6a4a] hover:text-[#c8e6c8]"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -73,12 +73,12 @@ export function UploadProgress({
       {status === "uploading" && (
         <div className="mt-3 space-y-1.5">
           <Progress value={progress} />
-          <div className="flex justify-between text-xs text-zinc-500 font-mono">
+          <div className="flex justify-between text-xs text-[#4a6a4a] font-mono">
             <span>{formatSpeed(bytesPerSecond)}</span>
             <span>
               {progress}%
               {estimatedSecondsRemaining !== null && estimatedSecondsRemaining > 0 && (
-                <span className="text-zinc-600"> · {formatTimeRemaining(estimatedSecondsRemaining)} left</span>
+                <span className="text-[#3a5a3a]"> · {formatTimeRemaining(estimatedSecondsRemaining)} left</span>
               )}
             </span>
           </div>
@@ -86,11 +86,11 @@ export function UploadProgress({
       )}
 
       {status === "processing" && (
-        <p className="text-xs text-zinc-500 mt-2">Processing video...</p>
+        <p className="text-xs text-[#4a6a4a] mt-2">Processing video...</p>
       )}
 
       {status === "error" && error && (
-        <p className="text-xs text-red-400 mt-2">{error}</p>
+        <p className="text-xs text-[#e57373] mt-2">{error}</p>
       )}
     </div>
   );

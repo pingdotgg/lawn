@@ -22,6 +22,31 @@ function getS3Client() {
 
 const BUCKET_NAME = process.env.RAILWAY_BUCKET_NAME || "videos";
 
+function getExtensionFromKey(key: string, fallback = "mp4") {
+  const ext = key.split(".").pop();
+  if (!ext) return fallback;
+  // Guard against very long or suspicious extensions.
+  if (ext.length > 8) return fallback;
+  return ext.toLowerCase();
+}
+
+function sanitizeFilename(input: string) {
+  const trimmed = input.trim();
+  const base = trimmed.length > 0 ? trimmed : "video";
+  // Keep filenames simple and portable across platforms.
+  const sanitized = base
+    .replace(/["']/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_");
+  return sanitized.slice(0, 120);
+}
+
+function buildDownloadFilename(title: string | undefined, key: string) {
+  const ext = getExtensionFromKey(key);
+  const safeTitle = sanitizeFilename(title ?? "video");
+  return safeTitle.endsWith(`.${ext}`) ? safeTitle : `${safeTitle}.${ext}`;
+}
+
 // Get a presigned URL for direct upload (simpler than multipart)
 export const getUploadUrl = action({
   args: {
@@ -114,6 +139,36 @@ export const getPlaybackUrl = action({
   },
 });
 
+// Get presigned URL for video download (forces attachment)
+export const getDownloadUrl = action({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args): Promise<{ url: string; filename: string }> => {
+    const s3 = getS3Client();
+
+    const video = await ctx.runQuery(api.videos.getVideoForPlayback, {
+      videoId: args.videoId,
+    });
+
+    if (!video || !video.s3Key) {
+      throw new Error("Video not found or not ready");
+    }
+
+    const filename = buildDownloadFilename(video.title, video.s3Key);
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: video.s3Key,
+      ResponseContentDisposition: `attachment; filename="${filename}"`,
+      ResponseContentType: video.contentType ?? "video/mp4",
+    });
+
+    // Shorter lifetime is fine for downloads triggered by user interaction.
+    const url = await getSignedUrl(s3, command, { expiresIn: 600 });
+
+    return { url, filename };
+  },
+});
+
 // Get presigned URL for shared video playback
 export const getSharedPlaybackUrl = action({
   args: { token: v.string() },
@@ -138,5 +193,38 @@ export const getSharedPlaybackUrl = action({
     const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
 
     return { url };
+  },
+});
+
+// Get presigned URL for shared video download (respects allowDownload)
+export const getSharedDownloadUrl = action({
+  args: { token: v.string() },
+  handler: async (ctx, args): Promise<{ url: string; filename: string }> => {
+    const s3 = getS3Client();
+
+    const result = await ctx.runQuery(api.videos.getByShareToken, {
+      token: args.token,
+    });
+
+    if (!result || !result.video?.s3Key) {
+      throw new Error("Video not found or not ready");
+    }
+
+    if (!result.allowDownload) {
+      throw new Error("Downloads are not allowed for this share link");
+    }
+
+    const filename = buildDownloadFilename(result.video.title, result.video.s3Key);
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: result.video.s3Key,
+      ResponseContentDisposition: `attachment; filename="${filename}"`,
+      ResponseContentType: result.video.contentType ?? "video/mp4",
+    });
+
+    const url = await getSignedUrl(s3, command, { expiresIn: 600 });
+
+    return { url, filename };
   },
 });

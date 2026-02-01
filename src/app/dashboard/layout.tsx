@@ -1,90 +1,80 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { useUserSync } from "@/hooks/useUserSync";
-import { UserButton } from "@clerk/nextjs";
-import { TeamSwitcher } from "@/components/teams/TeamSwitcher";
+import { useUser, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Folder, Settings } from "lucide-react";
+import { Home, FolderOpen, Settings, Users } from "lucide-react";
+
+const navigation = [
+  { name: "Home", href: "/dashboard", icon: Home },
+  { name: "Projects", href: "/dashboard/projects", icon: FolderOpen },
+  { name: "Team", href: "/dashboard/team", icon: Users },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+];
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  useUserSync();
-  const params = useParams();
+  const { user } = useUser();
   const pathname = usePathname();
-  const teamSlug = params.teamSlug as string | undefined;
-
-  const navItems = teamSlug
-    ? [
-        { href: `/dashboard/${teamSlug}`, icon: Folder, label: "Projects" },
-        { href: `/dashboard/${teamSlug}/settings`, icon: Settings, label: "Settings" },
-      ]
-    : [];
 
   return (
-    <div className="h-full flex bg-[#0a0908]">
-      {/* Sidebar - Compact, icon-focused */}
-      <aside className="w-16 border-r border-white/5 bg-[#0e0c0a] flex flex-col items-center py-4">
+    <div className="h-full flex bg-[#0d1a0d]">
+      {/* Sidebar */}
+      <aside className="w-16 border-r border-[#1a3a1a] bg-[#0a150a] flex flex-col items-center py-4">
         {/* Logo */}
-        <Link href="/dashboard" className="mb-6 group">
-          <div className="w-9 h-9 rounded-full bg-red-500 flex items-center justify-center group-hover:bg-red-400 transition-colors">
-            <svg
-              className="w-4 h-4 text-white"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M8 5v14l11-7z" />
+        <Link href="/dashboard" className="mb-8">
+          <div className="w-9 h-9 rounded-full bg-[#2d5a2d] flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7cb87c" strokeWidth="2">
+              <path d="M12 3v18M5 10c0-4 3-7 7-7s7 3 7 7" strokeLinecap="round" />
             </svg>
           </div>
         </Link>
 
-        {/* Team Switcher */}
-        <div className="mb-4">
-          <TeamSwitcher compact />
-        </div>
-
         {/* Navigation */}
-        {teamSlug && (
-          <nav className="flex-1 flex flex-col items-center gap-1 w-full px-2">
-            {navItems.map((item) => (
+        <nav className="flex-1 flex flex-col items-center gap-2">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            return (
               <Link
-                key={item.href}
+                key={item.name}
                 href={item.href}
                 className={cn(
-                  "w-10 h-10 rounded-lg flex items-center justify-center transition-all",
-                  pathname === item.href
-                    ? "bg-red-500/10 text-red-500"
-                    : "text-white/40 hover:text-white hover:bg-white/5"
+                  "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                  isActive
+                    ? "bg-[#2d5a2d] text-[#7cb87c]"
+                    : "text-[#4a6a4a] hover:bg-[#1a2a1a] hover:text-[#6a9a6a]"
                 )}
-                title={item.label}
+                title={item.name}
               >
-                <item.icon className="h-[18px] w-[18px]" />
+                <item.icon className="h-5 w-5" />
               </Link>
-            ))}
-          </nav>
-        )}
+            );
+          })}
+        </nav>
 
         {/* User */}
-        <div className="mt-auto pt-4 border-t border-white/5 w-full flex justify-center">
+        <div className="mt-auto">
           <UserButton
-            afterSignOutUrl="/"
             appearance={{
               elements: {
-                avatarBox: "w-8 h-8",
+                avatarBox: "w-9 h-9",
+                userButtonPopoverCard: "bg-[#0f1f0f] border-[#2a4a2a]",
+                userButtonPopoverActionButton: "text-[#c8e6c8] hover:bg-[#1a2a1a]",
+                userButtonPopoverActionButtonText: "text-[#c8e6c8]",
+                userButtonPopoverFooter: "hidden",
               },
             }}
           />
         </div>
       </aside>
 
-      {/* Main content - Full width */}
-      <main className="flex-1 overflow-auto bg-[#0a0908]">
+      {/* Main content */}
+      <main className="flex-1 overflow-auto">
         {children}
       </main>
     </div>

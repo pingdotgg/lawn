@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useParams } from "next/navigation";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration } from "@/lib/utils";
+import { triggerDownload } from "@/lib/download";
 import { Lock, Download, Video, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
@@ -21,33 +22,51 @@ export default function SharePage() {
   const verifyPassword = useMutation(api.videos.verifySharePassword);
   const incrementViewCount = useMutation(api.videos.incrementViewCount);
   const getSharedPlaybackUrl = useAction(api.videoActions.getSharedPlaybackUrl);
+  const getSharedDownloadUrl = useAction(api.videoActions.getSharedDownloadUrl);
 
   const [passwordInput, setPasswordInput] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  const [hasTrackedView, setHasTrackedView] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [isHeaderDownloading, setIsHeaderDownloading] = useState(false);
+  const hasTrackedViewRef = useRef(false);
+
+  const allowDownload = videoData?.allowDownload ?? false;
 
   // Track view on first load
   useEffect(() => {
-    if (videoData && videoData.video && !hasTrackedView) {
+    if (videoData?.video && !hasTrackedViewRef.current) {
+      hasTrackedViewRef.current = true;
       incrementViewCount({ token }).catch(console.error);
-      setHasTrackedView(true);
     }
-  }, [videoData, token, hasTrackedView, incrementViewCount]);
+  }, [videoData, token, incrementViewCount]);
 
   // Fetch presigned playback URL when video data is available and password is verified (if needed)
   useEffect(() => {
     const shouldFetch = videoData?.video?.s3Key && (!videoData.hasPassword || isPasswordVerified);
     if (shouldFetch) {
-      setPlaybackUrl(null);
-      setPlaybackError(null);
       getSharedPlaybackUrl({ token })
-        .then(({ url }) => setPlaybackUrl(url))
-        .catch((err) => setPlaybackError(err.message || "Failed to load video"));
+        .then(({ url }) => {
+          setPlaybackError(null);
+          setPlaybackUrl(url);
+        })
+        .catch((err) => {
+          setPlaybackError(err.message || "Failed to load video");
+        });
     }
   }, [videoData, token, isPasswordVerified, getSharedPlaybackUrl]);
+
+  const requestDownload = useCallback(async () => {
+    if (!allowDownload) return null;
+    try {
+      const result = await getSharedDownloadUrl({ token });
+      return result;
+    } catch (error) {
+      console.error("Failed to prepare shared download:", error);
+      return null;
+    }
+  }, [allowDownload, getSharedDownloadUrl, token]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +78,7 @@ export default function SharePage() {
       } else {
         setPasswordError(true);
       }
-    } catch (error) {
+    } catch {
       setPasswordError(true);
     }
   };
@@ -72,8 +91,14 @@ export default function SharePage() {
     );
   }
 
+  const isExpired =
+    typeof shareInfo === "object" &&
+    shareInfo !== null &&
+    "expired" in shareInfo &&
+    Boolean(shareInfo.expired);
+
   // Link not found or expired
-  if (shareInfo === null || (shareInfo as any).expired) {
+  if (shareInfo === null || isExpired) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
@@ -153,7 +178,7 @@ export default function SharePage() {
     );
   }
 
-  const { video, allowDownload } = videoData;
+  const { video } = videoData;
 
   return (
     <div className="min-h-screen bg-zinc-950">
@@ -169,12 +194,23 @@ export default function SharePage() {
               ReviewFlow
             </Link>
           </div>
-          {allowDownload && playbackUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={playbackUrl} download>
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </a>
+          {allowDownload && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isHeaderDownloading}
+              onClick={async () => {
+                if (isHeaderDownloading) return;
+                setIsHeaderDownloading(true);
+                const result = await requestDownload();
+                if (result?.url) {
+                  triggerDownload(result.url, result.filename ?? `${video.title}.mp4`);
+                }
+                setIsHeaderDownloading(false);
+              }}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {isHeaderDownloading ? "Preparing..." : "Download"}
             </Button>
           )}
         </div>
@@ -197,6 +233,9 @@ export default function SharePage() {
             src={playbackUrl}
             poster={video.thumbnailUrl}
             className="rounded-lg overflow-hidden"
+            allowDownload={allowDownload}
+            downloadFilename={`${video.title}.mp4`}
+            onRequestDownload={requestDownload}
           />
         ) : playbackError ? (
           <div className="aspect-video bg-zinc-900 rounded-lg flex items-center justify-center">

@@ -1,3 +1,6 @@
+/* Instrument Serif for display text */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
 @import "tailwindcss";
 
 @font-face {
@@ -32,33 +35,46 @@
   font-display: swap;
 }
 
-:root {
-  /* Core palette - warm blacks */
-  --background: #0a0908;
-  --background-subtle: #0e0c0a;
-  --surface: #141210;
-  --surface-elevated: #1a1816;
-  --surface-hover: #211f1c;
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
 
-  /* Borders - subtle warm separation */
-  --border: #2a2724;
-  --border-subtle: #1e1c1a;
+:root {
+  /* Core palette - deep forest greens */
+  --background: #0d1a0d;
+  --background-subtle: #0f1f0f;
+  --surface: #1a2a1a;
+  --surface-elevated: #1f331f;
+  --surface-hover: #243d24;
+
+  /* Borders - mossy separation */
+  --border: #2a4a2a;
+  --border-subtle: #1a3a1a;
 
   /* Text hierarchy */
-  --foreground: #fafafa;
-  --foreground-muted: #a8a5a0;
-  --foreground-subtle: #6b6762;
+  --foreground: #c8e6c8;
+  --foreground-muted: #6a9a6a;
+  --foreground-subtle: #4a6a4a;
 
-  /* Accent - red */
-  --accent: #ef4444;
-  --accent-muted: #dc2626;
-  --accent-subtle: rgba(239, 68, 68, 0.15);
+  /* Accent - soft sage green */
+  --accent: #7cb87c;
+  --accent-hover: #a0d0a0;
+  --accent-muted: #5a8a5a;
+  --accent-subtle: rgba(124, 184, 124, 0.15);
+  --accent-bg: #2d5a2d;
+  --accent-bg-hover: #3a6a3a;
 
   /* Semantic colors */
-  --destructive: #ef4444;
-  --destructive-subtle: rgba(239, 68, 68, 0.15);
-  --success: #22c55e;
-  --success-subtle: rgba(34, 197, 94, 0.15);
+  --destructive: #e57373;
+  --destructive-subtle: rgba(229, 115, 115, 0.15);
+  --success: #81c784;
+  --success-subtle: rgba(129, 199, 132, 0.15);
+  --warning: #ffb74d;
+  --warning-subtle: rgba(255, 183, 77, 0.15);
 
   /* Focus states */
   --ring: var(--accent);
@@ -70,6 +86,7 @@
   --color-foreground: var(--foreground);
   --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
 }
 
 * {
@@ -83,7 +100,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist Mono', ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -132,7 +149,7 @@ body {
 }
 
 .video-js .vjs-big-play-button:hover {
-  background-color: var(--accent);
+  background-color: var(--accent-bg);
   border-color: var(--accent);
   transform: scale(1.05);
 }
@@ -205,6 +222,11 @@ body {
   to { transform: scale(0.96); opacity: 0; }
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes slide-in-from-top {
   from { transform: translateY(-8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -236,9 +258,24 @@ body {
 }
 
 .animate-in {
-  animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  animation-fill-mode: forwards;
+  animation: slide-up 1s ease-out forwards;
+  opacity: 0;
+}
+
+.animation-delay-150 {
+  animation-delay: 0.15s;
+}
+
+.animation-delay-300 {
+  animation-delay: 0.3s;
+}
+
+.animation-delay-450 {
+  animation-delay: 0.45s;
+}
+
+.animation-delay-600 {
+  animation-delay: 0.6s;
 }
 
 .animate-out {
@@ -280,4 +317,13 @@ body {
 .focus-ring:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Font utilities */
+.font-serif {
+  font-family: 'Instrument Serif', Georgia, serif;
+}
+
+.font-mono {
+  font-family: 'Geist Mono', ui-monospace, monospace;
 }

@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ import { Id } from "../../../../../../convex/_generated/dataModel";
 
 export default function VideoPage() {
   const params = useParams();
-  const router = useRouter();
   const teamSlug = params.teamSlug as string;
   const projectId = params.projectId as string;
   const videoId = params.videoId as Id<"videos">;
@@ -34,6 +33,7 @@ export default function VideoPage() {
   const comments = useQuery(api.comments.list, { videoId });
   const updateVideo = useMutation(api.videos.update);
   const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
+  const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -47,11 +47,14 @@ export default function VideoPage() {
 
   useEffect(() => {
     if (video && video.status === "ready" && video.s3Key) {
-      setPlaybackUrl(null);
-      setPlaybackError(null);
       getPlaybackUrl({ videoId })
-        .then(({ url }) => setPlaybackUrl(url))
-        .catch((err) => setPlaybackError(err.message || "Failed to load video"));
+        .then(({ url }) => {
+          setPlaybackError(null);
+          setPlaybackUrl(url);
+        })
+        .catch((err) => {
+          setPlaybackError(err.message || "Failed to load video");
+        });
     }
   }, [video, videoId, getPlaybackUrl]);
 
@@ -69,7 +72,18 @@ export default function VideoPage() {
     setShowCommentInput(true);
   }, []);
 
-  const handleTimestampClick = useCallback((seconds: number) => {
+  const requestDownload = useCallback(async () => {
+    if (!video || video.status !== "ready") return null;
+    try {
+      const result = await getDownloadUrl({ videoId });
+      return result;
+    } catch (error) {
+      console.error("Failed to prepare download:", error);
+      return null;
+    }
+  }, [getDownloadUrl, video, videoId]);
+
+  const handleTimestampClick = useCallback(() => {
     setHighlightedCommentId(undefined);
   }, []);
 
@@ -170,10 +184,12 @@ export default function VideoPage() {
               </Badge>
             )}
           </div>
-          <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
-            <LinkIcon className="mr-1.5 h-4 w-4" />
-            Share
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
+              <LinkIcon className="mr-1.5 h-4 w-4" />
+              Share
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-3 mt-2 text-sm text-zinc-500">
           <span>{video.uploaderName}</span>
@@ -208,6 +224,9 @@ export default function VideoPage() {
                       onTimeUpdate={handleTimeUpdate}
                       onMarkerClick={handleMarkerClick}
                       onTimelineClick={handleTimelineClick}
+                      allowDownload={video.status === "ready"}
+                      downloadFilename={`${video.title}.mp4`}
+                      onRequestDownload={requestDownload}
                     />
                   </div>
                 </div>

@@ -3,27 +3,41 @@ import { SignIn } from "@clerk/nextjs";
 export default function SignInPage() {
   return (
     <SignIn
+      forceRedirectUrl="/dashboard"
       appearance={{
         elements: {
-          rootBox: "w-full",
-          card: "bg-[#141210] border border-white/10 shadow-none rounded-2xl",
-          headerTitle: "text-white",
-          headerSubtitle: "text-white/50",
-          socialButtonsBlockButton: "bg-white/5 border-white/10 text-white hover:bg-white/10",
-          socialButtonsBlockButtonText: "text-white",
-          dividerLine: "bg-white/10",
-          dividerText: "text-white/40",
-          formFieldLabel: "text-white/60",
-          formFieldInput: "bg-white/5 border-white/10 text-white rounded-lg",
-          formButtonPrimary: "bg-red-500 hover:bg-red-400 text-white rounded-full",
-          footerActionLink: "text-red-500 hover:text-red-400",
-          identityPreviewEditButton: "text-red-500",
+          formButtonPrimary:
+            "bg-[#2d5a2d] hover:bg-[#3a6a3a] text-[#c8e6c8] text-sm normal-case",
+          card: "bg-[#0f1f0f] border border-[#2a4a2a] shadow-xl",
+          headerTitle: "text-[#c8e6c8]",
+          headerSubtitle: "text-[#a0c8a0]",
+          socialButtonsBlockButton:
+            "bg-[#1a2a1a] border-[#2a4a2a] hover:bg-[#243d24]",
+          socialButtonsBlockButtonText: "!text-[#c8e6c8]",
+          socialButtonsBlockButtonArrow: "text-[#c8e6c8]",
+          formFieldLabel: "text-[#a0c8a0]",
+          formFieldInput:
+            "bg-[#1a2a1a] border-[#2a4a2a] text-[#c8e6c8] focus:border-[#7cb87c] focus:ring-[#7cb87c]/30",
+          footerActionLink: "text-[#7cb87c] hover:text-[#a0d0a0]",
+          footerActionText: "text-[#a0c8a0]",
+          dividerLine: "bg-[#2a4a2a]",
+          dividerText: "text-[#6a9a6a]",
+          identityPreviewText: "text-[#c8e6c8]",
+          identityPreviewEditButton: "text-[#7cb87c]",
+          formFieldInputShowPasswordButton: "text-[#6a9a6a]",
+          footer: "hidden",
+          internal: "text-[#c8e6c8]",
         },
         variables: {
-          colorPrimary: "#ef4444",
-          colorBackground: "#141210",
-          colorInputBackground: "rgba(255, 255, 255, 0.05)",
-          colorInputText: "#fafafa",
+          colorPrimary: "#7cb87c",
+          colorBackground: "#0f1f0f",
+          colorInputBackground: "#1a2a1a",
+          colorInputText: "#c8e6c8",
+          colorText: "#c8e6c8",
+          colorTextSecondary: "#a0c8a0",
+          colorTextOnPrimaryBackground: "#0d1a0d",
+          colorNeutral: "#c8e6c8",
+          borderRadius: "0.375rem",
         },
       }}
     />

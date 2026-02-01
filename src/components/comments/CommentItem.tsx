@@ -71,27 +71,27 @@ export function CommentItem({
       className={cn(
         "rounded-lg p-3 transition-all",
         isHighlighted
-          ? "bg-red-500/10 ring-1 ring-red-500/30"
-          : "bg-zinc-900/50 hover:bg-zinc-800/50",
+          ? "bg-[#7cb87c]/10 ring-1 ring-[#7cb87c]/30"
+          : "bg-[#0f1f0f] hover:bg-[#1a2a1a]",
         comment.resolved && "opacity-50"
       )}
     >
       <div className="flex items-start gap-3">
         <Avatar className="h-7 w-7">
           <AvatarImage src={comment.userAvatarUrl} />
-          <AvatarFallback className="text-[10px] bg-zinc-800 text-zinc-400">
+          <AvatarFallback className="text-[10px] bg-[#1a2a1a] text-[#6a9a6a]">
             {getInitials(comment.userName)}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-medium text-sm text-zinc-200 truncate">
+              <span className="font-medium text-sm text-[#c8e6c8] truncate">
                 {comment.userName}
               </span>
               <button
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
-                className="text-xs text-red-500 hover:text-red-400 font-mono shrink-0"
+                className="text-xs text-[#7cb87c] hover:text-[#a0d0a0] font-mono shrink-0"
               >
                 {formatTimestamp(comment.timestampSeconds)}
               </button>
@@ -121,7 +121,7 @@ export function CommentItem({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
-                  className="text-red-400 focus:text-red-400"
+                  className="text-[#e57373] focus:text-[#e57373]"
                   onClick={handleDelete}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -130,10 +130,10 @@ export function CommentItem({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="text-sm text-zinc-300 mt-1 whitespace-pre-wrap break-words">
+          <p className="text-sm text-[#c8e6c8] mt-1 whitespace-pre-wrap break-words">
             {comment.text}
           </p>
-          <p className="text-[11px] text-zinc-600 mt-1">
+          <p className="text-[11px] text-[#3a5a3a] mt-1">
             {formatRelativeTime(comment._creationTime)}
           </p>
         </div>

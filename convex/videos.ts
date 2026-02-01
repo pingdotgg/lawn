@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { requireProjectAccess, requireVideoAccess, getUser } from "./auth";
+import { requireProjectAccess, requireVideoAccess } from "./auth";
 
 export const create = mutation({
   args: {
@@ -161,7 +161,8 @@ export const markAsFailed = internalMutation({
 export const getVideoForPlayback = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
-    const video = await ctx.db.get(args.videoId);
+    // Require at least viewer access before returning the S3 key.
+    const { video } = await requireVideoAccess(ctx, args.videoId, "viewer");
     return video;
   },
 });
@@ -193,6 +194,7 @@ export const getByShareToken = query({
         duration: video.duration,
         thumbnailUrl: video.thumbnailUrl,
         s3Key: video.s3Key,
+        contentType: video.contentType,
       },
       allowDownload: shareLink.allowDownload,
       hasPassword: !!shareLink.password,

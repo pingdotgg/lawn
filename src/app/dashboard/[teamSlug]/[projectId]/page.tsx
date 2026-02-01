@@ -10,6 +10,7 @@ import { DropZone } from "@/components/upload/DropZone";
 import { UploadProgress, UploadStatus } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
+import { triggerDownload } from "@/lib/download";
 import {
   ArrowLeft,
   Play,
@@ -18,6 +19,7 @@ import {
   Link as LinkIcon,
   Grid3X3,
   LayoutList,
+  Download,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -58,6 +60,7 @@ export default function ProjectPage() {
   const getUploadUrl = useAction(api.videoActions.getUploadUrl);
   const markUploadComplete = useAction(api.videoActions.markUploadComplete);
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
+  const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -228,6 +231,20 @@ export default function ProjectPage() {
     }
   };
 
+  const handleDownloadVideo = useCallback(
+    async (videoId: Id<"videos">, title: string) => {
+      try {
+        const result = await getDownloadUrl({ videoId });
+        if (result?.url) {
+          triggerDownload(result.url, result.filename ?? `${title}.mp4`);
+        }
+      } catch (error) {
+        console.error("Failed to download video:", error);
+      }
+    },
+    [getDownloadUrl]
+  );
+
   if (project === undefined || videos === undefined) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -350,6 +367,20 @@ export default function ProjectPage() {
                         <Play className="h-8 w-8 text-zinc-700" />
                       </div>
                     )}
+                    {video.status === "ready" && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDownloadVideo(video._id, video.title);
+                        }}
+                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white/90 opacity-80 transition hover:opacity-100 hover:border-white/30 hover:bg-black/75"
+                        aria-label={`Download ${video.title}`}
+                        title="Download"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    )}
                     {video.status === "ready" && video.duration && (
                       <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-zinc-200 text-[10px] font-mono px-1 py-0.5 rounded">
                         {formatDuration(video.duration)}
@@ -385,6 +416,17 @@ export default function ProjectPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {video.status === "ready" && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDownloadVideo(video._id, video.title);
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
@@ -478,6 +520,21 @@ export default function ProjectPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {video.status === "ready" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDownloadVideo(video._id, video.title);
+                      }}
+                      aria-label={`Download ${video.title}`}
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       asChild
@@ -488,6 +545,17 @@ export default function ProjectPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {video.status === "ready" && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleDownloadVideo(video._id, video.title);
+                          }}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();

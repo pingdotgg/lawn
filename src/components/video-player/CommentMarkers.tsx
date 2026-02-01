@@ -15,7 +15,7 @@ interface CommentMarkersProps {
   duration: number;
   currentTime: number;
   onMarkerClick: (comment: Comment) => void;
-  onTimelineClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onTimelineClick?: (time: number) => void;
 }
 
 export function CommentMarkers({
@@ -46,12 +46,20 @@ export function CommentMarkers({
 
   return (
     <div
-      className="relative h-3 bg-zinc-800 rounded-full mt-2 cursor-pointer"
-      onClick={onTimelineClick}
+      className="relative h-3 bg-zinc-900/80 border border-zinc-800 rounded-full mt-3 cursor-pointer overflow-hidden"
+      onClick={(e) => {
+        if (!onTimelineClick) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const x = e.clientX - rect.left;
+        const percentage = Math.min(Math.max(x / rect.width, 0), 1);
+        const time = percentage * duration;
+        onTimelineClick(time);
+      }}
     >
       {/* Progress indicator */}
       <div
-        className="absolute top-0 left-0 h-full bg-zinc-600 rounded-full pointer-events-none"
+        className="absolute inset-y-0 left-0 bg-zinc-700/80 pointer-events-none"
         style={{ width: `${(currentTime / duration) * 100}%` }}
       />
 
@@ -65,7 +73,7 @@ export function CommentMarkers({
             <TooltipTrigger asChild>
               <button
                 className={cn(
-                  "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-offset-1",
+                  "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full transition-transform hover:scale-125 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-zinc-950 shadow-sm",
                   commentCount > 1 ? "w-4 h-4" : "w-3 h-3",
                   allResolved
                     ? "bg-green-500 ring-green-500/50"
