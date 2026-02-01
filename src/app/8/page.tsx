@@ -1,48 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 
 // Design 8: Deconstructed/Anti-Design
 // Intentionally broken grid, overlapping elements, raw aesthetic
-// Confrontational, punk energy
 
 export default function Homepage8() {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
 
   return (
-    <div className="min-h-screen bg-[#111] text-[#eee] overflow-x-hidden cursor-crosshair">
-      {/* Scattered background elements */}
-      <div
-        className="fixed text-[30vw] font-black text-[#181818] pointer-events-none select-none"
-        style={{ top: "10%", left: "-5%", transform: "rotate(-5deg)" }}
-      >
-        $228
-      </div>
-      <div
-        className="fixed text-[20vw] font-black text-[#1a1a1a] pointer-events-none select-none"
-        style={{ bottom: "5%", right: "-10%", transform: "rotate(8deg)" }}
-      >
-        NO
-      </div>
-
-      {/* Mouse follower */}
-      <div
-        className="fixed w-4 h-4 border-2 border-[#7cb87c] pointer-events-none z-50 mix-blend-difference"
-        style={{
-          left: mousePos.x - 8,
-          top: mousePos.y - 8,
-          transition: "left 0.05s, top 0.05s",
-        }}
-      />
+    <div className="min-h-screen bg-[#111] text-[#eee] overflow-x-hidden">
 
       {/* Nav - tilted */}
       <nav className="relative z-10 p-6 flex justify-between items-start">
@@ -73,11 +39,8 @@ export default function Homepage8() {
             <span className="block text-[#333] transform translate-x-[10vw] rotate-1">
               IS
             </span>
-            <span className="block transform -translate-x-[5vw] -rotate-1 relative">
-              ROBBERY
-              <span className="absolute -right-8 top-0 text-base font-normal text-[#7cb87c] transform rotate-12">
-                (kinda)
-              </span>
+            <span className="block transform -translate-x-[5vw] -rotate-1">
+              TOO SLOW
             </span>
           </h1>
 
