@@ -1,138 +1,199 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
-export default function Home() {
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+export default function Homepage() {
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 200);
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0d1a0d] relative overflow-hidden">
-      {/* Cursor glow */}
-      <div
-        className="pointer-events-none fixed w-[500px] h-[500px] rounded-full opacity-20 transition-transform duration-1000 ease-out"
-        style={{
-          background: "radial-gradient(circle, #2d5a2d 0%, transparent 70%)",
-          left: mousePos.x - 250,
-          top: mousePos.y - 250,
-        }}
-      />
-
-      {/* Subtle grid pattern */}
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(100, 160, 100, 0.5) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(100, 160, 100, 0.5) 1px, transparent 1px)
-          `,
-          backgroundSize: "60px 60px",
-        }}
-      />
-
-      {/* Navigation */}
-      <nav className="relative z-10 px-8 py-8 flex items-center justify-between max-w-7xl mx-auto">
-        <div className="animate-in font-serif text-[1.75rem] text-[#7cb87c] italic">
-          lawn
+    <div className="min-h-screen bg-[#f0f0e8] text-[#1a1a1a]">
+      {/* Minimal nav */}
+      <nav className="sticky top-0 z-50 px-6 py-4 flex justify-between items-center bg-[#f0f0e8]">
+        <div className="flex items-center gap-4">
+          <span className={`text-xl font-black transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn</span>
+          <span className={`text-xs text-[#888] hidden sm:inline border-l border-[#ccc] pl-4 transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>video review</span>
         </div>
-        <div className="animate-in animation-delay-150 flex items-center gap-8">
-          <Link
-            href="#"
-            className="font-mono text-sm text-[#5a8a5a] transition-colors hover:text-[#a0d0a0]"
-          >
-            how it works
-          </Link>
-          <Link
-            href="/sign-in"
-            className="font-mono text-sm px-5 py-2 border border-[#2a4a2a] rounded text-[#7cb87c] transition-all hover:bg-[#1a3a1a] hover:border-[#3a6a3a]"
-          >
-            sign in
-          </Link>
+        <div className="flex gap-4 text-sm">
+          <Link href="/sign-in" className="hover:underline">Sign In</Link>
+          <Link href="/sign-up" className="font-bold underline underline-offset-4">Start Free</Link>
         </div>
       </nav>
 
-      {/* Main content */}
-      <main className="relative z-10 px-8 pt-32 pb-24 max-w-5xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <p className="animate-in animation-delay-150 font-mono text-sm mb-6 tracking-widest uppercase text-[#4a7a4a]">
-              video collaboration
-            </p>
-            <h1 className="animate-in animation-delay-300 font-serif text-[clamp(2.5rem,5vw,4rem)] text-[#c8e6c8] leading-[1.1]">
-              Leave feedback<br />
-              <span className="italic text-[#7cb87c]">exactly</span> where<br />
-              it matters
-            </h1>
+      {/* Hero - Massive brand + clear statement */}
+      <section className="px-6 pt-8 pb-16">
+        <div className="max-w-6xl mx-auto">
+          {/* Giant lawn */}
+          <h1 className="text-[20vw] sm:text-[18vw] font-black leading-[0.85] tracking-tight">
+            lawn
+          </h1>
 
-            <p className="animate-in animation-delay-450 mt-8 font-mono text-[0.9rem] text-[#6a9a6a] leading-relaxed max-w-[400px]">
-              Click any frame. Type your note. Your team gets notified instantly.
-              No more "at 2:34 on the left side..."
+          {/* What it is - immediately clear */}
+          <div className="max-w-2xl mt-8">
+            <p className="text-2xl sm:text-3xl font-bold leading-tight">
+              Video review for creative teams.
+              <br />
+              <span className="text-[#2d5a2d]">Less features. No bull$#!t.</span>
             </p>
-
-            <Link
-              href="/sign-up"
-              className="animate-in animation-delay-600 inline-block mt-10 px-8 py-4 font-mono text-sm bg-[#2d5a2d] text-[#c8e6c8] transition-all hover:translate-x-1 hover:bg-[#3a6a3a]"
-            >
-              start reviewing →
-            </Link>
           </div>
 
-          {/* Visual element - stacked cards */}
-          <div className="animate-in animation-delay-450 relative h-[400px] hidden lg:block">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="absolute w-[320px] h-[200px] rounded-lg border border-[#1a3a1a] bg-[#0f1f0f]"
-                style={{
-                  top: `${i * 30}px`,
-                  left: `${i * 30}px`,
-                  transform: `rotate(${-3 + i * 2}deg)`,
-                  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)",
-                }}
-              >
-                {i === 2 && (
-                  <>
-                    <div className="p-4">
-                      <div className="w-full h-24 rounded bg-[#1a2a1a]" />
-                    </div>
-                    <div className="absolute -right-3 top-1/2 px-3 py-1.5 rounded-full font-mono text-xs bg-[#7cb87c] text-[#0d1a0d]">
-                      "love this shot"
-                    </div>
-                  </>
-                )}
+          {/* Key differentiator */}
+          <div className="mt-12 flex flex-wrap gap-6 items-center">
+            <div className="bg-[#2d5a2d] text-[#f0f0e8] px-6 py-4">
+              <span className="text-3xl font-black">$5/mo</span>
+              <span className="text-sm ml-2 opacity-70">unlimited seats</span>
+            </div>
+            <Link
+              href="/sign-up"
+              className="border-2 border-[#1a1a1a] px-6 py-4 font-bold hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors"
+            >
+              Start Free Trial →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Simple value props */}
+      <section className="border-y-2 border-[#1a1a1a]">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4">
+          {[
+            { title: "Frame-accurate", desc: "Comments on exact frames" },
+            { title: "Unlimited seats", desc: "One price for everyone" },
+            { title: "0.3s response", desc: "Built for speed" },
+            { title: "Any NLE", desc: "No lock-in" },
+          ].map((item, i) => (
+            <div key={i} className={`p-6 ${i < 3 ? 'border-r-2 border-[#1a1a1a]' : ''} ${i < 2 ? 'lg:border-r-2' : 'lg:border-r-0'}`}>
+              <div className="font-black">{item.title}</div>
+              <div className="text-sm text-[#888]">{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Comparison - straightforward */}
+      <section className="px-6 py-16">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-black mb-2">How lawn compares</h2>
+          <p className="text-[#888] mb-8">Frame.io is solid software. Here's where we differ.</p>
+
+          <div className="space-y-6">
+            {/* Pricing comparison - the big one */}
+            <div className="bg-[#1a1a1a] text-[#f0f0e8] p-8">
+              <div className="text-sm tracking-widest text-[#7cb87c] mb-4">PRICING MODEL</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                <div>
+                  <div className="text-[#888] text-sm mb-1">Frame.io</div>
+                  <div className="text-2xl font-black">$19/editor/mo</div>
+                  <div className="text-sm text-[#888] mt-2">Team of 5 = $1,140/year</div>
+                </div>
+                <div>
+                  <div className="text-[#7cb87c] text-sm mb-1">lawn</div>
+                  <div className="text-2xl font-black text-[#7cb87c]">$5/mo total</div>
+                  <div className="text-sm text-[#888] mt-2">Team of 5 = $60/year</div>
+                </div>
+              </div>
+              <div className="mt-6 pt-6 border-t border-[#333]">
+                <span className="text-sm text-[#888]">Annual savings with 5 users: </span>
+                <span className="text-xl font-black text-[#7cb87c]">$1,080</span>
+              </div>
+            </div>
+
+            {/* Other differences */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="border-2 border-[#1a1a1a] p-6">
+                <div className="font-black mb-2">Frame.io</div>
+                <ul className="text-sm text-[#888] space-y-1">
+                  <li>• Deep Adobe integration</li>
+                  <li>• More enterprise features</li>
+                  <li>• Larger ecosystem</li>
+                </ul>
+              </div>
+              <div className="border-2 border-[#2d5a2d] p-6">
+                <div className="font-black text-[#2d5a2d] mb-2">lawn</div>
+                <ul className="text-sm space-y-1">
+                  <li>• Works with any software</li>
+                  <li>• Simpler, faster interface</li>
+                  <li>• No per-seat pricing</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works - visual */}
+      <section className="bg-[#1a1a1a] text-[#f0f0e8] px-6 py-16">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-black mb-12">How it works</h2>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+            {[
+              { step: "1", action: "Upload", desc: "your video" },
+              { step: "2", action: "Share", desc: "the link" },
+              { step: "3", action: "Click", desc: "to comment" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <span className="w-16 h-16 bg-[#2d5a2d] flex items-center justify-center text-3xl font-black">
+                  {item.step}
+                </span>
+                <div>
+                  <div className="text-xl font-black">{item.action}</div>
+                  <div className="text-sm text-[#888]">{item.desc}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
-      </main>
+      </section>
 
-      {/* Bottom stats */}
-      <div className="relative z-10 px-8 py-16 border-t border-[#1a2a1a] max-w-5xl mx-auto">
-        <div className="grid grid-cols-3 gap-8">
-          {[
-            { value: "0.3s", label: "avg comment time" },
-            { value: "100%", label: "frame accurate" },
-            { value: "∞", label: "peace of mind" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
-              <div className="font-serif text-[2.5rem] text-[#7cb87c]">
-                {stat.value}
-              </div>
-              <div className="mt-2 font-mono text-xs tracking-wider uppercase text-[#4a6a4a]">
-                {stat.label}
-              </div>
-            </div>
-          ))}
+      {/* Quote */}
+      <section className="px-6 py-16 border-b-2 border-[#1a1a1a]">
+        <div className="max-w-3xl mx-auto text-center">
+          <blockquote className="text-2xl sm:text-3xl font-bold leading-tight">
+            "I built lawn because I got tired of waiting for Frame.io to load.
+            Video review should be instant."
+          </blockquote>
+          <p className="mt-4 text-[#888]">— <a href="https://x.com/theo" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#1a1a1a]">Theo</a></p>
         </div>
-      </div>
+      </section>
+
+      {/* CTA */}
+      <section className="px-6 py-24">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-5xl sm:text-6xl font-black">
+            Try lawn free
+          </h2>
+          <p className="text-xl text-[#888] mt-4 mb-8">
+            14 days. No credit card. See if it's right for you.
+          </p>
+          <Link
+            href="/sign-up"
+            className="inline-block bg-[#2d5a2d] text-[#f0f0e8] px-12 py-5 text-xl font-black hover:bg-[#3a6a3a] transition-colors"
+          >
+            Start Free Trial
+          </Link>
+          <p className="mt-4 text-sm text-[#888]">$5/month after trial</p>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t-2 border-[#1a1a1a] px-6 py-8">
+        <div className="max-w-5xl mx-auto flex justify-between items-center text-sm">
+          <span className="font-black text-xl">lawn</span>
+          <div className="flex gap-6 text-[#888]">
+            <Link href="/github" className="hover:text-[#1a1a1a]">GitHub</Link>
+            <Link href="/docs" className="hover:text-[#1a1a1a]">Docs</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
