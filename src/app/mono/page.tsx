@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-export default function Homepage() {
+export default function HomepageMono() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
