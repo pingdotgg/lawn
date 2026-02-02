@@ -3,12 +3,12 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { useParams } from "next/navigation";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { VideoPlayer } from "@/components/video-player/VideoPlayer";
+import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/VideoPlayer";
 import { CommentList } from "@/components/comments/CommentList";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -44,6 +44,7 @@ export default function VideoPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const playerRef = useRef<VideoPlayerHandle | null>(null);
 
   useEffect(() => {
     if (video && video.status === "ready" && video.s3Key) {
@@ -83,9 +84,13 @@ export default function VideoPage() {
     }
   }, [getDownloadUrl, video, videoId]);
 
-  const handleTimestampClick = useCallback(() => {
-    setHighlightedCommentId(undefined);
-  }, []);
+  const handleTimestampClick = useCallback(
+    (time: number) => {
+      playerRef.current?.seekTo(time);
+      setHighlightedCommentId(undefined);
+    },
+    [playerRef, setHighlightedCommentId]
+  );
 
   const handleSaveTitle = async () => {
     if (!editedTitle.trim() || !video) return;
@@ -218,6 +223,7 @@ export default function VideoPage() {
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-full max-w-6xl">
                     <VideoPlayer
+                      ref={playerRef}
                       src={playbackUrl}
                       poster={video.thumbnailUrl}
                       comments={comments || []}

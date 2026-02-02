@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
 import type Hls from "hls.js";
 import {
   Play,
@@ -43,6 +43,10 @@ interface VideoPlayerProps {
   onRequestDownload?: () => Promise<DownloadResult | null | undefined> | DownloadResult | null | undefined;
 }
 
+export interface VideoPlayerHandle {
+  seekTo: (time: number, options?: { play?: boolean }) => void;
+}
+
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -53,20 +57,23 @@ function isHlsSource(src: string) {
   return src.includes(".m3u8");
 }
 
-export function VideoPlayer({
-  src,
-  poster,
-  comments = [],
-  onTimeUpdate,
-  onMarkerClick,
-  onTimelineClick,
-  initialTime,
-  className,
-  allowDownload = false,
-  downloadUrl,
-  downloadFilename,
-  onRequestDownload,
-}: VideoPlayerProps) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
+  {
+    src,
+    poster,
+    comments = [],
+    onTimeUpdate,
+    onMarkerClick,
+    onTimelineClick,
+    initialTime,
+    className,
+    allowDownload = false,
+    downloadUrl,
+    downloadFilename,
+    onRequestDownload,
+  },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -133,14 +140,36 @@ export function VideoPlayer({
   const applyTime = useCallback(
     (time: number) => {
       const video = videoRef.current;
-      if (!video || !duration) return;
-      const next = clamp(time, 0, duration);
+      if (!video) return;
+      const actualDuration = duration || video.duration || 0;
+      const next = actualDuration > 0 ? clamp(time, 0, actualDuration) : Math.max(time, 0);
       video.currentTime = next;
       setCurrentTime(next);
       onTimeUpdate?.(next);
     },
     [duration, onTimeUpdate]
   );
+
+  const seekTo = useCallback(
+    (time: number, options?: { play?: boolean }) => {
+      applyTime(time);
+      if (options?.play) {
+        const video = videoRef.current;
+        if (video) {
+          const playPromise = video.play();
+          if (playPromise) {
+            playPromise.catch(() => {
+              // Ignore autoplay rejections.
+            });
+          }
+        }
+      }
+      showControls();
+    },
+    [applyTime, showControls]
+  );
+
+  useImperativeHandle(ref, () => ({ seekTo }), [seekTo]);
 
   const handleSeekBy = useCallback(
     (delta: number) => {
@@ -869,7 +898,9 @@ export function VideoPlayer({
 
     </div>
   );
-}
+});
+
+VideoPlayer.displayName = "VideoPlayer";
 
 export function useVideoPlayer() {
   const playerRef = useRef<HTMLVideoElement | null>(null);
