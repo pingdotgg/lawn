@@ -34,6 +34,7 @@ export default function VideoPage() {
   const updateVideo = useMutation(api.videos.update);
   const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
+  const getThumbnailUrls = useAction(api.videoActions.getThumbnailUrls);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -44,6 +45,7 @@ export default function VideoPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
 
   useEffect(() => {
@@ -58,6 +60,29 @@ export default function VideoPage() {
         });
     }
   }, [video, videoId, getPlaybackUrl]);
+
+  useEffect(() => {
+    if (!video) return;
+
+    if (!video.thumbnailKey && !video.thumbnailUrl) {
+      setThumbnailUrl(null);
+      return;
+    }
+
+    getThumbnailUrls({ videoIds: [videoId] })
+      .then((results) => {
+        const resolved =
+          results[0]?.url ??
+          (video.thumbnailUrl?.startsWith("http") ? video.thumbnailUrl : null);
+        setThumbnailUrl(resolved);
+      })
+      .catch((err) => {
+        console.error("Failed to load thumbnail:", err);
+        setThumbnailUrl(
+          video.thumbnailUrl?.startsWith("http") ? video.thumbnailUrl : null,
+        );
+      });
+  }, [video, videoId, getThumbnailUrls]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -225,7 +250,7 @@ export default function VideoPage() {
                     <VideoPlayer
                       ref={playerRef}
                       src={playbackUrl}
-                      poster={video.thumbnailUrl}
+                      poster={thumbnailUrl ?? undefined}
                       comments={comments || []}
                       onTimeUpdate={handleTimeUpdate}
                       onMarkerClick={handleMarkerClick}

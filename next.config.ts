@@ -7,11 +7,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "img.clerk.com",
       },
-      // Add your S3 endpoint hostname here if you need to serve thumbnails
-      // {
-      //   protocol: "https",
-      //   hostname: "your-s3-endpoint.railway.app",
-      // },
+      {
+        protocol: "https",
+        hostname: "storage.railway.app",
+      },
     ],
   },
 };

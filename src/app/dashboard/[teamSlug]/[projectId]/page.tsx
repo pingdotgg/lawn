@@ -3,11 +3,14 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
-import { UploadProgress, UploadStatus } from "@/components/upload/UploadProgress";
+import {
+  UploadProgress,
+  UploadStatus,
+} from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
@@ -28,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import Image from "next/image";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
@@ -58,12 +60,145 @@ export default function ProjectPage() {
   const createVideo = useMutation(api.videos.create);
   const deleteVideo = useMutation(api.videos.remove);
   const getUploadUrl = useAction(api.videoActions.getUploadUrl);
+  const getThumbnailUploadUrl = useAction(
+    api.videoActions.getThumbnailUploadUrl,
+  );
   const markUploadComplete = useAction(api.videoActions.markUploadComplete);
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
+  const getThumbnailUrls = useAction(api.videoActions.getThumbnailUrls);
+  const setThumbnailKey = useMutation(api.videos.setThumbnailKey);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [thumbnailUrls, setThumbnailUrls] = useState<
+    Record<string, string | null>
+  >({});
+
+  const captureThumbnail = useCallback((file: File) => {
+    return new Promise<Blob | null>((resolve) => {
+      const video = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      let settled = false;
+
+      const cleanup = () => {
+        if (!settled) {
+          settled = true;
+        }
+        URL.revokeObjectURL(url);
+        video.remove();
+      };
+
+      const handleError = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      video.preload = "metadata";
+      video.muted = true;
+      video.src = url;
+      video.playsInline = true;
+      video.addEventListener("error", handleError, { once: true });
+
+      video.addEventListener(
+        "loadeddata",
+        () => {
+          const targetTime = Math.min(1, Math.max(0.1, video.duration * 0.05));
+          if (Number.isFinite(video.duration) && video.duration > 0) {
+            video.currentTime = targetTime;
+          } else {
+            video.currentTime = 0;
+          }
+        },
+        { once: true },
+      );
+
+      video.addEventListener(
+        "seeked",
+        () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 360;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            cleanup();
+            resolve(null);
+            return;
+          }
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(
+            (blob) => {
+              cleanup();
+              resolve(blob);
+            },
+            "image/jpeg",
+            0.8,
+          );
+        },
+        { once: true },
+      );
+    });
+  }, []);
+
+  const uploadThumbnail = useCallback(
+    async (videoId: Id<"videos">, file: File) => {
+      const thumbnail = await captureThumbnail(file);
+      if (!thumbnail) return;
+
+      const { url, key } = await getThumbnailUploadUrl({
+        videoId,
+        contentType: thumbnail.type || "image/jpeg",
+      });
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": thumbnail.type || "image/jpeg",
+        },
+        body: thumbnail,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Thumbnail upload failed: ${response.status} ${text}`);
+      }
+
+      await setThumbnailKey({ videoId, thumbnailKey: key });
+    },
+    [captureThumbnail, getThumbnailUploadUrl, setThumbnailKey],
+  );
+
+  useEffect(() => {
+    if (!videos || videos.length === 0) return;
+
+    const idsNeedingUrls = videos
+      .filter((video) => video.thumbnailKey || video.thumbnailUrl)
+      .map((video) => video._id)
+      .filter((videoId) => !Object.prototype.hasOwnProperty.call(thumbnailUrls, videoId));
+
+    if (idsNeedingUrls.length === 0) return;
+
+    let cancelled = false;
+
+    getThumbnailUrls({ videoIds: idsNeedingUrls })
+      .then((results) => {
+        if (cancelled) return;
+        setThumbnailUrls((prev) => {
+          const next = { ...prev };
+          for (const result of results) {
+            next[result.videoId] = result.url;
+          }
+          return next;
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to load thumbnails:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videos, getThumbnailUrls, thumbnailUrls]);
 
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
@@ -91,10 +226,14 @@ export default function ProjectPage() {
             contentType: file.type || "video/mp4",
           });
 
+          uploadThumbnail(videoId, file).catch((error) => {
+            console.error("Failed to upload thumbnail:", error);
+          });
+
           setUploads((prev) =>
             prev.map((u) =>
-              u.id === uploadId ? { ...u, videoId, status: "uploading" } : u
-            )
+              u.id === uploadId ? { ...u, videoId, status: "uploading" } : u,
+            ),
           );
 
           const { url, key } = await getUploadUrl({
@@ -105,9 +244,7 @@ export default function ProjectPage() {
           });
 
           setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId ? { ...u, s3Key: key } : u
-            )
+            prev.map((u) => (u.id === uploadId ? { ...u, s3Key: key } : u)),
           );
 
           await new Promise<void>((resolve, reject) => {
@@ -132,11 +269,14 @@ export default function ProjectPage() {
                   lastLoaded = e.loaded;
                 }
 
-                const avgSpeed = recentSpeeds.length > 0
-                  ? recentSpeeds.reduce((a, b) => a + b, 0) / recentSpeeds.length
-                  : 0;
+                const avgSpeed =
+                  recentSpeeds.length > 0
+                    ? recentSpeeds.reduce((a, b) => a + b, 0) /
+                      recentSpeeds.length
+                    : 0;
                 const remaining = e.total - e.loaded;
-                const eta = avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
+                const eta =
+                  avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
 
                 setUploads((prev) =>
                   prev.map((u) =>
@@ -147,8 +287,8 @@ export default function ProjectPage() {
                           bytesPerSecond: avgSpeed,
                           estimatedSecondsRemaining: eta,
                         }
-                      : u
-                  )
+                      : u,
+                  ),
                 );
               }
             });
@@ -157,7 +297,9 @@ export default function ProjectPage() {
               if (xhr.status >= 200 && xhr.status < 300) {
                 resolve();
               } else {
-                reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                reject(
+                  new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`),
+                );
               }
             });
 
@@ -182,23 +324,25 @@ export default function ProjectPage() {
 
           setUploads((prev) =>
             prev.map((u) =>
-              u.id === uploadId ? { ...u, status: "complete", progress: 100 } : u
-            )
+              u.id === uploadId
+                ? { ...u, status: "complete", progress: 100 }
+                : u,
+            ),
           );
 
           setTimeout(() => {
             setUploads((prev) => prev.filter((u) => u.id !== uploadId));
           }, 3000);
-
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Upload failed";
+          const errorMessage =
+            error instanceof Error ? error.message : "Upload failed";
 
           setUploads((prev) =>
             prev.map((u) =>
               u.id === uploadId
                 ? { ...u, status: "error", error: errorMessage }
-                : u
-            )
+                : u,
+            ),
           );
 
           const upload = uploads.find((u) => u.id === uploadId);
@@ -208,7 +352,15 @@ export default function ProjectPage() {
         }
       }
     },
-    [projectId, createVideo, getUploadUrl, markUploadComplete, markUploadFailed, uploads]
+    [
+      projectId,
+      createVideo,
+      getUploadUrl,
+      markUploadComplete,
+      markUploadFailed,
+      uploads,
+      uploadThumbnail,
+    ],
   );
 
   const handleCancelUpload = async (uploadId: string) => {
@@ -242,7 +394,7 @@ export default function ProjectPage() {
         console.error("Failed to download video:", error);
       }
     },
-    [getDownloadUrl]
+    [getDownloadUrl],
   );
 
   if (project === undefined || videos === undefined) {
@@ -276,7 +428,9 @@ export default function ProjectPage() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <div>
-              <h1 className="text-lg font-black text-[#1a1a1a]">{project.name}</h1>
+              <h1 className="text-lg font-black text-[#1a1a1a]">
+                {project.name}
+              </h1>
               {project.description && (
                 <p className="text-[#888] text-sm">{project.description}</p>
               )}
@@ -291,7 +445,7 @@ export default function ProjectPage() {
                   "p-1.5 transition-colors",
                   viewMode === "grid"
                     ? "bg-[#1a1a1a] text-[#f0f0e8]"
-                    : "text-[#888] hover:text-[#1a1a1a]"
+                    : "text-[#888] hover:text-[#1a1a1a]",
                 )}
               >
                 <Grid3X3 className="h-4 w-4" />
@@ -302,13 +456,15 @@ export default function ProjectPage() {
                   "p-1.5 transition-colors",
                   viewMode === "list"
                     ? "bg-[#1a1a1a] text-[#f0f0e8]"
-                    : "text-[#888] hover:text-[#1a1a1a]"
+                    : "text-[#888] hover:text-[#1a1a1a]",
                 )}
               >
                 <LayoutList className="h-4 w-4" />
               </button>
             </div>
-            {canUpload && <UploadButton onFilesSelected={handleFilesSelected} />}
+            {canUpload && (
+              <UploadButton onFilesSelected={handleFilesSelected} />
+            )}
           </div>
         </div>
       </header>
@@ -346,27 +502,36 @@ export default function ProjectPage() {
           /* Grid View - Responsive tiles */
           <div className="p-6">
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-              {videos.map((video) => (
-                <div
-                  key={video._id}
-                  className="group cursor-pointer"
-                  onClick={() =>
-                    router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
-                  }
-                >
-                  <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors">
-                    {video.thumbnailUrl ? (
-                      <Image
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Play className="h-8 w-8 text-[#888]" />
-                      </div>
-                    )}
+              {videos.map((video) => {
+                const cachedThumbnail = thumbnailUrls[video._id];
+                const thumbnailSrc =
+                  cachedThumbnail ??
+                  (video.thumbnailUrl?.startsWith("http")
+                    ? video.thumbnailUrl
+                    : undefined);
+
+                return (
+                  <div
+                    key={video._id}
+                    className="group cursor-pointer"
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/${teamSlug}/${projectId}/${video._id}`,
+                      )
+                    }
+                  >
+                    <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors">
+                      {thumbnailSrc ? (
+                        <img
+                          src={thumbnailSrc}
+                          alt={video.title}
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Play className="h-8 w-8 text-[#888]" />
+                        </div>
+                      )}
                     {video.status === "ready" && (
                       <button
                         type="button"
@@ -390,7 +555,9 @@ export default function ProjectPage() {
                       <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
                         <Badge
                           variant={
-                            video.status === "failed" ? "destructive" : "secondary"
+                            video.status === "failed"
+                              ? "destructive"
+                              : "secondary"
                           }
                           className="text-[10px]"
                         >
@@ -420,7 +587,10 @@ export default function ProjectPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void handleDownloadVideo(video._id, video.title);
+                                void handleDownloadVideo(
+                                  video._id,
+                                  video.title,
+                                );
                               }}
                             >
                               <Download className="mr-2 h-4 w-4" />
@@ -452,59 +622,75 @@ export default function ProjectPage() {
                     </div>
                   </div>
                   <div className="mt-1.5 px-0.5">
-                    <p className="text-sm text-[#1a1a1a] font-bold truncate">{video.title}</p>
+                    <p className="text-sm text-[#1a1a1a] font-bold truncate">
+                      {video.title}
+                    </p>
                     <p className="text-[11px] text-[#888] truncate">
                       {formatRelativeTime(video._creationTime)}
                     </p>
                   </div>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
           /* List View - Horizontal rows */
           <div className="divide-y-2 divide-[#1a1a1a]">
-            {videos.map((video) => (
-              <div
-                key={video._id}
-                className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
-                onClick={() =>
-                  router.push(`/dashboard/${teamSlug}/${projectId}/${video._id}`)
-                }
-              >
-                {/* Thumbnail */}
-                <div className="relative w-32 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
-                  {video.thumbnailUrl ? (
-                    <Image
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Play className="h-6 w-6 text-[#888]" />
-                    </div>
-                  )}
-                  {video.status !== "ready" && (
-                    <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
-                      <Badge
-                        variant={
-                          video.status === "failed" ? "destructive" : "secondary"
-                        }
-                        className="text-[10px]"
-                      >
-                        {video.status === "uploading" && "Uploading"}
-                        {video.status === "processing" && "Processing"}
-                        {video.status === "failed" && "Failed"}
-                      </Badge>
-                    </div>
-                  )}
-                </div>
+            {videos.map((video) => {
+              const cachedThumbnail = thumbnailUrls[video._id];
+              const thumbnailSrc =
+                cachedThumbnail ??
+                (video.thumbnailUrl?.startsWith("http")
+                  ? video.thumbnailUrl
+                  : undefined);
+
+              return (
+                <div
+                  key={video._id}
+                  className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/${teamSlug}/${projectId}/${video._id}`,
+                    )
+                  }
+                >
+                  {/* Thumbnail */}
+                  <div className="relative w-32 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
+                    {thumbnailSrc ? (
+                      <img
+                        src={thumbnailSrc}
+                        alt={video.title}
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="h-6 w-6 text-[#888]" />
+                      </div>
+                    )}
+                    {video.status !== "ready" && (
+                      <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
+                        <Badge
+                          variant={
+                            video.status === "failed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="text-[10px]"
+                        >
+                          {video.status === "uploading" && "Uploading"}
+                          {video.status === "processing" && "Processing"}
+                          {video.status === "failed" && "Failed"}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#1a1a1a] truncate">{video.title}</p>
+                  <p className="font-bold text-[#1a1a1a] truncate">
+                    {video.title}
+                  </p>
                   <div className="flex items-center gap-3 text-sm text-[#888] mt-0.5">
                     <span>{video.uploaderName}</span>
                     <span className="text-[#ccc]">·</span>
@@ -512,7 +698,9 @@ export default function ProjectPage() {
                     {video.duration && (
                       <>
                         <span className="text-[#ccc]">·</span>
-                        <span className="font-mono text-xs">{formatDuration(video.duration)}</span>
+                        <span className="font-mono text-xs">
+                          {formatDuration(video.duration)}
+                        </span>
                       </>
                     )}
                   </div>
@@ -579,8 +767,9 @@ export default function ProjectPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

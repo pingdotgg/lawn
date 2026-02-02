@@ -69,6 +69,7 @@ export default defineSchema({
     // Metadata
     duration: v.optional(v.number()),
     thumbnailUrl: v.optional(v.string()),
+    thumbnailKey: v.optional(v.string()),
     fileSize: v.optional(v.number()),
     contentType: v.optional(v.string()),
     status: v.union(

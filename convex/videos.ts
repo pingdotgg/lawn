@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { requireProjectAccess, requireVideoAccess } from "./auth";
+import { Id } from "./_generated/dataModel";
 
 export const create = mutation({
   args: {
@@ -79,6 +80,61 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.videoId, updates);
+  },
+});
+
+export const setThumbnailUrl = mutation({
+  args: {
+    videoId: v.id("videos"),
+    thumbnailUrl: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, { thumbnailUrl: args.thumbnailUrl });
+    return null;
+  },
+});
+
+export const setThumbnailKey = mutation({
+  args: {
+    videoId: v.id("videos"),
+    thumbnailKey: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, { thumbnailKey: args.thumbnailKey });
+    return null;
+  },
+});
+
+export const getThumbnailKeys = internalQuery({
+  args: {
+    videoIds: v.array(v.id("videos")),
+  },
+  returns: v.array(
+    v.object({
+      videoId: v.id("videos"),
+      thumbnailKey: v.optional(v.string()),
+      thumbnailUrl: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const results: Array<{
+      videoId: Id<"videos">;
+      thumbnailKey?: string;
+      thumbnailUrl?: string;
+    }> = [];
+    for (const videoId of args.videoIds) {
+      const { video } = await requireVideoAccess(ctx, videoId, "viewer");
+      results.push({
+        videoId,
+        thumbnailKey: video.thumbnailKey,
+        thumbnailUrl: video.thumbnailUrl,
+      });
+    }
+    return results;
   },
 });
 
@@ -193,6 +249,7 @@ export const getByShareToken = query({
         description: video.description,
         duration: video.duration,
         thumbnailUrl: video.thumbnailUrl,
+        thumbnailKey: video.thumbnailKey,
         s3Key: video.s3Key,
         contentType: video.contentType,
       },

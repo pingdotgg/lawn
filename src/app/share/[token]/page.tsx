@@ -23,12 +23,14 @@ export default function SharePage() {
   const incrementViewCount = useMutation(api.videos.incrementViewCount);
   const getSharedPlaybackUrl = useAction(api.videoActions.getSharedPlaybackUrl);
   const getSharedDownloadUrl = useAction(api.videoActions.getSharedDownloadUrl);
+  const getSharedThumbnailUrl = useAction(api.videoActions.getSharedThumbnailUrl);
 
   const [passwordInput, setPasswordInput] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [isHeaderDownloading, setIsHeaderDownloading] = useState(false);
   const hasTrackedViewRef = useRef(false);
 
@@ -56,6 +58,33 @@ export default function SharePage() {
         });
     }
   }, [videoData, token, isPasswordVerified, getSharedPlaybackUrl]);
+
+  useEffect(() => {
+    const shouldFetch =
+      videoData?.video && (!videoData.hasPassword || isPasswordVerified);
+    if (!shouldFetch) return;
+
+    getSharedThumbnailUrl({ token })
+      .then(({ url }) => {
+        if (url) {
+          setThumbnailUrl(url);
+          return;
+        }
+        setThumbnailUrl(
+          videoData.video.thumbnailUrl?.startsWith("http")
+            ? videoData.video.thumbnailUrl
+            : null,
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load shared thumbnail:", err);
+        setThumbnailUrl(
+          videoData?.video?.thumbnailUrl?.startsWith("http")
+            ? videoData.video.thumbnailUrl
+            : null,
+        );
+      });
+  }, [videoData, token, isPasswordVerified, getSharedThumbnailUrl]);
 
   const requestDownload = useCallback(async () => {
     if (!allowDownload) return null;
@@ -231,7 +260,7 @@ export default function SharePage() {
           <div className="border-2 border-[#1a1a1a] overflow-hidden">
             <VideoPlayer
               src={playbackUrl}
-              poster={video.thumbnailUrl}
+              poster={thumbnailUrl ?? undefined}
               allowDownload={allowDownload}
               downloadFilename={`${video.title}.mp4`}
               onRequestDownload={requestDownload}
