@@ -17,11 +17,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
+  const shouldAutoRedirect = !!(teams && teams.length === 1 && teams[0]);
+
   useEffect(() => {
-    if (teams && teams.length > 0 && teams[0]) {
-      router.push(`/dashboard/${teams[0].slug}`);
+    if (shouldAutoRedirect && teams?.[0]) {
+      router.replace(`/dashboard/${teams[0].slug}`);
     }
-  }, [teams, router]);
+  }, [shouldAutoRedirect, teams, router]);
 
   if (teams === undefined) {
     return (
@@ -58,6 +60,14 @@ export default function DashboardPage() {
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
         />
+      </div>
+    );
+  }
+
+  if (shouldAutoRedirect) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-[#888]">Opening your team...</div>
       </div>
     );
   }
