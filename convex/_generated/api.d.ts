@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as comments from "../comments.js";
 import type * as http from "../http.js";
 import type * as projects from "../projects.js";
+import type * as s3 from "../s3.js";
 import type * as shareLinks from "../shareLinks.js";
 import type * as teams from "../teams.js";
 import type * as users from "../users.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   comments: typeof comments;
   http: typeof http;
   projects: typeof projects;
+  s3: typeof s3;
   shareLinks: typeof shareLinks;
   teams: typeof teams;
   users: typeof users;

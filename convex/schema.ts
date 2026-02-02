@@ -70,6 +70,7 @@ export default defineSchema({
     duration: v.optional(v.number()),
     thumbnailUrl: v.optional(v.string()),
     thumbnailKey: v.optional(v.string()),
+    thumbnailStorageId: v.optional(v.id("_storage")),
     fileSize: v.optional(v.number()),
     contentType: v.optional(v.string()),
     status: v.union(

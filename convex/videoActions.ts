@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { BUCKET_NAME, buildPublicUrl, resolvePublicThumbnailUrl } from "./s3";
 
 // S3 client setup for Railway's S3-compatible storage
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
@@ -19,32 +20,6 @@ function getS3Client() {
     },
     forcePathStyle: true, // Use path-style URLs for Railway
   });
-}
-
-const BUCKET_NAME = process.env.RAILWAY_BUCKET_NAME || "videos";
-
-function buildPublicUrl(key: string) {
-  const baseUrl = process.env.RAILWAY_PUBLIC_URL || process.env.RAILWAY_ENDPOINT;
-  if (!baseUrl) {
-    throw new Error("Missing RAILWAY_PUBLIC_URL or RAILWAY_ENDPOINT for public URL");
-  }
-  const url = new URL(baseUrl);
-  const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
-  url.pathname = `${basePath}/${BUCKET_NAME}/${key}`;
-  return url.toString();
-}
-
-function extractKeyFromUrl(rawUrl: string | undefined, bucketName: string) {
-  if (!rawUrl) return null;
-  try {
-    const parsed = new URL(rawUrl);
-    const prefix = `/${bucketName}/`;
-    if (!parsed.pathname.startsWith(prefix)) return null;
-    const key = parsed.pathname.slice(prefix.length);
-    return key.length > 0 ? key : null;
-  } catch {
-    return null;
-  }
 }
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
@@ -152,7 +127,6 @@ export const getThumbnailUrls = action({
     args
   ): Promise<Array<{ videoId: Id<"videos">; url: string | null }>> => {
     if (args.videoIds.length === 0) return [];
-    const s3 = getS3Client();
 
     const records: Array<{
       videoId: Id<"videos">;
@@ -162,37 +136,10 @@ export const getThumbnailUrls = action({
       videoIds: args.videoIds,
     });
 
-    const results: Array<{ videoId: Id<"videos">; url: string | null }> =
-      await Promise.all(
-      records.map(async (record) => {
-        if (record.thumbnailUrl?.startsWith("http")) {
-          const keyFromUrl = extractKeyFromUrl(record.thumbnailUrl, BUCKET_NAME);
-          if (!keyFromUrl) {
-            return { videoId: record.videoId, url: record.thumbnailUrl };
-          }
-          const command = new GetObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: keyFromUrl,
-          });
-          const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-          return { videoId: record.videoId, url };
-        }
-
-        const key = record.thumbnailKey ?? record.thumbnailUrl;
-        if (!key) {
-          return { videoId: record.videoId, url: null };
-        }
-
-        const command = new GetObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: key,
-        });
-        const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-        return { videoId: record.videoId, url };
-      })
-    );
-
-    return results;
+    return records.map((record) => ({
+      videoId: record.videoId,
+      url: resolvePublicThumbnailUrl(record),
+    }));
   },
 });
 
@@ -347,8 +294,6 @@ export const getSharedThumbnailUrl = action({
     url: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args): Promise<{ url: string | null }> => {
-    const s3 = getS3Client();
-
     const result = await ctx.runQuery(api.videos.getByShareToken, {
       token: args.token,
     });
@@ -357,31 +302,6 @@ export const getSharedThumbnailUrl = action({
       return { url: null };
     }
 
-    if (result.video.thumbnailUrl?.startsWith("http")) {
-      const keyFromUrl = extractKeyFromUrl(result.video.thumbnailUrl, BUCKET_NAME);
-      if (!keyFromUrl) {
-        return { url: result.video.thumbnailUrl };
-      }
-      const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: keyFromUrl,
-      });
-      const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-      return { url };
-    }
-
-    const key = result.video.thumbnailKey ?? result.video.thumbnailUrl;
-    if (!key) {
-      return { url: null };
-    }
-
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    });
-
-    const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-
-    return { url };
+    return { url: resolvePublicThumbnailUrl(result.video) };
   },
 });

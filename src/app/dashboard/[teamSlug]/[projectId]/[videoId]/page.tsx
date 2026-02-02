@@ -34,7 +34,6 @@ export default function VideoPage() {
   const updateVideo = useMutation(api.videos.update);
   const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
-  const getThumbnailUrls = useAction(api.videoActions.getThumbnailUrls);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -45,44 +44,29 @@ export default function VideoPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+  const isPlayable = video?.status === "ready" && Boolean(video?.s3Key);
 
   useEffect(() => {
-    if (video && video.status === "ready" && video.s3Key) {
-      getPlaybackUrl({ videoId })
-        .then(({ url }) => {
-          setPlaybackError(null);
-          setPlaybackUrl(url);
-        })
-        .catch((err) => {
-          setPlaybackError(err.message || "Failed to load video");
-        });
-    }
-  }, [video, videoId, getPlaybackUrl]);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!video) return;
+    if (!isPlayable) return;
 
-    if (!video.thumbnailKey && !video.thumbnailUrl) {
-      setThumbnailUrl(null);
-      return;
-    }
-
-    getThumbnailUrls({ videoIds: [videoId] })
-      .then((results) => {
-        const resolved =
-          results[0]?.url ??
-          (video.thumbnailUrl?.startsWith("http") ? video.thumbnailUrl : null);
-        setThumbnailUrl(resolved);
+    getPlaybackUrl({ videoId })
+      .then(({ url }) => {
+        if (cancelled) return;
+        setPlaybackError(null);
+        setPlaybackUrl(url);
       })
       .catch((err) => {
-        console.error("Failed to load thumbnail:", err);
-        setThumbnailUrl(
-          video.thumbnailUrl?.startsWith("http") ? video.thumbnailUrl : null,
-        );
+        if (cancelled) return;
+        setPlaybackError(err.message || "Failed to load video");
       });
-  }, [video, videoId, getThumbnailUrls]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlayable, videoId, getPlaybackUrl]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -250,7 +234,11 @@ export default function VideoPage() {
                     <VideoPlayer
                       ref={playerRef}
                       src={playbackUrl}
-                      poster={thumbnailUrl ?? undefined}
+                      poster={
+                        video.thumbnailUrl?.startsWith("http")
+                          ? video.thumbnailUrl
+                          : undefined
+                      }
                       comments={comments || []}
                       onTimeUpdate={handleTimeUpdate}
                       onMarkerClick={handleMarkerClick}

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
@@ -60,20 +60,16 @@ export default function ProjectPage() {
   const createVideo = useMutation(api.videos.create);
   const deleteVideo = useMutation(api.videos.remove);
   const getUploadUrl = useAction(api.videoActions.getUploadUrl);
-  const getThumbnailUploadUrl = useAction(
-    api.videoActions.getThumbnailUploadUrl,
-  );
   const markUploadComplete = useAction(api.videoActions.markUploadComplete);
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
-  const getThumbnailUrls = useAction(api.videoActions.getThumbnailUrls);
-  const setThumbnailKey = useMutation(api.videos.setThumbnailKey);
+  const generateThumbnailUploadUrl = useMutation(
+    api.videos.generateThumbnailUploadUrl,
+  );
+  const setThumbnailStorageId = useMutation(api.videos.setThumbnailStorageId);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [thumbnailUrls, setThumbnailUrls] = useState<
-    Record<string, string | null>
-  >({});
 
   const captureThumbnail = useCallback((file: File) => {
     return new Promise<Blob | null>((resolve) => {
@@ -145,13 +141,10 @@ export default function ProjectPage() {
       const thumbnail = await captureThumbnail(file);
       if (!thumbnail) return;
 
-      const { url, key } = await getThumbnailUploadUrl({
-        videoId,
-        contentType: thumbnail.type || "image/jpeg",
-      });
+      const uploadUrl = await generateThumbnailUploadUrl({ videoId });
 
-      const response = await fetch(url, {
-        method: "PUT",
+      const response = await fetch(uploadUrl, {
+        method: "POST",
         headers: {
           "Content-Type": thumbnail.type || "image/jpeg",
         },
@@ -163,42 +156,18 @@ export default function ProjectPage() {
         throw new Error(`Thumbnail upload failed: ${response.status} ${text}`);
       }
 
-      await setThumbnailKey({ videoId, thumbnailKey: key });
-    },
-    [captureThumbnail, getThumbnailUploadUrl, setThumbnailKey],
-  );
+      const { storageId } = (await response.json()) as { storageId?: string };
+      if (!storageId) {
+        throw new Error("Thumbnail upload failed: missing storageId");
+      }
 
-  useEffect(() => {
-    if (!videos || videos.length === 0) return;
-
-    const idsNeedingUrls = videos
-      .filter((video) => video.thumbnailKey || video.thumbnailUrl)
-      .map((video) => video._id)
-      .filter((videoId) => !Object.prototype.hasOwnProperty.call(thumbnailUrls, videoId));
-
-    if (idsNeedingUrls.length === 0) return;
-
-    let cancelled = false;
-
-    getThumbnailUrls({ videoIds: idsNeedingUrls })
-      .then((results) => {
-        if (cancelled) return;
-        setThumbnailUrls((prev) => {
-          const next = { ...prev };
-          for (const result of results) {
-            next[result.videoId] = result.url;
-          }
-          return next;
-        });
-      })
-      .catch((error) => {
-        console.error("Failed to load thumbnails:", error);
+      await setThumbnailStorageId({
+        videoId,
+        thumbnailStorageId: storageId as Id<"_storage">,
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [videos, getThumbnailUrls, thumbnailUrls]);
+    },
+    [captureThumbnail, generateThumbnailUploadUrl, setThumbnailStorageId],
+  );
 
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
@@ -503,12 +472,9 @@ export default function ProjectPage() {
           <div className="p-6">
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
               {videos.map((video) => {
-                const cachedThumbnail = thumbnailUrls[video._id];
-                const thumbnailSrc =
-                  cachedThumbnail ??
-                  (video.thumbnailUrl?.startsWith("http")
-                    ? video.thumbnailUrl
-                    : undefined);
+                const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
+                  ? video.thumbnailUrl
+                  : undefined;
 
                 return (
                   <div
@@ -638,12 +604,9 @@ export default function ProjectPage() {
           /* List View - Horizontal rows */
           <div className="divide-y-2 divide-[#1a1a1a]">
             {videos.map((video) => {
-              const cachedThumbnail = thumbnailUrls[video._id];
-              const thumbnailSrc =
-                cachedThumbnail ??
-                (video.thumbnailUrl?.startsWith("http")
-                  ? video.thumbnailUrl
-                  : undefined);
+              const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
+                ? video.thumbnailUrl
+                : undefined;
 
               return (
                 <div

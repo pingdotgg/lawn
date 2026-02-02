@@ -23,68 +23,48 @@ export default function SharePage() {
   const incrementViewCount = useMutation(api.videos.incrementViewCount);
   const getSharedPlaybackUrl = useAction(api.videoActions.getSharedPlaybackUrl);
   const getSharedDownloadUrl = useAction(api.videoActions.getSharedDownloadUrl);
-  const getSharedThumbnailUrl = useAction(api.videoActions.getSharedThumbnailUrl);
 
   const [passwordInput, setPasswordInput] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [isHeaderDownloading, setIsHeaderDownloading] = useState(false);
-  const hasTrackedViewRef = useRef(false);
+  const lastTrackedTokenRef = useRef<string | null>(null);
 
   const allowDownload = videoData?.allowDownload ?? false;
+  const hasVideo = Boolean(videoData?.video);
+  const canPlay =
+    Boolean(videoData?.video?.s3Key) &&
+    (!videoData?.hasPassword || isPasswordVerified);
 
   // Track view on first load
   useEffect(() => {
-    if (videoData?.video && !hasTrackedViewRef.current) {
-      hasTrackedViewRef.current = true;
-      incrementViewCount({ token }).catch(console.error);
-    }
-  }, [videoData, token, incrementViewCount]);
+    if (!hasVideo || lastTrackedTokenRef.current === token) return;
+    lastTrackedTokenRef.current = token;
+    incrementViewCount({ token }).catch(console.error);
+  }, [hasVideo, token, incrementViewCount]);
 
   // Fetch presigned playback URL when video data is available and password is verified (if needed)
   useEffect(() => {
-    const shouldFetch = videoData?.video?.s3Key && (!videoData.hasPassword || isPasswordVerified);
-    if (shouldFetch) {
-      getSharedPlaybackUrl({ token })
-        .then(({ url }) => {
-          setPlaybackError(null);
-          setPlaybackUrl(url);
-        })
-        .catch((err) => {
-          setPlaybackError(err.message || "Failed to load video");
-        });
-    }
-  }, [videoData, token, isPasswordVerified, getSharedPlaybackUrl]);
+    let cancelled = false;
+    if (!canPlay) return;
 
-  useEffect(() => {
-    const shouldFetch =
-      videoData?.video && (!videoData.hasPassword || isPasswordVerified);
-    if (!shouldFetch) return;
-
-    getSharedThumbnailUrl({ token })
+    getSharedPlaybackUrl({ token })
       .then(({ url }) => {
-        if (url) {
-          setThumbnailUrl(url);
-          return;
-        }
-        setThumbnailUrl(
-          videoData.video.thumbnailUrl?.startsWith("http")
-            ? videoData.video.thumbnailUrl
-            : null,
-        );
+        if (cancelled) return;
+        setPlaybackError(null);
+        setPlaybackUrl(url);
       })
       .catch((err) => {
-        console.error("Failed to load shared thumbnail:", err);
-        setThumbnailUrl(
-          videoData?.video?.thumbnailUrl?.startsWith("http")
-            ? videoData.video.thumbnailUrl
-            : null,
-        );
+        if (cancelled) return;
+        setPlaybackError(err.message || "Failed to load video");
       });
-  }, [videoData, token, isPasswordVerified, getSharedThumbnailUrl]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canPlay, token, getSharedPlaybackUrl]);
 
   const requestDownload = useCallback(async () => {
     if (!allowDownload) return null;
@@ -260,7 +240,11 @@ export default function SharePage() {
           <div className="border-2 border-[#1a1a1a] overflow-hidden">
             <VideoPlayer
               src={playbackUrl}
-              poster={thumbnailUrl ?? undefined}
+              poster={
+                video.thumbnailUrl?.startsWith("http")
+                  ? video.thumbnailUrl
+                  : undefined
+              }
               allowDownload={allowDownload}
               downloadFilename={`${video.title}.mp4`}
               onRequestDownload={requestDownload}
