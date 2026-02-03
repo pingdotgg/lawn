@@ -3,7 +3,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/lib/convex";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { ThemeProvider } from "@/components/theme/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "lawn - video collaboration",
@@ -37,10 +37,9 @@ export default function RootLayout({
         <body className="h-full antialiased">
           <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
           <ConvexClientProvider>
-            <TooltipProvider>
-              {children}
-              <ThemeToggle />
-            </TooltipProvider>
+            <ThemeProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+            </ThemeProvider>
           </ConvexClientProvider>
         </body>
       </html>

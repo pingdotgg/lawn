@@ -71,6 +71,8 @@ export default function ProjectPage() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
+  const isLoadingData = project === undefined || videos === undefined;
+
   const captureThumbnail = useCallback((file: File) => {
     return new Promise<Blob | null>((resolve) => {
       const video = document.createElement("video");
@@ -366,14 +368,7 @@ export default function ProjectPage() {
     [getDownloadUrl],
   );
 
-  if (project === undefined || videos === undefined) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-[#888]">Loading...</div>
-      </div>
-    );
-  }
-
+  // Not found state
   if (project === null) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -382,7 +377,7 @@ export default function ProjectPage() {
     );
   }
 
-  const canUpload = project.role !== "viewer";
+  const canUpload = project?.role !== "viewer";
 
   return (
     <div className="h-full flex flex-col">
@@ -396,11 +391,14 @@ export default function ProjectPage() {
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
-            <div>
+            <div className={cn(
+              "transition-opacity duration-300",
+              isLoadingData ? "opacity-0" : "opacity-100"
+            )}>
               <h1 className="text-lg font-black text-[#1a1a1a]">
-                {project.name}
+                {project?.name ?? "\u00A0"}
               </h1>
-              {project.description && (
+              {project?.description && (
                 <p className="text-[#888] text-sm">{project.description}</p>
               )}
             </div>
@@ -459,8 +457,8 @@ export default function ProjectPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {videos.length === 0 && uploads.length === 0 ? (
-          <div className="h-full flex items-center justify-center p-6">
+        {!isLoadingData && videos.length === 0 && uploads.length === 0 ? (
+          <div className="h-full flex items-center justify-center p-6 animate-in fade-in duration-300">
             <DropZone
               onFilesSelected={handleFilesSelected}
               disabled={!canUpload}
@@ -469,9 +467,12 @@ export default function ProjectPage() {
           </div>
         ) : viewMode === "grid" ? (
           /* Grid View - Responsive tiles */
-          <div className="p-6">
+          <div className={cn(
+            "p-6 transition-opacity duration-300",
+            isLoadingData ? "opacity-0" : "opacity-100"
+          )}>
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-              {videos.map((video) => {
+              {videos?.map((video) => {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                   ? video.thumbnailUrl
                   : undefined;
@@ -602,8 +603,11 @@ export default function ProjectPage() {
           </div>
         ) : (
           /* List View - Horizontal rows */
-          <div className="divide-y-2 divide-[#1a1a1a]">
-            {videos.map((video) => {
+          <div className={cn(
+            "divide-y-2 divide-[#1a1a1a] transition-opacity duration-300",
+            isLoadingData ? "opacity-0" : "opacity-100"
+          )}>
+            {videos?.map((video) => {
               const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                 ? video.thumbnailUrl
                 : undefined;

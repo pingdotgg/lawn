@@ -1,7 +1,14 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 const THEME_STORAGE_KEY = "lawn-theme";
 
@@ -9,7 +16,9 @@ type Theme = "light" | "dark";
 
 function getSystemTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 function getInitialTheme(): Theme {
@@ -28,7 +37,23 @@ function getInitialTheme(): Theme {
   return getSystemTheme();
 }
 
-export function ThemeToggle() {
+interface ThemeContextValue {
+  theme: Theme;
+  toggleTheme: () => void;
+  mounted: boolean;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within ThemeProvider");
+  }
+  return context;
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -43,19 +68,68 @@ export function ThemeToggle() {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [mounted, theme]);
 
-  const nextTheme = useMemo<Theme>(() => (theme === "dark" ? "light" : "dark"), [theme]);
+  const toggleTheme = useCallback(() => {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  }, []);
+
+  // Keyboard shortcut: Ctrl/Cmd + Shift + L
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        toggleTheme();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mounted, toggleTheme]);
+
+  const value = useMemo(
+    () => ({ theme, toggleTheme, mounted }),
+    [theme, toggleTheme, mounted]
+  );
+
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
+}
+
+// Dropdown menu item for theme toggle
+export function ThemeToggleMenuItem({
+  className,
+}: {
+  className?: string;
+}) {
+  const { theme, toggleTheme, mounted } = useTheme();
 
   if (!mounted) return null;
 
   return (
     <button
       type="button"
-      onClick={() => setTheme(nextTheme)}
-      className="fixed bottom-5 right-5 z-[70] inline-flex h-11 w-11 items-center justify-center border-2 border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--foreground)] shadow-[2px_2px_0_var(--border)] transition-colors hover:bg-[color:var(--surface-alt)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2"
-      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      onClick={toggleTheme}
+      className={className}
     >
-      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {theme === "dark" ? (
+        <>
+          <Sun className="mr-2 h-4 w-4" />
+          Light mode
+        </>
+      ) : (
+        <>
+          <Moon className="mr-2 h-4 w-4" />
+          Dark mode
+        </>
+      )}
+      <span className="ml-auto text-[10px] text-[#888]">⌘⇧L</span>
     </button>
   );
+}
+
+// Legacy component - now just provides context
+export function ThemeToggle() {
+  return null;
 }

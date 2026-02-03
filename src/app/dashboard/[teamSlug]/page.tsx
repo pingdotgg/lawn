@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MemberInvite } from "@/components/teams/MemberInvite";
+import { cn } from "@/lib/utils";
 
 export default function TeamPage() {
   const params = useParams();
@@ -48,14 +49,9 @@ export default function TeamPage() {
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  if (team === undefined || projects === undefined) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-[#888]">Loading...</div>
-      </div>
-    );
-  }
+  const isLoadingData = team === undefined || projects === undefined;
 
+  // Not found state
   if (team === null) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -66,7 +62,7 @@ export default function TeamPage() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectName.trim()) return;
+    if (!newProjectName.trim() || !team) return;
 
     setIsLoading(true);
     try {
@@ -93,39 +89,45 @@ export default function TeamPage() {
     }
   };
 
-  const canManageMembers = team.role === "owner" || team.role === "admin";
-  const canCreateProject = team.role !== "viewer";
+  const canManageMembers = team?.role === "owner" || team?.role === "admin";
+  const canCreateProject = team?.role !== "viewer";
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-black text-[#1a1a1a]">{team.name}</h1>
+          <div className={cn(
+            "transition-opacity duration-300",
+            isLoadingData ? "opacity-0" : "opacity-100"
+          )}>
+            <h1 className="text-xl font-black text-[#1a1a1a]">{team?.name ?? "\u00A0"}</h1>
             <p className="text-[#888] text-sm mt-0.5">Projects</p>
           </div>
           <div className="flex gap-2">
-            {canManageMembers && (
-              <Button variant="outline" onClick={() => setMemberDialogOpen(true)}>
-                <Users className="mr-1.5 h-4 w-4" />
-                Members
-              </Button>
-            )}
-            {canCreateProject && (
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                New project
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={() => setMemberDialogOpen(true)}
+              className={cn(!canManageMembers && "invisible")}
+            >
+              <Users className="mr-1.5 h-4 w-4" />
+              Members
+            </Button>
+            <Button
+              onClick={() => setCreateDialogOpen(true)}
+              className={cn(!canCreateProject && "invisible")}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              New project
+            </Button>
           </div>
         </div>
       </header>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
-        {projects.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
+        {!isLoadingData && projects.length === 0 ? (
+          <div className="h-full flex items-center justify-center animate-in fade-in duration-300">
             <Card className="max-w-sm text-center">
               <CardHeader>
                 <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
@@ -150,8 +152,11 @@ export default function TeamPage() {
             </Card>
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {projects.map((project) => (
+          <div className={cn(
+            "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
+            isLoadingData ? "opacity-0" : "opacity-100"
+          )}>
+            {projects?.map((project) => (
               <Card
                 key={project._id}
                 className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
@@ -241,7 +246,7 @@ export default function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {canManageMembers && (
+      {canManageMembers && team && (
         <MemberInvite
           teamId={team._id}
           open={memberDialogOpen}

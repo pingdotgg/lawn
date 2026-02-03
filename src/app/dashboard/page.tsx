@@ -11,12 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Users, Plus, ArrowRight } from "lucide-react";
 import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const teams = useQuery(api.teams.list);
   const router = useRouter();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
+  const isLoading = teams === undefined;
   const shouldAutoRedirect = !!(teams && teams.length === 1 && teams[0]);
 
   useEffect(() => {
@@ -25,17 +27,10 @@ export default function DashboardPage() {
     }
   }, [shouldAutoRedirect, teams, router]);
 
-  if (teams === undefined) {
+  // Empty state - no teams
+  if (teams && teams.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-[#888]">Loading...</div>
-      </div>
-    );
-  }
-
-  if (teams.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
+      <div className="flex items-center justify-center h-full p-8 animate-in fade-in duration-300">
         <Card className="max-w-sm w-full text-center">
           <CardHeader>
             <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
@@ -64,14 +59,6 @@ export default function DashboardPage() {
     );
   }
 
-  if (shouldAutoRedirect) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-[#888]">Opening your team...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
@@ -88,8 +75,13 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {teams.map(
+        <div
+          className={cn(
+            "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
+            isLoading || shouldAutoRedirect ? "opacity-0" : "opacity-100"
+          )}
+        >
+          {teams?.map(
             (team) =>
               team && (
                 <Card

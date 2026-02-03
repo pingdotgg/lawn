@@ -16,6 +16,7 @@ import { ChevronDown, Plus } from "lucide-react";
 import { useState } from "react";
 import { CreateTeamDialog } from "./CreateTeamDialog";
 import { cn } from "@/lib/utils";
+import { ThemeToggleMenuItem } from "@/components/theme/ThemeToggle";
 
 interface TeamSwitcherProps {
   compact?: boolean;
@@ -77,6 +78,8 @@ export function TeamSwitcher({ compact = false }: TeamSwitcherProps) {
               <Plus className="mr-2 h-4 w-4" />
               Create team
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <ThemeToggleMenuItem className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground" />
           </DropdownMenuContent>
         </DropdownMenu>
         <CreateTeamDialog
@@ -121,6 +124,8 @@ export function TeamSwitcher({ compact = false }: TeamSwitcherProps) {
             <Plus className="mr-2 h-4 w-4" />
             Create team
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <ThemeToggleMenuItem className="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground" />
         </DropdownMenuContent>
       </DropdownMenu>
       <CreateTeamDialog

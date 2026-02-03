@@ -1,10 +1,11 @@
 "use client";
 
-import { useUser, UserButton } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FolderOpen, Settings, Users } from "lucide-react";
+import { Home, FolderOpen, Settings, Users, Moon, Sun } from "lucide-react";
+import { useTheme } from "@/components/theme/ThemeToggle";
 
 const navigation = [
   { name: "Home", href: "/dashboard", icon: Home },
@@ -13,12 +14,32 @@ const navigation = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
+function ThemeToggleButton() {
+  const { theme, toggleTheme, mounted } = useTheme();
+
+  if (!mounted) return <div className="w-8 h-8" />;
+
+  return (
+    <button
+      onClick={toggleTheme}
+      className="w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#1a1a1a] hover:bg-[#e8e8e0] transition-colors"
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (⌘⇧L)`}
+      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+    >
+      {theme === "dark" ? (
+        <Sun className="h-4 w-4" />
+      ) : (
+        <Moon className="h-4 w-4" />
+      )}
+    </button>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useUser();
   const pathname = usePathname();
 
   return (
@@ -53,8 +74,9 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* User */}
-        <div className="mt-auto">
+        {/* User & Theme */}
+        <div className="mt-auto flex flex-col items-center gap-3">
+          <ThemeToggleButton />
           <UserButton
             appearance={{
               elements: {
