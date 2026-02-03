@@ -1,8 +1,7 @@
-"use client";
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, CreditCard, Trash2, Users } from "lucide-react";
-import Link from "next/link";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import {
   dashboardHomePath,
@@ -19,8 +17,8 @@ import {
 
 export default function TeamSettingsPage() {
   const params = useParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
   const context = useQuery(api.workspace.resolveContext, { teamSlug });
@@ -43,9 +41,9 @@ export default function TeamSettingsPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && canonicalSettingsPath) {
-      router.replace(canonicalSettingsPath);
+      navigate(canonicalSettingsPath, { replace: true });
     }
-  }, [shouldCanonicalize, canonicalSettingsPath, router]);
+  }, [shouldCanonicalize, canonicalSettingsPath, navigate]);
 
   if (context === undefined || shouldCanonicalize) {
     return (
@@ -88,7 +86,7 @@ export default function TeamSettingsPage() {
 
     try {
       await deleteTeam({ teamId: team._id });
-      router.push(dashboardHomePath());
+      navigate(dashboardHomePath());
     } catch (error) {
       console.error("Failed to delete team:", error);
     }
@@ -105,7 +103,7 @@ export default function TeamSettingsPage() {
   return (
     <div className="p-8 max-w-3xl">
       <Link
-        href={teamHomePath(team.slug)}
+        to={teamHomePath(team.slug)}
         className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />

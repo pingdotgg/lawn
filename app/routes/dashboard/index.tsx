@@ -1,10 +1,8 @@
-"use client";
 
-export const dynamic = "force-dynamic";
 
 import { useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { useNavigate } from "react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +14,7 @@ import { teamHomePath } from "@/lib/routes";
 
 export default function DashboardPage() {
   const teams = useQuery(api.teams.list);
-  const router = useRouter();
+  const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const isLoading = teams === undefined;
@@ -81,7 +79,7 @@ export default function DashboardPage() {
                 <Card
                   key={team._id}
                   className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
-                  onClick={() => router.push(teamHomePath(team.slug))}
+                  onClick={() => navigate(teamHomePath(team.slug))}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">

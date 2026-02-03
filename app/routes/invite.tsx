@@ -1,20 +1,18 @@
-"use client";
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { Link, useNavigate, useParams } from "react-router";
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Users, Mail, Check } from "lucide-react";
-import Link from "next/link";
 import { teamHomePath } from "@/lib/routes";
 
 export default function InvitePage() {
   const params = useParams();
-  const router = useRouter();
+  const navigate = useNavigate();
   const token = params.token as string;
   const { user, isLoaded } = useUser();
 
@@ -30,7 +28,7 @@ export default function InvitePage() {
     try {
       const team = await acceptInvite({ token });
       if (team) {
-        router.push(teamHomePath(team.slug));
+        navigate(teamHomePath(team.slug));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to accept invite");
@@ -61,7 +59,7 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/" className="block">
+            <Link to="/" className="block">
               <Button variant="outline" className="w-full">
                 Go to lawn
               </Button>
@@ -97,7 +95,7 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Sign in with the email address above to accept this invite.
             </p>
-            <Link href={`/sign-in?redirect_url=/invite/${token}`} className="block">
+            <Link to={`/sign-in?redirect_url=/invite/${token}`} className="block">
               <Button className="w-full">Sign in to accept</Button>
             </Link>
           </CardContent>
@@ -125,7 +123,7 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Please sign in with the correct email address to accept this invite.
             </p>
-            <Link href={`/sign-in?redirect_url=/invite/${token}`} className="block">
+            <Link to={`/sign-in?redirect_url=/invite/${token}`} className="block">
               <Button className="w-full" variant="outline">
                 Sign in with different account
               </Button>
@@ -170,7 +168,7 @@ export default function InvitePage() {
               </>
             )}
           </Button>
-          <Link href="/" className="block">
+          <Link to="/" className="block">
             <Button variant="ghost" className="w-full">
               Decline
             </Button>

@@ -1,10 +1,6 @@
-import Link from "next/link";
+import { Link, Outlet } from "react-router";
 
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthLayout() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f0f0e8] relative">
       {/* Subtle grid pattern */}
@@ -21,14 +17,14 @@ export default function AuthLayout({
 
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
+          <Link to="/" className="inline-block">
             <span className="text-4xl font-black text-[#1a1a1a]">lawn</span>
           </Link>
           <p className="mt-3 text-sm text-[#888]">
             Video collaboration, simplified
           </p>
         </div>
-        {children}
+        <Outlet />
       </div>
     </div>
   );

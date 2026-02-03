@@ -1,8 +1,7 @@
-"use client";
 
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../../../../convex/_generated/api";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,8 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Link from "next/link";
-import { Id } from "../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { teamHomePath, videoPath } from "@/lib/routes";
 
@@ -52,8 +50,8 @@ type ViewMode = "grid" | "list";
 
 export default function ProjectPage() {
   const params = useParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
 
@@ -87,9 +85,9 @@ export default function ProjectPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      router.replace(context.canonicalPath);
+      navigate(context.canonicalPath, { replace: true });
     }
-  }, [shouldCanonicalize, context, router]);
+  }, [shouldCanonicalize, context, navigate]);
 
   const isLoadingData =
     context === undefined ||
@@ -412,7 +410,7 @@ export default function ProjectPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              href={teamHomePath(resolvedTeamSlug)}
+              to={teamHomePath(resolvedTeamSlug)}
               className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -511,7 +509,7 @@ export default function ProjectPage() {
                     key={video._id}
                     className="group cursor-pointer"
                     onClick={() =>
-                      router.push(
+                      navigate(
                         videoPath(resolvedTeamSlug, project._id, video._id),
                       )
                     }
@@ -646,7 +644,7 @@ export default function ProjectPage() {
                   key={video._id}
                   className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
                   onClick={() =>
-                    router.push(
+                    navigate(
                       videoPath(resolvedTeamSlug, project._id, video._id),
                     )
                   }

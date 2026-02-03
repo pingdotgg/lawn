@@ -1,8 +1,15 @@
-"use client";
 
-import { UserButton } from "@clerk/nextjs";
-import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { UserButton } from "@clerk/react-router";
+import { getAuth } from "@clerk/react-router/server";
+
+import {
+  Outlet,
+  Link,
+  redirect,
+  useLocation,
+  useParams,
+  type LoaderFunctionArgs,
+} from "react-router";
 import { cn } from "@/lib/utils";
 import { Home, FolderOpen, Settings, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeToggle";
@@ -11,6 +18,15 @@ import {
   teamHomePath,
   teamSettingsPath,
 } from "@/lib/routes";
+
+export async function loader(args: LoaderFunctionArgs) {
+  const { userId } = await getAuth(args);
+  if (userId) return null;
+
+  const url = new URL(args.request.url);
+  const redirectUrl = `${url.pathname}${url.search}`;
+  throw redirect(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+}
 
 function ThemeToggleButton() {
   const { theme, toggleTheme, mounted } = useTheme();
@@ -33,12 +49,8 @@ function ThemeToggleButton() {
   );
 }
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
+export default function DashboardLayout() {
+  const pathname = useLocation().pathname;
   const params = useParams();
   const teamSlug =
     typeof params.teamSlug === "string" ? params.teamSlug : undefined;
@@ -80,7 +92,7 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside className="w-16 border-r-2 border-[#1a1a1a] bg-[#f0f0e8] flex flex-col items-center py-4">
         {/* Logo */}
-        <Link href={dashboardHomePath()} className="mb-8">
+        <Link to={dashboardHomePath()} className="mb-8">
           <span className="text-lg font-black">l</span>
         </Link>
 
@@ -90,7 +102,7 @@ export default function DashboardLayout({
             return (
               <Link
                 key={item.name}
-                href={item.href}
+                to={item.href}
                 aria-disabled={item.disabled}
                 tabIndex={item.disabled ? -1 : undefined}
                 className={cn(
@@ -128,7 +140,7 @@ export default function DashboardLayout({
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        {children}
+        <Outlet />
       </main>
     </div>
   );

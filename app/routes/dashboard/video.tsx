@@ -1,10 +1,8 @@
-"use client";
 
 import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../../../../../convex/_generated/api";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useState, useCallback, useEffect, useRef } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,13 +19,13 @@ import {
   Link as LinkIcon,
   MessageSquare,
 } from "lucide-react";
-import { Id } from "../../../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 import { projectPath } from "@/lib/routes";
 
 export default function VideoPage() {
   const params = useParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
   const videoId = params.videoId as Id<"videos">;
@@ -69,9 +67,9 @@ export default function VideoPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      router.replace(context.canonicalPath);
+      navigate(context.canonicalPath, { replace: true });
     }
-  }, [shouldCanonicalize, context, router]);
+  }, [shouldCanonicalize, context, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +161,7 @@ export default function VideoPage() {
       {/* Header */}
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <Link
-          href={projectPath(resolvedTeamSlug, resolvedProjectId)}
+          to={projectPath(resolvedTeamSlug, resolvedProjectId)}
           className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] transition-colors mb-3"
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />

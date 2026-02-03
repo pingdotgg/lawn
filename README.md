@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# lawn
 
-## Getting Started
+Video review platform for creative teams. Built by Theo.
 
-First, run the development server:
+## Development
+
+Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run app + Convex locally:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+bun run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run only the web app:
 
-## Learn More
+```bash
+bun run dev:web
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Build / Run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+bun run build
+bun run start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Quality checks
 
-## Deploy on Vercel
+```bash
+bun run typecheck
+bun run lint
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Environment variables
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `VITE_CONVEX_URL`
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- Convex deployment vars as needed (`CONVEX_DEPLOYMENT`, etc.)
+
+## Design Language
+
+### Philosophy
+Brutalist, typographic, minimal. The design should feel bold and direct—like a poster, not a dashboard. Prioritize clarity over decoration. Let typography and whitespace do the heavy lifting.
+
+### Colors
+- **Background**: `#f0f0e8` (warm cream)
+- **Text**: `#1a1a1a` (near-black)
+- **Muted text**: `#888888`
+- **Primary accent**: `#2d5a2d` (deep forest green)
+- **Accent hover**: `#3a6a3a`
+- **Highlight**: `#7cb87c` (soft green for emphasis)
+- **Borders**: `#1a1a1a` (strong) or `#ccc` (subtle)
+- **Inverted sections**: `#1a1a1a` background with `#f0f0e8` text
+
+### Typography
+- **Headings**: Font-black (900 weight), tight tracking
+- **Body**: Regular weight, clean and readable
+- **Monospace**: For technical info, timestamps, stats
+- Use size contrast dramatically—massive headlines with small supporting text
+
+### Borders & Spacing
+- Strong 2px borders in `#1a1a1a` for section dividers and cards
+- Generous padding (p-6 to p-8 typical)
+- Clear visual hierarchy through spacing
+
+### Interactive Elements
+- Buttons: Solid backgrounds with bold text, clear hover states
+- Links: Underlines, not color-only differentiation
+- Hover states: Background fills or color shifts, no subtle opacity changes
+
+### Component Patterns
+- **Cards**: 2px black border, cream background, bold title
+- **Sections**: Often alternate between cream and dark backgrounds
+- **Forms**: Simple inputs with strong borders, no rounded corners or minimal
+- **Navigation**: Minimal, text-based, appears on scroll when needed
