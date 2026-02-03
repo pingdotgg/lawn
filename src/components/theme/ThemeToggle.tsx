@@ -1,12 +1,12 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useSyncExternalStore,
   useState,
 } from "react";
 
@@ -44,6 +44,11 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
+const emptySubscribe = () => () => {};
+
+function useMounted() {
+  return useSyncExternalStore(emptySubscribe, () => true, () => false);
+}
 
 export function useTheme() {
   const context = useContext(ThemeContext);
@@ -54,13 +59,8 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setTheme(getInitialTheme());
-    setMounted(true);
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
+  const mounted = useMounted();
 
   useEffect(() => {
     if (!mounted) return;
@@ -95,41 +95,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
-}
-
-// Dropdown menu item for theme toggle
-export function ThemeToggleMenuItem({
-  className,
-}: {
-  className?: string;
-}) {
-  const { theme, toggleTheme, mounted } = useTheme();
-
-  if (!mounted) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={toggleTheme}
-      className={className}
-    >
-      {theme === "dark" ? (
-        <>
-          <Sun className="mr-2 h-4 w-4" />
-          Light mode
-        </>
-      ) : (
-        <>
-          <Moon className="mr-2 h-4 w-4" />
-          Dark mode
-        </>
-      )}
-      <span className="ml-auto text-[10px] text-[#888]">⌘⇧L</span>
-    </button>
-  );
-}
-
-// Legacy component - now just provides context
-export function ThemeToggle() {
-  return null;
 }

@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,16 +12,22 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, CreditCard, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { MemberInvite } from "@/components/teams/MemberInvite";
+import {
+  dashboardHomePath,
+  teamHomePath,
+} from "@/lib/routes";
 
 export default function TeamSettingsPage() {
   const params = useParams();
   const router = useRouter();
-  const teamSlug = params.teamSlug as string;
+  const pathname = usePathname();
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
-  const team = useQuery(api.teams.getBySlug, { slug: teamSlug });
+  const context = useQuery(api.workspace.resolveContext, { teamSlug });
+  const team = context?.team;
   const members = useQuery(
     api.teams.getMembers,
-    team ? { teamId: team._id } : "skip"
+    team ? { teamId: team._id } : "skip",
   );
   const updateTeam = useMutation(api.teams.update);
   const deleteTeam = useMutation(api.teams.deleteTeam);
@@ -29,8 +35,19 @@ export default function TeamSettingsPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
+  const canonicalSettingsPath = context
+    ? `${context.canonicalPath}/settings`
+    : null;
+  const shouldCanonicalize =
+    !!canonicalSettingsPath && pathname !== canonicalSettingsPath;
 
-  if (team === undefined) {
+  useEffect(() => {
+    if (shouldCanonicalize && canonicalSettingsPath) {
+      router.replace(canonicalSettingsPath);
+    }
+  }, [shouldCanonicalize, canonicalSettingsPath, router]);
+
+  if (context === undefined || shouldCanonicalize) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Loading...</div>
@@ -38,7 +55,7 @@ export default function TeamSettingsPage() {
     );
   }
 
-  if (team === null) {
+  if (context === null) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Team not found</div>
@@ -71,7 +88,7 @@ export default function TeamSettingsPage() {
 
     try {
       await deleteTeam({ teamId: team._id });
-      router.push("/dashboard");
+      router.push(dashboardHomePath());
     } catch (error) {
       console.error("Failed to delete team:", error);
     }
@@ -88,7 +105,7 @@ export default function TeamSettingsPage() {
   return (
     <div className="p-8 max-w-3xl">
       <Link
-        href={`/dashboard/${teamSlug}`}
+        href={teamHomePath(team.slug)}
         className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
@@ -102,7 +119,7 @@ export default function TeamSettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>General</CardTitle>
-            <CardDescription>Manage your team's basic information</CardDescription>
+            <CardDescription>Manage your team&apos;s basic information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -143,7 +160,9 @@ export default function TeamSettingsPage() {
             <div>
               <label className="text-sm font-bold text-[#1a1a1a]">Team URL</label>
               <p className="text-sm text-[#888] mt-1">
-                {typeof window !== "undefined" ? window.location.origin : ""}/{team.slug}
+                {typeof window !== "undefined"
+                  ? `${window.location.origin}${teamHomePath(team.slug)}`
+                  : teamHomePath(team.slug)}
               </p>
             </div>
           </CardContent>

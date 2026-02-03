@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { teamHomePath } from "@/lib/routes";
 
 interface CreateTeamDialogProps {
   open: boolean;
@@ -32,14 +33,10 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
 
     setIsLoading(true);
     try {
-      await createTeam({ name: name.trim() });
-      const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+      const createdTeam = await createTeam({ name: name.trim() });
       onOpenChange(false);
       setName("");
-      router.push(`/dashboard/${slug}`);
+      router.push(teamHomePath(createdTeam.slug));
     } catch (error) {
       console.error("Failed to create team:", error);
     } finally {

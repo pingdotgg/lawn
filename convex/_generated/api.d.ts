@@ -18,6 +18,7 @@ import type * as teams from "../teams.js";
 import type * as users from "../users.js";
 import type * as videoActions from "../videoActions.js";
 import type * as videos from "../videos.js";
+import type * as workspace from "../workspace.js";
 
 import type {
   ApiFromModules,
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   videoActions: typeof videoActions;
   videos: typeof videos;
+  workspace: typeof workspace;
 }>;
 
 /**

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Users, Mail, Check } from "lucide-react";
 import Link from "next/link";
+import { teamHomePath } from "@/lib/routes";
 
 export default function InvitePage() {
   const params = useParams();
@@ -29,7 +30,7 @@ export default function InvitePage() {
     try {
       const team = await acceptInvite({ token });
       if (team) {
-        router.push(`/dashboard/${team.slug}`);
+        router.push(teamHomePath(team.slug));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to accept invite");
@@ -80,7 +81,7 @@ export default function InvitePage() {
             <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-4 border-2 border-[#1a1a1a]">
               <Users className="h-6 w-6 text-[#888]" />
             </div>
-            <CardTitle>You're invited to {invite.team?.name}</CardTitle>
+            <CardTitle>You&apos;re invited to {invite.team?.name}</CardTitle>
             <CardDescription>
               {invite.invitedBy} has invited you to join as a {invite.role}.
             </CardDescription>
@@ -116,7 +117,7 @@ export default function InvitePage() {
             </div>
             <CardTitle>Different email address</CardTitle>
             <CardDescription>
-              This invite was sent to {invite.email}, but you're signed in as{" "}
+              This invite was sent to {invite.email}, but you&apos;re signed in as{" "}
               {user.primaryEmailAddress?.emailAddress}.
             </CardDescription>
           </CardHeader>

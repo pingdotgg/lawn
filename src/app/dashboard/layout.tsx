@@ -2,17 +2,15 @@
 
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Home, FolderOpen, Settings, Users, Moon, Sun } from "lucide-react";
+import { Home, FolderOpen, Settings, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeToggle";
-
-const navigation = [
-  { name: "Home", href: "/dashboard", icon: Home },
-  { name: "Projects", href: "/dashboard/projects", icon: FolderOpen },
-  { name: "Team", href: "/dashboard/team", icon: Users },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
-];
+import {
+  dashboardHomePath,
+  teamHomePath,
+  teamSettingsPath,
+} from "@/lib/routes";
 
 function ThemeToggleButton() {
   const { theme, toggleTheme, mounted } = useTheme();
@@ -41,28 +39,65 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const params = useParams();
+  const teamSlug =
+    typeof params.teamSlug === "string" ? params.teamSlug : undefined;
+  const teamHome = teamSlug ? teamHomePath(teamSlug) : null;
+  const settingsPath = teamSlug ? teamSettingsPath(teamSlug) : null;
+
+  const navigation = [
+    {
+      name: "Home",
+      href: dashboardHomePath(),
+      icon: Home,
+      isActive: pathname === dashboardHomePath(),
+    },
+    {
+      name: "Projects",
+      href: teamHome ?? dashboardHomePath(),
+      icon: FolderOpen,
+      disabled: !teamHome,
+      isActive:
+        !!teamHome &&
+        (pathname === teamHome ||
+          (pathname.startsWith(`${teamHome}/`) &&
+            pathname !== settingsPath &&
+            !pathname.startsWith(`${settingsPath}/`))),
+    },
+    {
+      name: "Settings",
+      href: settingsPath ?? dashboardHomePath(),
+      icon: Settings,
+      disabled: !settingsPath,
+      isActive:
+        !!settingsPath &&
+        (pathname === settingsPath || pathname.startsWith(`${settingsPath}/`)),
+    },
+  ];
 
   return (
     <div className="h-full flex bg-[#f0f0e8]">
       {/* Sidebar */}
       <aside className="w-16 border-r-2 border-[#1a1a1a] bg-[#f0f0e8] flex flex-col items-center py-4">
         {/* Logo */}
-        <Link href="/dashboard" className="mb-8">
+        <Link href={dashboardHomePath()} className="mb-8">
           <span className="text-lg font-black">l</span>
         </Link>
 
         {/* Navigation */}
         <nav className="flex-1 flex flex-col items-center gap-2">
           {navigation.map((item) => {
-            const isActive = pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.name}
                 href={item.href}
+                aria-disabled={item.disabled}
+                tabIndex={item.disabled ? -1 : undefined}
                 className={cn(
                   "w-10 h-10 flex items-center justify-center transition-colors",
-                  isActive
+                  item.disabled
+                    ? "text-[#c2c2b9] pointer-events-none"
+                    : item.isActive
                     ? "bg-[#1a1a1a] text-[#f0f0e8]"
                     : "text-[#888] hover:bg-[#e8e8e0] hover:text-[#1a1a1a]"
                 )}

@@ -4,8 +4,8 @@
   "private": true,
   "packageManager": "bun@1.3.6",
   "scripts": {
-    "dev": "concurrently -n web,convex -c blue,magenta \"next dev\" \"bunx convex dev\"",
-    "dev:web": "next dev",
+    "dev": "concurrently -n web,convex -c blue,magenta \"next dev -p 5296\" \"bunx convex dev\"",
+    "dev:web": "next dev -p 5296",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

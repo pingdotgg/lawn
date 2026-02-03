@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,15 +22,33 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { Id } from "../../../../../../convex/_generated/dataModel";
+import { projectPath } from "@/lib/routes";
 
 export default function VideoPage() {
   const params = useParams();
-  const teamSlug = params.teamSlug as string;
-  const projectId = params.projectId as string;
+  const router = useRouter();
+  const pathname = usePathname();
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
+  const projectId = params.projectId as Id<"projects">;
   const videoId = params.videoId as Id<"videos">;
 
-  const video = useQuery(api.videos.get, { videoId });
-  const comments = useQuery(api.comments.list, { videoId });
+  const context = useQuery(api.workspace.resolveContext, {
+    teamSlug,
+    projectId,
+    videoId,
+  });
+  const resolvedTeamSlug = context?.team.slug ?? teamSlug;
+  const resolvedProjectId = context?.project?._id;
+  const resolvedVideoId = context?.video?._id;
+
+  const video = useQuery(
+    api.videos.get,
+    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
+  );
+  const comments = useQuery(
+    api.comments.list,
+    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
+  );
   const updateVideo = useMutation(api.videos.update);
   const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
@@ -46,13 +64,21 @@ export default function VideoPage() {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.s3Key);
+  const shouldCanonicalize =
+    !!context && !context.isCanonical && pathname !== context.canonicalPath;
+
+  useEffect(() => {
+    if (shouldCanonicalize && context) {
+      router.replace(context.canonicalPath);
+    }
+  }, [shouldCanonicalize, context, router]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!isPlayable) return;
+    if (!isPlayable || !resolvedVideoId) return;
 
-    getPlaybackUrl({ videoId })
+    getPlaybackUrl({ videoId: resolvedVideoId })
       .then(({ url }) => {
         if (cancelled) return;
         setPlaybackError(null);
@@ -66,7 +92,7 @@ export default function VideoPage() {
     return () => {
       cancelled = true;
     };
-  }, [isPlayable, videoId, getPlaybackUrl]);
+  }, [isPlayable, resolvedVideoId, getPlaybackUrl]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -77,21 +103,16 @@ export default function VideoPage() {
     setTimeout(() => setHighlightedCommentId(undefined), 3000);
   }, []);
 
-  const handleTimelineClick = useCallback((time: number) => {
-    setCommentTimestamp(time);
-    setShowCommentInput(true);
-  }, []);
-
   const requestDownload = useCallback(async () => {
-    if (!video || video.status !== "ready") return null;
+    if (!video || video.status !== "ready" || !resolvedVideoId) return null;
     try {
-      const result = await getDownloadUrl({ videoId });
+      const result = await getDownloadUrl({ videoId: resolvedVideoId });
       return result;
     } catch (error) {
       console.error("Failed to prepare download:", error);
       return null;
     }
-  }, [getDownloadUrl, video, videoId]);
+  }, [getDownloadUrl, video, resolvedVideoId]);
 
   const handleTimestampClick = useCallback(
     (time: number) => {
@@ -102,9 +123,9 @@ export default function VideoPage() {
   );
 
   const handleSaveTitle = async () => {
-    if (!editedTitle.trim() || !video) return;
+    if (!editedTitle.trim() || !video || !resolvedVideoId) return;
     try {
-      await updateVideo({ videoId, title: editedTitle.trim() });
+      await updateVideo({ videoId: resolvedVideoId, title: editedTitle.trim() });
       setIsEditingTitle(false);
     } catch (error) {
       console.error("Failed to update title:", error);
@@ -118,7 +139,7 @@ export default function VideoPage() {
     }
   };
 
-  if (video === undefined) {
+  if (context === undefined || video === undefined || shouldCanonicalize) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Loading...</div>
@@ -126,7 +147,7 @@ export default function VideoPage() {
     );
   }
 
-  if (video === null) {
+  if (context === null || video === null || !resolvedProjectId || !resolvedVideoId) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Video not found</div>
@@ -142,7 +163,7 @@ export default function VideoPage() {
       {/* Header */}
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <Link
-          href={`/dashboard/${teamSlug}/${projectId}`}
+          href={projectPath(resolvedTeamSlug, resolvedProjectId)}
           className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] transition-colors mb-3"
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -242,7 +263,6 @@ export default function VideoPage() {
                       comments={comments || []}
                       onTimeUpdate={handleTimeUpdate}
                       onMarkerClick={handleMarkerClick}
-                      onTimelineClick={handleTimelineClick}
                       allowDownload={video.status === "ready"}
                       downloadFilename={`${video.title}.mp4`}
                       onRequestDownload={requestDownload}
@@ -255,7 +275,7 @@ export default function VideoPage() {
                   {showCommentInput && canComment ? (
                     <div className="max-w-6xl mx-auto p-4 bg-[#e8e8e0] border-2 border-[#1a1a1a]">
                       <CommentInput
-                        videoId={videoId}
+                        videoId={resolvedVideoId}
                         timestampSeconds={commentTimestamp}
                         showTimestamp
                         autoFocus
@@ -320,7 +340,7 @@ export default function VideoPage() {
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
-              videoId={videoId}
+              videoId={resolvedVideoId}
               onTimestampClick={handleTimestampClick}
               highlightedCommentId={highlightedCommentId}
               canResolve={canEdit}
@@ -330,7 +350,7 @@ export default function VideoPage() {
       </div>
 
       <ShareDialog
-        videoId={videoId}
+        videoId={resolvedVideoId}
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
       />

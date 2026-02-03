@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,16 +30,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { cn } from "@/lib/utils";
+import { projectPath } from "@/lib/routes";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 export default function TeamPage() {
   const params = useParams();
   const router = useRouter();
-  const teamSlug = params.teamSlug as string;
+  const pathname = usePathname();
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
-  const team = useQuery(api.teams.getBySlug, { slug: teamSlug });
+  const context = useQuery(api.workspace.resolveContext, { teamSlug });
+  const team = context?.team;
   const projects = useQuery(
     api.projects.list,
-    team ? { teamId: team._id } : "skip"
+    team ? { teamId: team._id } : "skip",
   );
   const createProject = useMutation(api.projects.create);
   const deleteProject = useMutation(api.projects.remove);
@@ -49,10 +53,22 @@ export default function TeamPage() {
   const [newProjectName, setNewProjectName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const isLoadingData = team === undefined || projects === undefined;
+  const shouldCanonicalize =
+    !!context && !context.isCanonical && pathname !== context.canonicalPath;
+
+  useEffect(() => {
+    if (shouldCanonicalize && context) {
+      router.replace(context.canonicalPath);
+    }
+  }, [shouldCanonicalize, context, router]);
+
+  const isLoadingData =
+    context === undefined ||
+    projects === undefined ||
+    shouldCanonicalize;
 
   // Not found state
-  if (team === null) {
+  if (context === null) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Team not found</div>
@@ -72,7 +88,7 @@ export default function TeamPage() {
       });
       setCreateDialogOpen(false);
       setNewProjectName("");
-      router.push(`/dashboard/${teamSlug}/${projectId}`);
+      router.push(projectPath(team.slug, projectId));
     } catch (error) {
       console.error("Failed to create project:", error);
     } finally {
@@ -80,10 +96,10 @@ export default function TeamPage() {
     }
   };
 
-  const handleDeleteProject = async (projectId: string) => {
+  const handleDeleteProject = async (projectId: Id<"projects">) => {
     if (!confirm("Are you sure you want to delete this project?")) return;
     try {
-      await deleteProject({ projectId: projectId as any });
+      await deleteProject({ projectId });
     } catch (error) {
       console.error("Failed to delete project:", error);
     }
@@ -96,30 +112,30 @@ export default function TeamPage() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className={cn(
-            "transition-opacity duration-300",
-            isLoadingData ? "opacity-0" : "opacity-100"
-          )}>
+        <div className={cn(
+          "flex items-center justify-between transition-opacity duration-300",
+          isLoadingData ? "opacity-0" : "opacity-100"
+        )}>
+          <div>
             <h1 className="text-xl font-black text-[#1a1a1a]">{team?.name ?? "\u00A0"}</h1>
             <p className="text-[#888] text-sm mt-0.5">Projects</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setMemberDialogOpen(true)}
-              className={cn(!canManageMembers && "invisible")}
-            >
-              <Users className="mr-1.5 h-4 w-4" />
-              Members
-            </Button>
-            <Button
-              onClick={() => setCreateDialogOpen(true)}
-              className={cn(!canCreateProject && "invisible")}
-            >
-              <Plus className="mr-1.5 h-4 w-4" />
-              New project
-            </Button>
+            {canManageMembers && (
+              <Button
+                variant="outline"
+                onClick={() => setMemberDialogOpen(true)}
+              >
+                <Users className="mr-1.5 h-4 w-4" />
+                Members
+              </Button>
+            )}
+            {canCreateProject && (
+              <Button onClick={() => setCreateDialogOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                New project
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -160,7 +176,7 @@ export default function TeamPage() {
               <Card
                 key={project._id}
                 className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
-                onClick={() => router.push(`/dashboard/${teamSlug}/${project._id}`)}
+                onClick={() => router.push(projectPath(team.slug, project._id))}
               >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
                   <div className="flex-1 min-w-0">

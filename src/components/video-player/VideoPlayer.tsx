@@ -34,7 +34,6 @@ interface VideoPlayerProps {
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
   onMarkerClick?: (comment: Comment) => void;
-  onTimelineClick?: (time: number) => void;
   initialTime?: number;
   className?: string;
   allowDownload?: boolean;
@@ -64,7 +63,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     comments = [],
     onTimeUpdate,
     onMarkerClick,
-    onTimelineClick,
     initialTime,
     className,
     allowDownload = false,
@@ -82,7 +80,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState(0);
-  const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -388,7 +385,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handleLoadedMetadata = () => {
       if (cancelled) return;
       setDuration(video.duration || 0);
-      setIsReady(true);
       updateBuffered();
       if (initialTime && initialTime > 0) {
         video.currentTime = clamp(initialTime, 0, video.duration || initialTime);
@@ -460,7 +456,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         hlsRef.current = null;
       }
 
-      setIsReady(false);
       setDuration(0);
       setCurrentTime(0);
       setBufferedPercent(0);
@@ -901,32 +896,3 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 });
 
 VideoPlayer.displayName = "VideoPlayer";
-
-export function useVideoPlayer() {
-  const playerRef = useRef<HTMLVideoElement | null>(null);
-
-  const seekTo = useCallback((time: number) => {
-    if (playerRef.current) {
-      playerRef.current.currentTime = time;
-    }
-  }, []);
-
-  const play = useCallback(() => {
-    if (playerRef.current) {
-      const playPromise = playerRef.current.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Ignore autoplay rejections.
-        });
-      }
-    }
-  }, []);
-
-  const pause = useCallback(() => {
-    if (playerRef.current) {
-      playerRef.current.pause();
-    }
-  }, []);
-
-  return { playerRef, seekTo, play, pause };
-}

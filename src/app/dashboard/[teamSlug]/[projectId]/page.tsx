@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
@@ -33,6 +33,7 @@ import {
 import Link from "next/link";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { teamHomePath, videoPath } from "@/lib/routes";
 
 interface UploadItem {
   id: string;
@@ -52,11 +53,21 @@ type ViewMode = "grid" | "list";
 export default function ProjectPage() {
   const params = useParams();
   const router = useRouter();
-  const teamSlug = params.teamSlug as string;
+  const pathname = usePathname();
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
 
-  const project = useQuery(api.projects.get, { projectId });
-  const videos = useQuery(api.videos.list, { projectId });
+  const context = useQuery(api.workspace.resolveContext, { teamSlug, projectId });
+  const resolvedProjectId = context?.project?._id;
+  const resolvedTeamSlug = context?.team.slug ?? teamSlug;
+  const project = useQuery(
+    api.projects.get,
+    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+  );
+  const videos = useQuery(
+    api.videos.list,
+    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+  );
   const createVideo = useMutation(api.videos.create);
   const deleteVideo = useMutation(api.videos.remove);
   const getUploadUrl = useAction(api.videoActions.getUploadUrl);
@@ -71,7 +82,20 @@ export default function ProjectPage() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  const isLoadingData = project === undefined || videos === undefined;
+  const shouldCanonicalize =
+    !!context && !context.isCanonical && pathname !== context.canonicalPath;
+
+  useEffect(() => {
+    if (shouldCanonicalize && context) {
+      router.replace(context.canonicalPath);
+    }
+  }, [shouldCanonicalize, context, router]);
+
+  const isLoadingData =
+    context === undefined ||
+    project === undefined ||
+    videos === undefined ||
+    shouldCanonicalize;
 
   const captureThumbnail = useCallback((file: File) => {
     return new Promise<Blob | null>((resolve) => {
@@ -173,6 +197,8 @@ export default function ProjectPage() {
 
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
+      if (!resolvedProjectId) return;
+
       for (const file of files) {
         const uploadId = Math.random().toString(36).substring(7);
         const title = file.name.replace(/\.[^/.]+$/, "");
@@ -191,7 +217,7 @@ export default function ProjectPage() {
 
         try {
           const videoId = await createVideo({
-            projectId,
+            projectId: resolvedProjectId,
             title,
             fileSize: file.size,
             contentType: file.type || "video/mp4",
@@ -324,7 +350,7 @@ export default function ProjectPage() {
       }
     },
     [
-      projectId,
+      resolvedProjectId,
       createVideo,
       getUploadUrl,
       markUploadComplete,
@@ -369,7 +395,7 @@ export default function ProjectPage() {
   );
 
   // Not found state
-  if (project === null) {
+  if (context === null || project === null) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-[#888]">Project not found</div>
@@ -386,7 +412,7 @@ export default function ProjectPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              href={`/dashboard/${teamSlug}`}
+              href={teamHomePath(resolvedTeamSlug)}
               className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -403,7 +429,10 @@ export default function ProjectPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className={cn(
+            "flex items-center gap-2 transition-opacity duration-300",
+            isLoadingData ? "opacity-0" : "opacity-100"
+          )}>
             {/* View toggle */}
             <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
               <button
@@ -483,7 +512,7 @@ export default function ProjectPage() {
                     className="group cursor-pointer"
                     onClick={() =>
                       router.push(
-                        `/dashboard/${teamSlug}/${projectId}/${video._id}`,
+                        videoPath(resolvedTeamSlug, project._id, video._id),
                       )
                     }
                   >
@@ -618,7 +647,7 @@ export default function ProjectPage() {
                   className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
                   onClick={() =>
                     router.push(
-                      `/dashboard/${teamSlug}/${projectId}/${video._id}`,
+                      videoPath(resolvedTeamSlug, project._id, video._id),
                     )
                   }
                 >

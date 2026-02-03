@@ -5,13 +5,14 @@ export const dynamic = "force-dynamic";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Plus, ArrowRight } from "lucide-react";
 import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { teamHomePath } from "@/lib/routes";
 
 export default function DashboardPage() {
   const teams = useQuery(api.teams.list);
@@ -19,13 +20,6 @@ export default function DashboardPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const isLoading = teams === undefined;
-  const shouldAutoRedirect = !!(teams && teams.length === 1 && teams[0]);
-
-  useEffect(() => {
-    if (shouldAutoRedirect && teams?.[0]) {
-      router.replace(`/dashboard/${teams[0].slug}`);
-    }
-  }, [shouldAutoRedirect, teams, router]);
 
   // Empty state - no teams
   if (teams && teams.length === 0) {
@@ -78,7 +72,7 @@ export default function DashboardPage() {
         <div
           className={cn(
             "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
-            isLoading || shouldAutoRedirect ? "opacity-0" : "opacity-100"
+            isLoading ? "opacity-0" : "opacity-100"
           )}
         >
           {teams?.map(
@@ -87,7 +81,7 @@ export default function DashboardPage() {
                 <Card
                   key={team._id}
                   className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
-                  onClick={() => router.push(`/dashboard/${team.slug}`)}
+                  onClick={() => router.push(teamHomePath(team.slug))}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
