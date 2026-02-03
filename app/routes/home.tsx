@@ -1,9 +1,8 @@
-"use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { Link } from "react-router";
 
-export default function HomepageMono() {
+export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -23,8 +22,8 @@ export default function HomepageMono() {
           <span className={`text-xs text-[#888] hidden sm:inline border-l border-[#ccc] pl-4 transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>video review</span>
         </div>
         <div className="flex gap-4 text-sm">
-          <Link href="/sign-in" className="hover:underline">Sign In</Link>
-          <Link href="/sign-up" className="font-bold underline underline-offset-4">Start Free</Link>
+          <Link to="/sign-in" className="hover:underline">Sign In</Link>
+          <Link to="/sign-up" className="font-bold underline underline-offset-4">Start Free</Link>
         </div>
       </nav>
 
@@ -51,8 +50,7 @@ export default function HomepageMono() {
               <span className="text-3xl font-black">$5/mo</span>
               <span className="text-sm ml-2 opacity-70">unlimited seats</span>
             </div>
-            <Link
-              href="/sign-up"
+            <Link to="/sign-up"
               className="border-2 border-[#1a1a1a] px-6 py-4 font-bold hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors"
             >
               Start Free Trial →
@@ -174,8 +172,7 @@ export default function HomepageMono() {
           <p className="text-xl text-[#888] mt-4 mb-8">
             14 days. No credit card. See if it's right for you.
           </p>
-          <Link
-            href="/sign-up"
+          <Link to="/sign-up"
             className="inline-block bg-[#2d5a2d] text-[#f0f0e8] px-12 py-5 text-xl font-black hover:bg-[#3a6a3a] transition-colors"
           >
             Start Free Trial
@@ -189,8 +186,8 @@ export default function HomepageMono() {
         <div className="max-w-5xl mx-auto flex justify-between items-center text-sm">
           <span className="font-black text-xl">lawn</span>
           <div className="flex gap-6 text-[#888]">
-            <Link href="/github" className="hover:text-[#1a1a1a]">GitHub</Link>
-            <Link href="/docs" className="hover:text-[#1a1a1a]">Docs</Link>
+            <Link to="/github" className="hover:text-[#1a1a1a]">GitHub</Link>
+            <Link to="/docs" className="hover:text-[#1a1a1a]">Docs</Link>
           </div>
         </div>
       </footer>

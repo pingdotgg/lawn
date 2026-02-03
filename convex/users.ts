@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getUser, requireUser } from "./auth";
+import { getUser } from "./auth";
 
 export const syncUser = mutation({
   args: {

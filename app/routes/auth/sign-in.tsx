@@ -1,8 +1,8 @@
-import { SignUp } from "@clerk/nextjs";
+import { SignIn } from "@clerk/react-router";
 
-export default function SignUpPage() {
+export default function SignInPage() {
   return (
-    <SignUp
+    <SignIn
       forceRedirectUrl="/dashboard"
       appearance={{
         elements: {

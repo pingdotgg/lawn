@@ -1,8 +1,7 @@
-"use client";
 
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { api } from "@convex/_generated/api";
+import { useLocation, useNavigate, useParams } from "react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,12 +30,12 @@ import {
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { cn } from "@/lib/utils";
 import { projectPath } from "@/lib/routes";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id } from "@convex/_generated/dataModel";
 
 export default function TeamPage() {
   const params = useParams();
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
   const context = useQuery(api.workspace.resolveContext, { teamSlug });
@@ -58,9 +57,9 @@ export default function TeamPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      router.replace(context.canonicalPath);
+      navigate(context.canonicalPath, { replace: true });
     }
-  }, [shouldCanonicalize, context, router]);
+  }, [shouldCanonicalize, context, navigate]);
 
   const isLoadingData =
     context === undefined ||
@@ -88,7 +87,7 @@ export default function TeamPage() {
       });
       setCreateDialogOpen(false);
       setNewProjectName("");
-      router.push(projectPath(team.slug, projectId));
+      navigate(projectPath(team.slug, projectId));
     } catch (error) {
       console.error("Failed to create project:", error);
     } finally {
@@ -176,7 +175,7 @@ export default function TeamPage() {
               <Card
                 key={project._id}
                 className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
-                onClick={() => router.push(projectPath(team.slug, project._id))}
+                onClick={() => navigate(projectPath(team.slug, project._id))}
               >
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
                   <div className="flex-1 min-w-0">

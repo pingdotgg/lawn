@@ -19,6 +19,7 @@
 
 # production
 /build
+/.react-router
 
 # misc
 .DS_Store

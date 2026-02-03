@@ -27,7 +27,7 @@ http.route({
     let event;
     try {
       event = JSON.parse(body);
-    } catch (err) {
+    } catch {
       return new Response("Invalid JSON", { status: 400 });
     }
 
