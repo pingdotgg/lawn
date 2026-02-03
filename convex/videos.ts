@@ -1,6 +1,37 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { requireProjectAccess, requireVideoAccess } from "./auth";
+import { Id } from "./_generated/dataModel";
+import { resolvePublicThumbnailUrl } from "./s3";
+
+async function resolveThumbnailUrlSafe(
+  ctx: { storage: { getUrl: (id: Id<"_storage">) => Promise<string | null> } },
+  input: {
+    thumbnailStorageId?: Id<"_storage">;
+  thumbnailUrl?: string;
+  thumbnailKey?: string;
+  },
+): Promise<string | undefined> {
+  if (input.thumbnailStorageId) {
+    try {
+      const url = await ctx.storage.getUrl(input.thumbnailStorageId);
+      if (url) return url;
+    } catch (error) {
+      console.error("Failed to resolve Convex storage thumbnail URL:", error);
+    }
+  }
+
+  if (!input.thumbnailUrl && !input.thumbnailKey) {
+    return undefined;
+  }
+
+  try {
+    return resolvePublicThumbnailUrl(input) ?? undefined;
+  } catch (error) {
+    console.error("Failed to resolve public thumbnail URL:", error);
+    return input.thumbnailUrl?.startsWith("http") ? input.thumbnailUrl : undefined;
+  }
+}
 
 export const create = mutation({
   args: {
@@ -41,8 +72,10 @@ export const list = query({
     const videosWithUploader = await Promise.all(
       videos.map(async (video) => {
         const uploader = await ctx.db.get(video.uploadedBy);
+        const resolvedThumbnailUrl = await resolveThumbnailUrlSafe(ctx, video);
         return {
           ...video,
+          thumbnailUrl: resolvedThumbnailUrl ?? video.thumbnailUrl,
           uploaderName: uploader?.name ?? "Unknown",
         };
       })
@@ -57,8 +90,10 @@ export const get = query({
   handler: async (ctx, args) => {
     const { video, membership } = await requireVideoAccess(ctx, args.videoId);
     const uploader = await ctx.db.get(video.uploadedBy);
+    const resolvedThumbnailUrl = await resolveThumbnailUrlSafe(ctx, video);
     return {
       ...video,
+      thumbnailUrl: resolvedThumbnailUrl ?? video.thumbnailUrl,
       uploaderName: uploader?.name ?? "Unknown",
       role: membership.role,
     };
@@ -79,6 +114,90 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.videoId, updates);
+  },
+});
+
+export const setThumbnailUrl = mutation({
+  args: {
+    videoId: v.id("videos"),
+    thumbnailUrl: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, { thumbnailUrl: args.thumbnailUrl });
+    return null;
+  },
+});
+
+export const setThumbnailKey = mutation({
+  args: {
+    videoId: v.id("videos"),
+    thumbnailKey: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, { thumbnailKey: args.thumbnailKey });
+    return null;
+  },
+});
+
+export const generateThumbnailUploadUrl = mutation({
+  args: {
+    videoId: v.id("videos"),
+  },
+  returns: v.string(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const setThumbnailStorageId = mutation({
+  args: {
+    videoId: v.id("videos"),
+    thumbnailStorageId: v.id("_storage"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+    await ctx.db.patch(args.videoId, {
+      thumbnailStorageId: args.thumbnailStorageId,
+    });
+    return null;
+  },
+});
+
+export const getThumbnailKeys = internalQuery({
+  args: {
+    videoIds: v.array(v.id("videos")),
+  },
+  returns: v.array(
+    v.object({
+      videoId: v.id("videos"),
+      thumbnailStorageId: v.optional(v.id("_storage")),
+      thumbnailKey: v.optional(v.string()),
+      thumbnailUrl: v.optional(v.string()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const results: Array<{
+      videoId: Id<"videos">;
+      thumbnailStorageId?: Id<"_storage">;
+      thumbnailKey?: string;
+      thumbnailUrl?: string;
+    }> = [];
+    for (const videoId of args.videoIds) {
+      const { video } = await requireVideoAccess(ctx, videoId, "viewer");
+      results.push({
+        videoId,
+        thumbnailStorageId: video.thumbnailStorageId,
+        thumbnailKey: video.thumbnailKey,
+        thumbnailUrl: video.thumbnailUrl,
+      });
+    }
+    return results;
   },
 });
 
@@ -185,6 +304,7 @@ export const getByShareToken = query({
 
     const video = await ctx.db.get(shareLink.videoId);
     if (!video || video.status !== "ready") return null;
+    const resolvedThumbnailUrl = await resolveThumbnailUrlSafe(ctx, video);
 
     return {
       video: {
@@ -192,7 +312,9 @@ export const getByShareToken = query({
         title: video.title,
         description: video.description,
         duration: video.duration,
-        thumbnailUrl: video.thumbnailUrl,
+        thumbnailUrl: resolvedThumbnailUrl ?? video.thumbnailUrl,
+        thumbnailKey: video.thumbnailKey,
+        thumbnailStorageId: video.thumbnailStorageId,
         s3Key: video.s3Key,
         contentType: video.contentType,
       },

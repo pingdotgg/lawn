@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { teamHomePath } from "@/lib/routes";
 
 interface CreateTeamDialogProps {
   open: boolean;
@@ -24,7 +25,7 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const createTeam = useMutation(api.teams.create);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,14 +33,10 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
 
     setIsLoading(true);
     try {
-      await createTeam({ name: name.trim() });
-      const slug = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
+      const createdTeam = await createTeam({ name: name.trim() });
       onOpenChange(false);
       setName("");
-      router.push(`/dashboard/${slug}`);
+      navigate(teamHomePath(createdTeam.slug));
     } catch (error) {
       console.error("Failed to create team:", error);
     } finally {

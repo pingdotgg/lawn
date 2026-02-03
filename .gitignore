@@ -19,6 +19,7 @@
 
 # production
 /build
+/.react-router
 
 # misc
 .DS_Store
@@ -39,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/

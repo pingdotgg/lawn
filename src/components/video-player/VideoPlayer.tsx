@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
 import type Hls from "hls.js";
 import {
   Play,
@@ -34,13 +34,16 @@ interface VideoPlayerProps {
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
   onMarkerClick?: (comment: Comment) => void;
-  onTimelineClick?: (time: number) => void;
   initialTime?: number;
   className?: string;
   allowDownload?: boolean;
   downloadUrl?: string;
   downloadFilename?: string;
   onRequestDownload?: () => Promise<DownloadResult | null | undefined> | DownloadResult | null | undefined;
+}
+
+export interface VideoPlayerHandle {
+  seekTo: (time: number, options?: { play?: boolean }) => void;
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -53,20 +56,22 @@ function isHlsSource(src: string) {
   return src.includes(".m3u8");
 }
 
-export function VideoPlayer({
-  src,
-  poster,
-  comments = [],
-  onTimeUpdate,
-  onMarkerClick,
-  onTimelineClick,
-  initialTime,
-  className,
-  allowDownload = false,
-  downloadUrl,
-  downloadFilename,
-  onRequestDownload,
-}: VideoPlayerProps) {
+export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
+  {
+    src,
+    poster,
+    comments = [],
+    onTimeUpdate,
+    onMarkerClick,
+    initialTime,
+    className,
+    allowDownload = false,
+    downloadUrl,
+    downloadFilename,
+    onRequestDownload,
+  },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -75,7 +80,6 @@ export function VideoPlayer({
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState(0);
-  const [isReady, setIsReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -133,14 +137,36 @@ export function VideoPlayer({
   const applyTime = useCallback(
     (time: number) => {
       const video = videoRef.current;
-      if (!video || !duration) return;
-      const next = clamp(time, 0, duration);
+      if (!video) return;
+      const actualDuration = duration || video.duration || 0;
+      const next = actualDuration > 0 ? clamp(time, 0, actualDuration) : Math.max(time, 0);
       video.currentTime = next;
       setCurrentTime(next);
       onTimeUpdate?.(next);
     },
     [duration, onTimeUpdate]
   );
+
+  const seekTo = useCallback(
+    (time: number, options?: { play?: boolean }) => {
+      applyTime(time);
+      if (options?.play) {
+        const video = videoRef.current;
+        if (video) {
+          const playPromise = video.play();
+          if (playPromise) {
+            playPromise.catch(() => {
+              // Ignore autoplay rejections.
+            });
+          }
+        }
+      }
+      showControls();
+    },
+    [applyTime, showControls]
+  );
+
+  useImperativeHandle(ref, () => ({ seekTo }), [seekTo]);
 
   const handleSeekBy = useCallback(
     (delta: number) => {
@@ -359,7 +385,6 @@ export function VideoPlayer({
     const handleLoadedMetadata = () => {
       if (cancelled) return;
       setDuration(video.duration || 0);
-      setIsReady(true);
       updateBuffered();
       if (initialTime && initialTime > 0) {
         video.currentTime = clamp(initialTime, 0, video.duration || initialTime);
@@ -431,7 +456,6 @@ export function VideoPlayer({
         hlsRef.current = null;
       }
 
-      setIsReady(false);
       setDuration(0);
       setCurrentTime(0);
       setBufferedPercent(0);
@@ -869,33 +893,6 @@ export function VideoPlayer({
 
     </div>
   );
-}
+});
 
-export function useVideoPlayer() {
-  const playerRef = useRef<HTMLVideoElement | null>(null);
-
-  const seekTo = useCallback((time: number) => {
-    if (playerRef.current) {
-      playerRef.current.currentTime = time;
-    }
-  }, []);
-
-  const play = useCallback(() => {
-    if (playerRef.current) {
-      const playPromise = playerRef.current.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Ignore autoplay rejections.
-        });
-      }
-    }
-  }, []);
-
-  const pause = useCallback(() => {
-    if (playerRef.current) {
-      playerRef.current.pause();
-    }
-  }, []);
-
-  return { playerRef, seekTo, play, pause };
-}
+VideoPlayer.displayName = "VideoPlayer";

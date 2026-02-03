@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireUser, requireTeamAccess, getUser } from "./auth";
-import { Id } from "./_generated/dataModel";
 
 function generateSlug(name: string): string {
   return name
@@ -56,7 +55,10 @@ export const create = mutation({
       role: "owner",
     });
 
-    return teamId;
+    return {
+      teamId,
+      slug,
+    };
   },
 });
 
@@ -79,32 +81,6 @@ export const list = query({
     );
 
     return teams.filter(Boolean);
-  },
-});
-
-export const getBySlug = query({
-  args: { slug: v.string() },
-  handler: async (ctx, args) => {
-    const team = await ctx.db
-      .query("teams")
-      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
-      .unique();
-
-    if (!team) return null;
-
-    const user = await getUser(ctx);
-    if (!user) return null;
-
-    const membership = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_team_and_user", (q) =>
-        q.eq("teamId", team._id).eq("userId", user._id)
-      )
-      .unique();
-
-    if (!membership) return null;
-
-    return { ...team, role: membership.role };
   },
 });
 

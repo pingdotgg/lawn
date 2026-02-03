@@ -1,0 +1,423 @@
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Core palette - warm cream and dark */
+  --background: #f0f0e8;
+  --background-alt: #1a1a1a;
+  --surface: #ffffff;
+  --surface-alt: #e8e8e0;
+  --surface-strong: #1a1a1a;
+  --surface-muted: #d8d8d0;
+
+  /* Text */
+  --foreground: #1a1a1a;
+  --foreground-muted: #888888;
+  --foreground-subtle: #aaaaaa;
+  --foreground-inverse: #f0f0e8;
+
+  /* Borders */
+  --border: #1a1a1a;
+  --border-subtle: #cccccc;
+
+  /* Accent - forest green */
+  --accent: #2d5a2d;
+  --accent-hover: #3a6a3a;
+  --accent-light: #7cb87c;
+
+  /* Semantic colors */
+  --destructive: #dc2626;
+  --destructive-subtle: #fef2f2;
+  --success: #16a34a;
+  --success-subtle: #f0fdf4;
+  --warning: #ca8a04;
+  --warning-subtle: #fefce8;
+
+  /* Focus */
+  --ring: var(--accent);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* Core palette - deep olive/charcoal */
+  --background: #101410;
+  --background-alt: #e7ede4;
+  --surface: #171c17;
+  --surface-alt: #202720;
+  --surface-strong: #2a332b;
+  --surface-muted: #2b332b;
+
+  /* Text */
+  --foreground: #e7ede4;
+  --foreground-muted: #9aa79b;
+  --foreground-subtle: #7e897f;
+  --foreground-inverse: #101410;
+
+  /* Borders */
+  --border: #6c796d;
+  --border-subtle: #374038;
+
+  /* Accent - forest green lifted for dark backgrounds */
+  --accent: #7cb87c;
+  --accent-hover: #91c991;
+  --accent-light: #b8ddb8;
+
+  /* Semantic colors */
+  --destructive: #f87171;
+  --destructive-subtle: #2d1618;
+  --success: #4ade80;
+  --success-subtle: #14291a;
+  --warning: #fbbf24;
+  --warning-subtle: #2f250f;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Core palette - deep olive/charcoal */
+    --background: #101410;
+    --background-alt: #e7ede4;
+    --surface: #171c17;
+    --surface-alt: #202720;
+    --surface-strong: #2a332b;
+    --surface-muted: #2b332b;
+
+    /* Text */
+    --foreground: #e7ede4;
+    --foreground-muted: #9aa79b;
+    --foreground-subtle: #7e897f;
+    --foreground-inverse: #101410;
+
+    /* Borders */
+    --border: #6c796d;
+    --border-subtle: #374038;
+
+    /* Accent - forest green lifted for dark backgrounds */
+    --accent: #7cb87c;
+    --accent-hover: #91c991;
+    --accent-light: #b8ddb8;
+
+    /* Semantic colors */
+    --destructive: #f87171;
+    --destructive-subtle: #2d1618;
+    --success: #4ade80;
+    --success-subtle: #14291a;
+    --warning: #fbbf24;
+    --warning-subtle: #2f250f;
+
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent);
+  color: var(--foreground-inverse);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
+}
+
+/* Video.js customizations - keep dark for video player */
+.video-js {
+  font-family: inherit;
+  background-color: #000;
+}
+
+.video-js .vjs-big-play-button {
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0;
+  width: 72px;
+  height: 72px;
+  line-height: 72px;
+  margin-top: -36px;
+  margin-left: -36px;
+  transition: all 0.2s ease;
+}
+
+.video-js .vjs-big-play-button:hover {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.video-js .vjs-control-bar {
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
+  height: 44px;
+  padding: 0 8px;
+}
+
+.video-js .vjs-progress-control {
+  position: absolute;
+  bottom: 44px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 12px;
+  padding: 0 12px;
+}
+
+.video-js .vjs-progress-holder {
+  height: 4px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.video-js .vjs-play-progress {
+  background-color: var(--accent-light);
+}
+
+.video-js .vjs-play-progress:before {
+  display: none;
+}
+
+.video-js .vjs-load-progress {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.video-js .vjs-slider:focus {
+  box-shadow: none;
+}
+
+.video-js .vjs-time-control {
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Animation keyframes */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-from-top {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-from-left {
+  from { transform: translateX(-8px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-from-right {
+  from { transform: translateX(8px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-in {
+  animation: slide-up 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-out {
+  animation-duration: 150ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+.fade-in-0 { animation-name: fade-in; }
+.fade-out-0 { animation-name: fade-out; }
+.slide-in-from-top-2 { animation-name: slide-in-from-top; }
+.slide-in-from-bottom-2 { animation-name: slide-in-from-bottom; }
+.slide-in-from-left-2 { animation-name: slide-in-from-left; }
+.slide-in-from-right-2 { animation-name: slide-in-from-right; }
+
+/* Focus visible styles */
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Font utilities */
+.font-serif {
+  font-family: 'Instrument Serif', Georgia, serif;
+}
+
+.font-mono {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+}
+
+/* Map legacy hardcoded utility tokens to theme vars so dark mode works app-wide */
+[class~="bg-[#f0f0e8]"] { background-color: var(--background) !important; }
+[class~="text-[#f0f0e8]"] { color: var(--foreground-inverse) !important; }
+
+[class~="bg-[#1a1a1a]"] { background-color: var(--surface-strong) !important; }
+[class~="text-[#1a1a1a]"] { color: var(--foreground) !important; }
+[class~="border-[#1a1a1a]"] { border-color: var(--border) !important; }
+
+[class~="bg-[#e8e8e0]"] { background-color: var(--surface-alt) !important; }
+[class~="text-[#e8e8e0]"] { color: var(--foreground-inverse) !important; }
+[class~="border-[#e8e8e0]"] { border-color: var(--border-subtle) !important; }
+
+[class~="bg-[#d8d8d0]"] { background-color: var(--surface-muted) !important; }
+[class~="bg-[#333333]"] { background-color: var(--surface-muted) !important; }
+[class~="bg-[#333]"] { background-color: var(--surface-muted) !important; }
+[class~="border-[#333]"] { border-color: var(--border-subtle) !important; }
+
+[class~="text-[#888]"] { color: var(--foreground-muted) !important; }
+[class~="text-[#888888]"] { color: var(--foreground-muted) !important; }
+[class~="bg-[#888]"] { background-color: var(--foreground-muted) !important; }
+
+[class~="text-[#ccc]"] { color: var(--border-subtle) !important; }
+[class~="border-[#ccc]"] { border-color: var(--border-subtle) !important; }
+[class~="text-[#cccccc]"] { color: var(--border-subtle) !important; }
+[class~="border-[#cccccc]"] { border-color: var(--border-subtle) !important; }
+
+[class~="bg-[#2d5a2d]"] { background-color: var(--accent) !important; }
+[class~="text-[#2d5a2d]"] { color: var(--accent) !important; }
+[class~="border-[#2d5a2d]"] { border-color: var(--accent) !important; }
+
+[class~="bg-[#3a6a3a]"] { background-color: var(--accent-hover) !important; }
+[class~="text-[#7cb87c]"] { color: var(--accent-light) !important; }
+[class~="bg-[#7cb87c]"] { background-color: var(--accent-light) !important; }
+[class~="border-[#7cb87c]"] { border-color: var(--accent-light) !important; }
+
+[class~="text-[#dc2626]"] { color: var(--destructive) !important; }
+[class~="bg-[#dc2626]"] { background-color: var(--destructive) !important; }
+[class~="border-[#dc2626]"] { border-color: var(--destructive) !important; }
+[class~="bg-[#dc2626]/10"] {
+  background-color: color-mix(in srgb, var(--destructive) 10%, transparent) !important;
+}
+
+[class~="text-[#ca8a04]"] { color: var(--warning) !important; }
+[class~="bg-[#ca8a04]"] { background-color: var(--warning) !important; }
+[class~="border-[#ca8a04]"] { border-color: var(--warning) !important; }
+[class~="bg-[#ca8a04]/10"] {
+  background-color: color-mix(in srgb, var(--warning) 10%, transparent) !important;
+}
+
+[class~="hover:bg-[#1a1a1a]"]:hover { background-color: var(--surface-strong) !important; }
+[class~="hover:bg-[#e8e8e0]"]:hover { background-color: var(--surface-alt) !important; }
+[class~="hover:bg-[#d8d8d0]"]:hover { background-color: var(--surface-muted) !important; }
+[class~="hover:bg-[#3a6a3a]"]:hover { background-color: var(--accent-hover) !important; }
+[class~="hover:bg-[#dc2626]/10"]:hover {
+  background-color: color-mix(in srgb, var(--destructive) 10%, transparent) !important;
+}
+
+[class~="hover:text-[#1a1a1a]"]:hover { color: var(--foreground) !important; }
+[class~="hover:text-[#2d5a2d]"]:hover { color: var(--accent) !important; }
+[class~="group-hover:text-[#1a1a1a]"] {
+  transition: color 150ms ease;
+}
+.group:hover [class~="group-hover:text-[#1a1a1a]"] {
+  color: var(--foreground) !important;
+}
