@@ -21,6 +21,26 @@ type MuxData = {
   playback_ids?: Array<{ id?: string; policy?: string }>;
 };
 
+function summarizePlaybackIds(playbackIds: MuxData["playback_ids"]) {
+  if (!playbackIds || playbackIds.length === 0) return [];
+  return playbackIds.slice(0, 5).map((item) => ({
+    id: asString(item?.id),
+    policy: asString(item?.policy),
+  }));
+}
+
+function summarizeMuxData(data: MuxData) {
+  return {
+    id: asString(data.id),
+    assetId: asString(data.asset_id),
+    uploadId: asString(data.upload_id),
+    passthrough: asString(data.passthrough),
+    duration: typeof data.duration === "number" ? data.duration : undefined,
+    playbackIds: summarizePlaybackIds(data.playback_ids),
+    errorMessage: getErrorMessage(data),
+  };
+}
+
 function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
@@ -85,7 +105,11 @@ export const processWebhook = internalAction({
     try {
       verifyMuxWebhookSignature(args.rawBody, args.signature ?? null);
     } catch (error) {
-      console.error("Mux webhook signature verification failed", error);
+      console.error("Mux webhook signature verification failed", {
+        signaturePresent: Boolean(args.signature),
+        rawBodyBytes: args.rawBody.length,
+        error,
+      });
       return { status: 401, message: "Invalid signature" };
     }
 
@@ -93,15 +117,57 @@ export const processWebhook = internalAction({
     try {
       event = JSON.parse(args.rawBody) as { type?: string; data?: MuxData };
     } catch (error) {
-      console.error("Mux webhook payload is not valid JSON", error);
+      console.error("Mux webhook payload is not valid JSON", {
+        rawBodyBytes: args.rawBody.length,
+        error,
+      });
       return { status: 400, message: "Invalid payload" };
     }
 
     const eventType = asString(event.type);
     const data = event.data ?? {};
+    const eventSummary = summarizeMuxData(data);
+
+    console.log("Mux webhook received", {
+      eventType: eventType ?? "unknown",
+      ...eventSummary,
+    });
 
     try {
       switch (eventType) {
+        case "video.asset.created": {
+          const assetId = asString(data.id) ?? asString(data.asset_id);
+          if (!assetId) {
+            console.error("Mux asset.created missing asset id");
+            break;
+          }
+
+          const videoId =
+            (await resolveVideoIdFromMuxRefs(ctx, {
+              ...data,
+              asset_id: assetId,
+            })) ?? null;
+
+          if (!videoId) {
+            console.error("Could not resolve video for Mux asset.created", {
+              eventType,
+              ...eventSummary,
+            });
+            break;
+          }
+
+          await ctx.runMutation(internal.videos.setMuxAssetReference, {
+            videoId,
+            muxAssetId: assetId,
+          });
+          console.log("Mapped Mux asset to video", {
+            eventType,
+            videoId,
+            assetId,
+          });
+          break;
+        }
+
         case "video.asset.ready": {
           const assetId = asString(data.id) ?? asString(data.asset_id);
           if (!assetId) {
@@ -110,12 +176,28 @@ export const processWebhook = internalAction({
           }
 
           const asset = await getMuxAsset(assetId);
+          const resolvedPassthrough =
+            asString(asset.passthrough) ?? asString(data.passthrough);
+          const assetPlaybackIds = asset.playback_ids as MuxData["playback_ids"];
           const playbackId =
-            getPreferredPlaybackId(asset.playback_ids as MuxData["playback_ids"]) ??
+            getPreferredPlaybackId(assetPlaybackIds) ??
             getPreferredPlaybackId(data.playback_ids);
 
+          console.log("Mux asset details fetched", {
+            eventType,
+            assetId,
+            passthrough: resolvedPassthrough,
+            duration: typeof asset.duration === "number" ? asset.duration : undefined,
+            playbackIds: summarizePlaybackIds(assetPlaybackIds),
+          });
+
           if (!playbackId) {
-            console.error("Mux asset.ready missing playback id", { assetId });
+            console.error("Mux asset.ready missing playback id", {
+              eventType,
+              assetId,
+              dataPlaybackIds: summarizePlaybackIds(data.playback_ids),
+              assetPlaybackIds: summarizePlaybackIds(assetPlaybackIds),
+            });
             break;
           }
 
@@ -124,11 +206,16 @@ export const processWebhook = internalAction({
               ...data,
               asset_id: assetId,
               upload_id: asString(data.upload_id),
-              passthrough: asString(asset.passthrough) ?? asString(data.passthrough),
+              passthrough: resolvedPassthrough,
             })) ?? null;
 
           if (!videoId) {
-            console.error("Could not resolve video for Mux asset.ready", { assetId });
+            console.error("Could not resolve video for Mux asset.ready", {
+              eventType,
+              assetId,
+              uploadId: asString(data.upload_id),
+              passthrough: resolvedPassthrough,
+            });
             break;
           }
 
@@ -144,6 +231,12 @@ export const processWebhook = internalAction({
                   : undefined,
             thumbnailUrl: buildMuxThumbnailUrl(playbackId),
           });
+          console.log("Marked video ready from Mux webhook", {
+            eventType,
+            videoId,
+            assetId,
+            playbackId,
+          });
 
           break;
         }
@@ -156,13 +249,34 @@ export const processWebhook = internalAction({
           });
 
           if (!videoId) {
-            console.error("Could not resolve video for Mux asset.errored", { assetId });
+            console.error("Could not resolve video for Mux asset.errored", {
+              eventType,
+              ...eventSummary,
+              assetId,
+            });
             break;
           }
 
+          const errorMessage = getErrorMessage(data) ?? "Mux failed to process this asset.";
+          console.error("Marking video failed from Mux asset.errored", {
+            eventType,
+            videoId,
+            assetId,
+            errorMessage,
+          });
           await ctx.runMutation(internal.videos.markAsFailed, {
             videoId,
-            uploadError: getErrorMessage(data) ?? "Mux failed to process this asset.",
+            uploadError: errorMessage,
+          });
+          break;
+        }
+
+        case "video.asset.non_standard_input_detected": {
+          const assetId = asString(data.id) ?? asString(data.asset_id);
+          console.warn("Mux reported non-standard input", {
+            eventType,
+            ...eventSummary,
+            assetId,
           });
           break;
         }
@@ -176,22 +290,40 @@ export const processWebhook = internalAction({
           });
 
           if (!videoId) {
-            console.error("Could not resolve video for Mux upload failure", { uploadId });
+            console.error("Could not resolve video for Mux upload failure", {
+              eventType,
+              ...eventSummary,
+              uploadId,
+            });
             break;
           }
 
+          const errorMessage = getErrorMessage(data) ?? "Mux upload failed or was cancelled.";
+          console.error("Marking video failed from Mux upload failure", {
+            eventType,
+            videoId,
+            uploadId,
+            errorMessage,
+          });
           await ctx.runMutation(internal.videos.markAsFailed, {
             videoId,
-            uploadError: getErrorMessage(data) ?? "Mux upload failed or was cancelled.",
+            uploadError: errorMessage,
           });
           break;
         }
 
         default:
-          console.log("Ignoring unsupported Mux webhook event", eventType);
+          console.log("Ignoring unsupported Mux webhook event", {
+            eventType: eventType ?? "unknown",
+            ...eventSummary,
+          });
       }
     } catch (error) {
-      console.error("Mux webhook handler failed", { eventType, error });
+      console.error("Mux webhook handler failed", {
+        eventType: eventType ?? "unknown",
+        ...eventSummary,
+        error,
+      });
       return { status: 500, message: "Webhook processing failed" };
     }
 

@@ -23,15 +23,13 @@ export function getMuxClient(): Mux {
   return cachedMux;
 }
 
-export async function createMuxDirectUpload(videoId: string) {
+export async function createMuxAssetFromInputUrl(videoId: string, inputUrl: string) {
   const mux = getMuxClient();
-  return await mux.video.uploads.create({
-    cors_origin: process.env.VITE_CONVEX_SITE_URL ?? "http://localhost:5296",
-    new_asset_settings: {
-      playback_policy: ["public"],
-      mp4_support: "standard",
-      passthrough: videoId,
-    },
+  return await mux.video.assets.create({
+    inputs: [{ url: inputUrl }],
+    playback_policy: ["public"],
+    mp4_support: "standard",
+    passthrough: videoId,
   });
 }
 
@@ -47,10 +45,6 @@ export async function deleteMuxAsset(assetId: string) {
 
 export function buildMuxPlaybackUrl(playbackId: string): string {
   return `https://stream.mux.com/${playbackId}.m3u8`;
-}
-
-export function buildMuxDownloadUrl(playbackId: string): string {
-  return `https://stream.mux.com/${playbackId}/high.mp4`;
 }
 
 export function buildMuxThumbnailUrl(playbackId: string): string {

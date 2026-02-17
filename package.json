@@ -13,6 +13,8 @@
     "typecheck:convex": "bunx convex typecheck"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.991.0",
+    "@aws-sdk/s3-request-presigner": "^3.991.0",
     "@clerk/clerk-react": "^5.60.0",
     "@clerk/react-router": "^2.4.1",
     "@mux/mux-node": "^12.8.1",

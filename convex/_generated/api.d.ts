@@ -14,6 +14,7 @@ import type * as http from "../http.js";
 import type * as mux from "../mux.js";
 import type * as muxActions from "../muxActions.js";
 import type * as projects from "../projects.js";
+import type * as s3 from "../s3.js";
 import type * as shareLinks from "../shareLinks.js";
 import type * as teams from "../teams.js";
 import type * as videoActions from "../videoActions.js";
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   mux: typeof mux;
   muxActions: typeof muxActions;
   projects: typeof projects;
+  s3: typeof s3;
   shareLinks: typeof shareLinks;
   teams: typeof teams;
   videoActions: typeof videoActions;

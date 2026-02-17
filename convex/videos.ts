@@ -163,13 +163,14 @@ export const remove = mutation({
 export const setUploadInfo = internalMutation({
   args: {
     videoId: v.id("videos"),
-    muxUploadId: v.string(),
+    s3Key: v.string(),
     fileSize: v.number(),
     contentType: v.string(),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
-      muxUploadId: args.muxUploadId,
+      s3Key: args.s3Key,
+      muxUploadId: undefined,
       muxAssetId: undefined,
       muxPlaybackId: undefined,
       muxAssetStatus: "preparing",
@@ -227,6 +228,32 @@ export const markAsFailed = internalMutation({
       muxAssetStatus: "errored",
       uploadError: args.uploadError,
       status: "failed",
+    });
+  },
+});
+
+export const setOriginalBucketKey = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    s3Key: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      s3Key: args.s3Key,
+    });
+  },
+});
+
+export const setMuxAssetReference = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    muxAssetId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      muxAssetId: args.muxAssetId,
+      muxAssetStatus: "preparing",
+      status: "processing",
     });
   },
 });
@@ -303,6 +330,7 @@ export const getByShareToken = query({
         _id: video._id,
         title: video.title,
         description: video.description,
+        s3Key: video.s3Key,
         duration: video.duration,
         thumbnailUrl: video.thumbnailUrl,
         muxPlaybackId: video.muxPlaybackId,

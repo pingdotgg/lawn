@@ -279,6 +279,7 @@ export default function ProjectPage() {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                   ? video.thumbnailUrl
                   : undefined;
+                const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
 
                 return (
                   <VideoIntentTarget
@@ -306,51 +307,36 @@ export default function ProjectPage() {
                           <Play className="h-10 w-10 text-[#888]" />
                         </div>
                       )}
-                    {video.status === "ready" && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleDownloadVideo(video._id, video.title);
-                        }}
-                        className="absolute top-2 right-2 z-10 inline-flex h-8 w-8 items-center justify-center bg-[#1a1a1a]/70 text-[#f0f0e8] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]/90"
-                        aria-label={`Download ${video.title}`}
-                        title="Download"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
-                    )}
                     {video.status === "ready" && video.duration && (
-                      <div className="absolute bottom-2 right-2 bg-[#1a1a1a]/80 text-[#f0f0e8] text-[11px] font-mono px-1.5 py-0.5">
+                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[11px] font-mono px-1.5 py-0.5">
                         {formatDuration(video.duration)}
                       </div>
                     )}
                     {video.status !== "ready" && (
-                      <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
-                        <span className="text-[#f0f0e8] text-xs font-bold uppercase tracking-wider">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold uppercase tracking-wider">
                           {video.status === "uploading" && "Uploading..."}
                           {video.status === "processing" && "Processing..."}
                           {video.status === "failed" && "Failed"}
                         </span>
                       </div>
                     )}
-                    {/* Hover overlay with menu */}
-                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Hover menu */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           asChild
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 bg-[#1a1a1a]/70 hover:bg-[#1a1a1a]/90 text-[#f0f0e8]"
+                          <button
+                            type="button"
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center bg-black/60 hover:bg-black/80 text-white"
                           >
                             <MoreVertical className="h-4 w-4" />
-                          </Button>
+                          </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {video.status === "ready" && (
+                        <DropdownMenuContent align="end">
+                          {canDownload && (
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -406,7 +392,7 @@ export default function ProjectPage() {
                           {video.commentCount}
                         </span>
                       )}
-                      <span className="text-[11px] text-[#1a1a1a]/50 ml-auto font-mono">
+                      <span className="text-[11px] text-[#888] ml-auto font-mono">
                         {formatRelativeTime(video._creationTime)}
                       </span>
                     </div>
@@ -426,6 +412,7 @@ export default function ProjectPage() {
               const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                 ? video.thumbnailUrl
                 : undefined;
+              const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
 
               return (
                 <VideoIntentTarget
@@ -455,8 +442,8 @@ export default function ProjectPage() {
                       </div>
                     )}
                     {video.status !== "ready" && (
-                      <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
-                        <span className="text-[#f0f0e8] text-[10px] font-bold uppercase tracking-wider">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">
                           {video.status === "uploading" && "Uploading..."}
                           {video.status === "processing" && "Processing..."}
                           {video.status === "failed" && "Failed"}
@@ -464,7 +451,7 @@ export default function ProjectPage() {
                       </div>
                     )}
                     {video.status === "ready" && video.duration && (
-                      <div className="absolute bottom-1 right-1 bg-[#1a1a1a]/80 text-[#f0f0e8] text-[10px] font-mono px-1 py-0.5">
+                      <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] font-mono px-1 py-0.5">
                         {formatDuration(video.duration)}
                       </div>
                     )}
@@ -489,7 +476,7 @@ export default function ProjectPage() {
                         {video.commentCount}
                       </span>
                     )}
-                    <span className="text-xs text-[#1a1a1a]/40 font-mono">
+                    <span className="text-xs text-[#888] font-mono">
                       {formatRelativeTime(video._creationTime)}
                     </span>
                     {video.uploaderName && (
@@ -501,33 +488,21 @@ export default function ProjectPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {video.status === "ready" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDownloadVideo(video._id, video.title);
-                      }}
-                      aria-label={`Download ${video.title}`}
-                      title="Download"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  )}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       asChild
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-[#888] hover:text-[#1a1a1a]"
+                      >
                         <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {video.status === "ready" && (
+                      {canDownload && (
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();

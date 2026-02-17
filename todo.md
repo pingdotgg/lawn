@@ -7,8 +7,12 @@
 - [ ] "Theater mode" (hide all ui but player made as close to full screen as possible, toggle to show/hide comments on side)
 - [ ] Better error messages
 - [ ] Handle files when projects deleted
+- [ ] Download before mux processing is done
+- [ ] play full quality before mux processing is done
+- [ ] resolution selection in playback
 
 ### Design todo
 
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Grass under title
+- [ ] favicon
