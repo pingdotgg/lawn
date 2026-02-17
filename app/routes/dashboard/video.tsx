@@ -224,19 +224,14 @@ export default function VideoPage() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <div className="border-2 border-[#1a1a1a] bg-[#e8e8e0] px-3 py-2 min-w-[220px] max-w-full">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#666] mb-1">
-                Review Status
-              </p>
-              <VideoWorkflowStatusControl
-                status={video.workflowStatus}
-                size="lg"
-                onChange={(workflowStatus) => {
-                  void handleUpdateWorkflowStatus(workflowStatus);
-                }}
-              />
-            </div>
+          <div className="flex items-center gap-4 flex-wrap justify-end">
+            <VideoWorkflowStatusControl
+              status={video.workflowStatus}
+              size="lg"
+              onChange={(workflowStatus) => {
+                void handleUpdateWorkflowStatus(workflowStatus);
+              }}
+            />
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
               <LinkIcon className="mr-1.5 h-4 w-4" />
               Share

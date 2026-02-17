@@ -4,7 +4,6 @@ import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from "react-router";
 import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadProgress } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
@@ -275,7 +274,7 @@ export default function ProjectPage() {
             "p-6 transition-opacity duration-300",
             isLoadingData ? "opacity-0" : "opacity-100"
           )}>
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+            <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {videos?.map((video) => {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                   ? video.thumbnailUrl
@@ -295,16 +294,16 @@ export default function ProjectPage() {
                       )
                     }
                   >
-                    <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors">
+                    <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] transition-colors">
                       {thumbnailSrc ? (
                         <img
                           src={thumbnailSrc}
                           alt={video.title}
-                          className="object-cover"
+                          className="object-cover w-full h-full"
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <Play className="h-8 w-8 text-[#888]" />
+                          <Play className="h-10 w-10 text-[#888]" />
                         </div>
                       )}
                     {video.status === "ready" && (
@@ -314,7 +313,7 @@ export default function ProjectPage() {
                           e.stopPropagation();
                           void handleDownloadVideo(video._id, video.title);
                         }}
-                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-8 w-8 items-center justify-center border-2 border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a] opacity-80 transition hover:opacity-100 hover:bg-[#e8e8e0]"
+                        className="absolute top-2 right-2 z-10 inline-flex h-8 w-8 items-center justify-center bg-[#1a1a1a]/70 text-[#f0f0e8] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#1a1a1a]/90"
                         aria-label={`Download ${video.title}`}
                         title="Download"
                       >
@@ -322,28 +321,21 @@ export default function ProjectPage() {
                       </button>
                     )}
                     {video.status === "ready" && video.duration && (
-                      <div className="absolute bottom-1.5 right-1.5 bg-[#1a1a1a] text-[#f0f0e8] text-[10px] font-mono px-1 py-0.5">
+                      <div className="absolute bottom-2 right-2 bg-[#1a1a1a]/80 text-[#f0f0e8] text-[11px] font-mono px-1.5 py-0.5">
                         {formatDuration(video.duration)}
                       </div>
                     )}
                     {video.status !== "ready" && (
                       <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
-                        <Badge
-                          variant={
-                            video.status === "failed"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="text-[10px]"
-                        >
-                          {video.status === "uploading" && "Uploading"}
-                          {video.status === "processing" && "Processing"}
+                        <span className="text-[#f0f0e8] text-xs font-bold uppercase tracking-wider">
+                          {video.status === "uploading" && "Uploading..."}
+                          {video.status === "processing" && "Processing..."}
                           {video.status === "failed" && "Failed"}
-                        </Badge>
+                        </span>
                       </div>
                     )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-[#1a1a1a]/0 group-hover:bg-[#1a1a1a]/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    {/* Hover overlay with menu */}
+                    <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           asChild
@@ -352,12 +344,12 @@ export default function ProjectPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 bg-[#f0f0e8] hover:bg-[#e8e8e0] text-[#1a1a1a]"
+                            className="h-8 w-8 bg-[#1a1a1a]/70 hover:bg-[#1a1a1a]/90 text-[#f0f0e8]"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="start">
                           {video.status === "ready" && (
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -396,11 +388,11 @@ export default function ProjectPage() {
                       </DropdownMenu>
                     </div>
                   </div>
-                  <div className="mt-1.5 px-0.5">
-                    <p className="text-sm text-[#1a1a1a] font-bold truncate">
+                  <div className="mt-2.5">
+                    <p className="text-[15px] text-[#1a1a1a] font-black truncate leading-tight">
                       {video.title}
                     </p>
-                    <div className="mt-1 flex items-center justify-between gap-2">
+                    <div className="mt-1.5 flex items-center gap-3">
                       <VideoWorkflowStatusControl
                         status={video.workflowStatus}
                         stopPropagation
@@ -408,14 +400,16 @@ export default function ProjectPage() {
                           void handleUpdateWorkflowStatus(video._id, workflowStatus)
                         }
                       />
-                      <span className="inline-flex items-center gap-1 text-[11px] text-[#888]">
-                        <MessageSquare className="h-3 w-3" />
-                        {video.commentCount} comments
+                      {video.commentCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-[#888]">
+                          <MessageSquare className="h-3 w-3" />
+                          {video.commentCount}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-[#1a1a1a]/50 ml-auto font-mono">
+                        {formatRelativeTime(video._creationTime)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#888] truncate">
-                      {formatRelativeTime(video._creationTime)}
-                    </p>
                   </div>
                   </VideoIntentTarget>
                 );
@@ -436,7 +430,7 @@ export default function ProjectPage() {
               return (
                 <VideoIntentTarget
                   key={video._id}
-                  className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
+                  className="group flex items-center gap-5 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
                   teamSlug={resolvedTeamSlug}
                   projectId={project._id}
                   videoId={video._id}
@@ -448,12 +442,12 @@ export default function ProjectPage() {
                   }
                 >
                   {/* Thumbnail */}
-                  <div className="relative w-32 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
+                  <div className="relative w-44 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
                     {thumbnailSrc ? (
                       <img
                         src={thumbnailSrc}
                         alt={video.title}
-                        className="object-cover"
+                        className="object-cover w-full h-full"
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -462,28 +456,26 @@ export default function ProjectPage() {
                     )}
                     {video.status !== "ready" && (
                       <div className="absolute inset-0 bg-[#1a1a1a]/60 flex items-center justify-center">
-                        <Badge
-                          variant={
-                            video.status === "failed"
-                              ? "destructive"
-                              : "secondary"
-                          }
-                          className="text-[10px]"
-                        >
-                          {video.status === "uploading" && "Uploading"}
-                          {video.status === "processing" && "Processing"}
+                        <span className="text-[#f0f0e8] text-[10px] font-bold uppercase tracking-wider">
+                          {video.status === "uploading" && "Uploading..."}
+                          {video.status === "processing" && "Processing..."}
                           {video.status === "failed" && "Failed"}
-                        </Badge>
+                        </span>
+                      </div>
+                    )}
+                    {video.status === "ready" && video.duration && (
+                      <div className="absolute bottom-1 right-1 bg-[#1a1a1a]/80 text-[#f0f0e8] text-[10px] font-mono px-1 py-0.5">
+                        {formatDuration(video.duration)}
                       </div>
                     )}
                   </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#1a1a1a] truncate">
+                  <p className="font-black text-[#1a1a1a] truncate">
                     {video.title}
                   </p>
-                  <div className="flex items-center gap-3 text-sm text-[#888] mt-0.5">
+                  <div className="flex items-center gap-3 mt-1">
                     <VideoWorkflowStatusControl
                       status={video.workflowStatus}
                       stopPropagation
@@ -491,21 +483,19 @@ export default function ProjectPage() {
                         void handleUpdateWorkflowStatus(video._id, workflowStatus)
                       }
                     />
-                    <span className="inline-flex items-center gap-1">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      {video.commentCount} comments
+                    {video.commentCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-[#888]">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {video.commentCount}
+                      </span>
+                    )}
+                    <span className="text-xs text-[#1a1a1a]/40 font-mono">
+                      {formatRelativeTime(video._creationTime)}
                     </span>
-                    <span className="text-[#ccc]">·</span>
-                    <span>{video.uploaderName}</span>
-                    <span className="text-[#ccc]">·</span>
-                    <span>{formatRelativeTime(video._creationTime)}</span>
-                    {video.duration && (
-                      <>
-                        <span className="text-[#ccc]">·</span>
-                        <span className="font-mono text-xs">
-                          {formatDuration(video.duration)}
-                        </span>
-                      </>
+                    {video.uploaderName && (
+                      <span className="text-xs text-[#888]">
+                        {video.uploaderName}
+                      </span>
                     )}
                   </div>
                 </div>
