@@ -33,7 +33,7 @@ export default function SharePage() {
   const allowDownload = videoData?.allowDownload ?? false;
   const hasVideo = Boolean(videoData?.video);
   const canPlay =
-    Boolean(videoData?.video?.s3Key) &&
+    Boolean(videoData?.video?.muxPlaybackId) &&
     (!videoData?.hasPassword || isPasswordVerified);
 
   // Track view on first load

@@ -61,7 +61,7 @@ export default function VideoPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
-  const isPlayable = video?.status === "ready" && Boolean(video?.s3Key);
+  const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {

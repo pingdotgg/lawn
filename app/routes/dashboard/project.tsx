@@ -44,7 +44,6 @@ interface UploadItem {
   progress: number;
   status: UploadStatus;
   error?: string;
-  s3Key?: string;
   bytesPerSecond?: number;
   estimatedSecondsRemaining?: number | null;
   abortController?: AbortController;
@@ -105,10 +104,6 @@ export default function ProjectPage() {
   const markUploadComplete = useAction(api.videoActions.markUploadComplete);
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
-  const generateThumbnailUploadUrl = useMutation(
-    api.videos.generateThumbnailUploadUrl,
-  );
-  const setThumbnailStorageId = useMutation(api.videos.setThumbnailStorageId);
 
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -131,104 +126,6 @@ export default function ProjectPage() {
     videos === undefined ||
     shouldCanonicalize;
 
-  const captureThumbnail = useCallback((file: File) => {
-    return new Promise<Blob | null>((resolve) => {
-      const video = document.createElement("video");
-      const url = URL.createObjectURL(file);
-      let settled = false;
-
-      const cleanup = () => {
-        if (!settled) {
-          settled = true;
-        }
-        URL.revokeObjectURL(url);
-        video.remove();
-      };
-
-      const handleError = () => {
-        cleanup();
-        resolve(null);
-      };
-
-      video.preload = "metadata";
-      video.muted = true;
-      video.src = url;
-      video.playsInline = true;
-      video.addEventListener("error", handleError, { once: true });
-
-      video.addEventListener(
-        "loadeddata",
-        () => {
-          const targetTime = Math.min(1, Math.max(0.1, video.duration * 0.05));
-          if (Number.isFinite(video.duration) && video.duration > 0) {
-            video.currentTime = targetTime;
-          } else {
-            video.currentTime = 0;
-          }
-        },
-        { once: true },
-      );
-
-      video.addEventListener(
-        "seeked",
-        () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 360;
-          const context = canvas.getContext("2d");
-          if (!context) {
-            cleanup();
-            resolve(null);
-            return;
-          }
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(
-            (blob) => {
-              cleanup();
-              resolve(blob);
-            },
-            "image/jpeg",
-            0.8,
-          );
-        },
-        { once: true },
-      );
-    });
-  }, []);
-
-  const uploadThumbnail = useCallback(
-    async (videoId: Id<"videos">, file: File) => {
-      const thumbnail = await captureThumbnail(file);
-      if (!thumbnail) return;
-
-      const uploadUrl = await generateThumbnailUploadUrl({ videoId });
-
-      const response = await fetch(uploadUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": thumbnail.type || "image/jpeg",
-        },
-        body: thumbnail,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Thumbnail upload failed: ${response.status} ${text}`);
-      }
-
-      const { storageId } = (await response.json()) as { storageId?: string };
-      if (!storageId) {
-        throw new Error("Thumbnail upload failed: missing storageId");
-      }
-
-      await setThumbnailStorageId({
-        videoId,
-        thumbnailStorageId: storageId as Id<"_storage">,
-      });
-    },
-    [captureThumbnail, generateThumbnailUploadUrl, setThumbnailStorageId],
-  );
-
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
       if (!resolvedProjectId) return;
@@ -249,39 +146,34 @@ export default function ProjectPage() {
           },
         ]);
 
+        let createdVideoId: Id<"videos"> | undefined;
+
         try {
-          const videoId = await createVideo({
+          createdVideoId = await createVideo({
             projectId: resolvedProjectId,
             title,
             fileSize: file.size,
             contentType: file.type || "video/mp4",
           });
 
-          uploadThumbnail(videoId, file).catch((error) => {
-            console.error("Failed to upload thumbnail:", error);
-          });
-
           setUploads((prev) =>
             prev.map((u) =>
-              u.id === uploadId ? { ...u, videoId, status: "uploading" } : u,
+              u.id === uploadId
+                ? { ...u, videoId: createdVideoId, status: "uploading" }
+                : u,
             ),
           );
 
-          const { url, key } = await getUploadUrl({
-            videoId,
+          const { url } = await getUploadUrl({
+            videoId: createdVideoId,
             filename: file.name,
             fileSize: file.size,
             contentType: file.type || "video/mp4",
           });
 
-          setUploads((prev) =>
-            prev.map((u) => (u.id === uploadId ? { ...u, s3Key: key } : u)),
-          );
-
           await new Promise<void>((resolve, reject) => {
             const xhr = new XMLHttpRequest();
-            const startTime = Date.now();
-            let lastTime = startTime;
+            let lastTime = Date.now();
             let lastLoaded = 0;
             const recentSpeeds: number[] = [];
 
@@ -351,7 +243,7 @@ export default function ProjectPage() {
             xhr.send(file);
           });
 
-          await markUploadComplete({ videoId, key });
+          await markUploadComplete({ videoId: createdVideoId });
 
           setUploads((prev) =>
             prev.map((u) =>
@@ -376,9 +268,8 @@ export default function ProjectPage() {
             ),
           );
 
-          const upload = uploads.find((u) => u.id === uploadId);
-          if (upload?.videoId) {
-            markUploadFailed({ videoId: upload.videoId }).catch(console.error);
+          if (createdVideoId) {
+            markUploadFailed({ videoId: createdVideoId }).catch(console.error);
           }
         }
       }
@@ -389,8 +280,6 @@ export default function ProjectPage() {
       getUploadUrl,
       markUploadComplete,
       markUploadFailed,
-      uploads,
-      uploadThumbnail,
     ],
   );
 

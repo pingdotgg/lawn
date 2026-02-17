@@ -60,16 +60,23 @@ export default defineSchema({
     uploaderName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
-    // S3 storage
-    s3Key: v.optional(v.string()),
-    s3UploadId: v.optional(v.string()), // For tracking multipart uploads
+    // Mux video references
+    muxUploadId: v.optional(v.string()),
+    muxAssetId: v.optional(v.string()),
+    muxPlaybackId: v.optional(v.string()),
+    muxAssetStatus: v.optional(
+      v.union(
+        v.literal("preparing"),
+        v.literal("ready"),
+        v.literal("errored")
+      )
+    ),
     // Metadata
     duration: v.optional(v.number()),
     thumbnailUrl: v.optional(v.string()),
-    thumbnailKey: v.optional(v.string()),
-    thumbnailStorageId: v.optional(v.id("_storage")),
     fileSize: v.optional(v.number()),
     contentType: v.optional(v.string()),
+    uploadError: v.optional(v.string()),
     status: v.union(
       v.literal("uploading"),
       v.literal("processing"),
@@ -78,7 +85,9 @@ export default defineSchema({
     ),
   })
     .index("by_project", ["projectId"])
-    .index("by_s3_key", ["s3Key"]),
+    .index("by_mux_upload_id", ["muxUploadId"])
+    .index("by_mux_asset_id", ["muxAssetId"])
+    .index("by_mux_playback_id", ["muxPlaybackId"]),
 
   comments: defineTable({
     videoId: v.id("videos"),
