@@ -19,6 +19,7 @@ import {
   Grid3X3,
   LayoutList,
   Download,
+  MessageSquare,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,8 +30,12 @@ import {
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { teamHomePath, videoPath } from "@/lib/routes";
-import { prefetchMuxPlaybackManifest } from "@/lib/muxPlayback";
+import { prefetchHlsRuntime, prefetchMuxPlaybackManifest } from "@/lib/muxPlayback";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import {
+  VideoWorkflowStatusControl,
+  type VideoWorkflowStatus,
+} from "@/components/videos/VideoWorkflowStatusControl";
 import { useProjectData } from "./project.data";
 import { prewarmTeam } from "./team.data";
 import { prewarmVideo } from "./video.data";
@@ -64,6 +69,7 @@ function VideoIntentTarget({
       projectId,
       videoId,
     });
+    prefetchHlsRuntime();
     if (muxPlaybackId) {
       prefetchMuxPlaybackManifest(muxPlaybackId);
     }
@@ -93,6 +99,7 @@ export default function ProjectPage() {
   const { requestUpload, uploads, cancelUpload } =
     useOutletContext<DashboardUploadOutletContext>();
   const deleteVideo = useMutation(api.videos.remove);
+  const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -147,6 +154,17 @@ export default function ProjectPage() {
       }
     },
     [getDownloadUrl],
+  );
+
+  const handleUpdateWorkflowStatus = useCallback(
+    async (videoId: Id<"videos">, workflowStatus: VideoWorkflowStatus) => {
+      try {
+        await updateVideoWorkflowStatus({ videoId, workflowStatus });
+      } catch (error) {
+        console.error("Failed to update video workflow status:", error);
+      }
+    },
+    [updateVideoWorkflowStatus],
   );
 
   // Not found state
@@ -382,6 +400,19 @@ export default function ProjectPage() {
                     <p className="text-sm text-[#1a1a1a] font-bold truncate">
                       {video.title}
                     </p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <VideoWorkflowStatusControl
+                        status={video.workflowStatus}
+                        stopPropagation
+                        onChange={(workflowStatus) =>
+                          void handleUpdateWorkflowStatus(video._id, workflowStatus)
+                        }
+                      />
+                      <span className="inline-flex items-center gap-1 text-[11px] text-[#888]">
+                        <MessageSquare className="h-3 w-3" />
+                        {video.commentCount} comments
+                      </span>
+                    </div>
                     <p className="text-[11px] text-[#888] truncate">
                       {formatRelativeTime(video._creationTime)}
                     </p>
@@ -453,6 +484,18 @@ export default function ProjectPage() {
                     {video.title}
                   </p>
                   <div className="flex items-center gap-3 text-sm text-[#888] mt-0.5">
+                    <VideoWorkflowStatusControl
+                      status={video.workflowStatus}
+                      stopPropagation
+                      onChange={(workflowStatus) =>
+                        void handleUpdateWorkflowStatus(video._id, workflowStatus)
+                      }
+                    />
+                    <span className="inline-flex items-center gap-1">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      {video.commentCount} comments
+                    </span>
+                    <span className="text-[#ccc]">·</span>
                     <span>{video.uploaderName}</span>
                     <span className="text-[#ccc]">·</span>
                     <span>{formatRelativeTime(video._creationTime)}</span>

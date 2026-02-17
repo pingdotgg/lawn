@@ -179,7 +179,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !isMediaReady) return;
+    if (!video) return;
 
     showControls();
 
@@ -193,7 +193,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     } else {
       video.pause();
     }
-  }, [isMediaReady, showControls]);
+  }, [showControls]);
 
   const setVideoVolume = useCallback((nextVolume: number) => {
     const video = videoRef.current;
@@ -609,7 +609,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         onMouseMove={showControls}
         onMouseEnter={showControls}
         onMouseLeave={() => {
-          if (isPlaying && isMediaReady) {
+          if (isPlaying) {
             setControlsVisible(false);
           }
         }}
@@ -685,7 +685,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         )}
 
         {/* Big play button */}
-        {!isPlaying && isMediaReady && (
+        {!isPlaying && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <button
               type="button"
@@ -712,7 +712,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 z-20 transition-opacity",
-            controlsVisible && isMediaReady ? "opacity-100" : "opacity-0"
+            controlsVisible ? "opacity-100" : "opacity-0"
           )}
         >
           <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">

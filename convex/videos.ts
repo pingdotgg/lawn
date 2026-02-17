@@ -3,6 +3,37 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Id } from "./_generated/dataModel";
 
+const workflowStatusValidator = v.union(
+  v.literal("review"),
+  v.literal("rework"),
+  v.literal("done"),
+);
+
+type WorkflowStatus =
+  | "review"
+  | "rework"
+  | "done";
+type StoredWorkflowStatus =
+  | WorkflowStatus
+  | "needs_review"
+  | "needs_feedback_addressed"
+  | "todo"
+  | "in_review"
+  | "approved"
+  | undefined;
+
+function normalizeWorkflowStatus(status: StoredWorkflowStatus): WorkflowStatus {
+  if (status === "done" || status === "approved") return "done";
+  if (
+    status === "rework" ||
+    status === "needs_feedback_addressed" ||
+    status === "in_review"
+  ) {
+    return "rework";
+  }
+  return "review";
+}
+
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -24,6 +55,7 @@ export const create = mutation({
       contentType: args.contentType,
       status: "uploading",
       muxAssetStatus: "preparing",
+      workflowStatus: "review",
     });
 
     return videoId;
@@ -41,10 +73,21 @@ export const list = query({
       .order("desc")
       .collect();
 
-    return videos.map((video) => ({
-      ...video,
-      uploaderName: video.uploaderName ?? "Unknown",
-    }));
+    return await Promise.all(
+      videos.map(async (video) => {
+        const comments = await ctx.db
+          .query("comments")
+          .withIndex("by_video", (q) => q.eq("videoId", video._id))
+          .collect();
+
+        return {
+          ...video,
+          uploaderName: video.uploaderName ?? "Unknown",
+          workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
+          commentCount: comments.length,
+        };
+      }),
+    );
   },
 });
 
@@ -55,6 +98,7 @@ export const get = query({
     return {
       ...video,
       uploaderName: video.uploaderName ?? "Unknown",
+      workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
       role: membership.role,
     };
   },
@@ -74,6 +118,20 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.videoId, updates);
+  },
+});
+
+export const updateWorkflowStatus = mutation({
+  args: {
+    videoId: v.id("videos"),
+    workflowStatus: workflowStatusValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "viewer");
+
+    await ctx.db.patch(args.videoId, {
+      workflowStatus: args.workflowStatus,
+    });
   },
 });
 

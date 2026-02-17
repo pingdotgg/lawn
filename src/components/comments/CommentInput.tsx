@@ -34,8 +34,7 @@ export function CommentInput({
   const [isLoading, setIsLoading] = useState(false);
   const createComment = useMutation(api.comments.create);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitComment = async () => {
     if (!text.trim()) return;
 
     setIsLoading(true);
@@ -55,9 +54,21 @@ export function CommentInput({
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitComment();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      handleSubmit(e);
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey
+    ) {
+      e.preventDefault();
+      void submitComment();
     }
     if (e.key === "Escape") {
       onCancel?.();
@@ -106,7 +117,7 @@ export function CommentInput({
         </div>
       </div>
       <p className="text-[11px] text-[#888]">
-        {typeof navigator !== "undefined" && navigator.platform?.includes("Mac") ? "Cmd" : "Ctrl"}+Enter to submit
+        Press Enter to submit. Shift+Enter for new line.
       </p>
     </form>
   );

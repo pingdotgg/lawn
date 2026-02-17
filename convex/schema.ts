@@ -83,6 +83,20 @@ export default defineSchema({
       v.literal("ready"),
       v.literal("failed")
     ),
+    workflowStatus: v.optional(
+      v.union(
+        // Current workflow states
+        v.literal("review"),
+        v.literal("rework"),
+        v.literal("done"),
+        // Legacy states kept for backwards compatibility with existing docs
+        v.literal("needs_review"),
+        v.literal("needs_feedback_addressed"),
+        v.literal("todo"),
+        v.literal("in_review"),
+        v.literal("approved")
+      )
+    ),
   })
     .index("by_project", ["projectId"])
     .index("by_mux_upload_id", ["muxUploadId"])

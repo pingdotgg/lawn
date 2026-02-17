@@ -3,6 +3,7 @@ export function buildMuxPlaybackHlsUrl(playbackId: string): string {
 }
 
 const prefetchedPlaybackIds = new Set<string>();
+let hlsRuntimePrefetched = false;
 
 export function prefetchMuxPlaybackManifest(playbackId: string) {
   if (typeof window === "undefined") return;
@@ -17,5 +18,15 @@ export function prefetchMuxPlaybackManifest(playbackId: string) {
     cache: "force-cache",
   }).catch(() => {
     // Best effort only; route transitions should not depend on this.
+  });
+}
+
+export function prefetchHlsRuntime() {
+  if (typeof window === "undefined") return;
+  if (hlsRuntimePrefetched) return;
+  hlsRuntimePrefetched = true;
+
+  import("hls.js").catch(() => {
+    // Best effort only; if this fails, the player will lazy-load on demand.
   });
 }

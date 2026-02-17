@@ -10,6 +10,10 @@ import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/V
 import { CommentList } from "@/components/comments/CommentList";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { ShareDialog } from "@/components/ShareDialog";
+import {
+  VideoWorkflowStatusControl,
+  type VideoWorkflowStatus,
+} from "@/components/videos/VideoWorkflowStatusControl";
 import { formatDuration, formatTimestamp } from "@/lib/utils";
 import { buildMuxPlaybackHlsUrl } from "@/lib/muxPlayback";
 import {
@@ -49,6 +53,7 @@ export default function VideoPage() {
     videoId,
   });
   const updateVideo = useMutation(api.videos.update);
+  const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -118,6 +123,18 @@ export default function VideoPage() {
     }
   };
 
+  const handleUpdateWorkflowStatus = useCallback(
+    async (workflowStatus: VideoWorkflowStatus) => {
+      if (!resolvedVideoId) return;
+      try {
+        await updateVideoWorkflowStatus({ videoId: resolvedVideoId, workflowStatus });
+      } catch (error) {
+        console.error("Failed to update review status:", error);
+      }
+    },
+    [resolvedVideoId, updateVideoWorkflowStatus],
+  );
+
   const startEditingTitle = () => {
     if (video) {
       setEditedTitle(video.title);
@@ -157,8 +174,8 @@ export default function VideoPage() {
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Videos
         </Link>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {isEditingTitle ? (
               <div className="flex items-center gap-2">
                 <Input
@@ -207,7 +224,19 @@ export default function VideoPage() {
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <div className="border-2 border-[#1a1a1a] bg-[#e8e8e0] px-3 py-2 min-w-[220px] max-w-full">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#666] mb-1">
+                Review Status
+              </p>
+              <VideoWorkflowStatusControl
+                status={video.workflowStatus}
+                size="lg"
+                onChange={(workflowStatus) => {
+                  void handleUpdateWorkflowStatus(workflowStatus);
+                }}
+              />
+            </div>
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
               <LinkIcon className="mr-1.5 h-4 w-4" />
               Share
