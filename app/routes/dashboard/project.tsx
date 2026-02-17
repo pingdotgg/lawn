@@ -1,15 +1,12 @@
 
-import { useConvex, useMutation, useAction } from "convex/react";
+import { useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useOutletContext, useParams } from "react-router";
 import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
-import {
-  UploadProgress,
-  UploadStatus,
-} from "@/components/upload/UploadProgress";
+import { UploadProgress } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
@@ -36,18 +33,7 @@ import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { useProjectData } from "./project.data";
 import { prewarmTeam } from "./team.data";
 import { prewarmVideo } from "./video.data";
-
-interface UploadItem {
-  id: string;
-  file: File;
-  videoId?: Id<"videos">;
-  progress: number;
-  status: UploadStatus;
-  error?: string;
-  bytesPerSecond?: number;
-  estimatedSecondsRemaining?: number | null;
-  abortController?: AbortController;
-}
+import type { DashboardUploadOutletContext } from "./layout";
 
 type ViewMode = "grid" | "list";
 
@@ -98,14 +84,11 @@ export default function ProjectPage() {
 
   const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
     useProjectData({ teamSlug, projectId });
-  const createVideo = useMutation(api.videos.create);
+  const { requestUpload, uploads, cancelUpload } =
+    useOutletContext<DashboardUploadOutletContext>();
   const deleteVideo = useMutation(api.videos.remove);
-  const getUploadUrl = useAction(api.videoActions.getUploadUrl);
-  const markUploadComplete = useAction(api.videoActions.markUploadComplete);
-  const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
-  const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const shouldCanonicalize =
@@ -127,172 +110,15 @@ export default function ProjectPage() {
     shouldCanonicalize;
 
   const handleFilesSelected = useCallback(
-    async (files: File[]) => {
+    (files: File[]) => {
       if (!resolvedProjectId) return;
-
-      for (const file of files) {
-        const uploadId = Math.random().toString(36).substring(7);
-        const title = file.name.replace(/\.[^/.]+$/, "");
-        const abortController = new AbortController();
-
-        setUploads((prev) => [
-          ...prev,
-          {
-            id: uploadId,
-            file,
-            progress: 0,
-            status: "pending",
-            abortController,
-          },
-        ]);
-
-        let createdVideoId: Id<"videos"> | undefined;
-
-        try {
-          createdVideoId = await createVideo({
-            projectId: resolvedProjectId,
-            title,
-            fileSize: file.size,
-            contentType: file.type || "video/mp4",
-          });
-
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId
-                ? { ...u, videoId: createdVideoId, status: "uploading" }
-                : u,
-            ),
-          );
-
-          const { url } = await getUploadUrl({
-            videoId: createdVideoId,
-            filename: file.name,
-            fileSize: file.size,
-            contentType: file.type || "video/mp4",
-          });
-
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            let lastTime = Date.now();
-            let lastLoaded = 0;
-            const recentSpeeds: number[] = [];
-
-            xhr.upload.addEventListener("progress", (e) => {
-              if (e.lengthComputable) {
-                const percentage = Math.round((e.loaded / e.total) * 100);
-                const now = Date.now();
-                const timeDelta = (now - lastTime) / 1000;
-                const bytesDelta = e.loaded - lastLoaded;
-
-                if (timeDelta > 0.1) {
-                  const speed = bytesDelta / timeDelta;
-                  recentSpeeds.push(speed);
-                  if (recentSpeeds.length > 5) recentSpeeds.shift();
-                  lastTime = now;
-                  lastLoaded = e.loaded;
-                }
-
-                const avgSpeed =
-                  recentSpeeds.length > 0
-                    ? recentSpeeds.reduce((a, b) => a + b, 0) /
-                      recentSpeeds.length
-                    : 0;
-                const remaining = e.total - e.loaded;
-                const eta =
-                  avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
-
-                setUploads((prev) =>
-                  prev.map((u) =>
-                    u.id === uploadId
-                      ? {
-                          ...u,
-                          progress: percentage,
-                          bytesPerSecond: avgSpeed,
-                          estimatedSecondsRemaining: eta,
-                        }
-                      : u,
-                  ),
-                );
-              }
-            });
-
-            xhr.addEventListener("load", () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                reject(
-                  new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`),
-                );
-              }
-            });
-
-            xhr.addEventListener("error", () => {
-              reject(new Error("Upload failed: Network error"));
-            });
-
-            xhr.addEventListener("abort", () => {
-              reject(new Error("Upload cancelled"));
-            });
-
-            abortController.signal.addEventListener("abort", () => {
-              xhr.abort();
-            });
-
-            xhr.open("PUT", url);
-            xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
-            xhr.send(file);
-          });
-
-          await markUploadComplete({ videoId: createdVideoId });
-
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId
-                ? { ...u, status: "complete", progress: 100 }
-                : u,
-            ),
-          );
-
-          setTimeout(() => {
-            setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-          }, 3000);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Upload failed";
-
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId
-                ? { ...u, status: "error", error: errorMessage }
-                : u,
-            ),
-          );
-
-          if (createdVideoId) {
-            markUploadFailed({ videoId: createdVideoId }).catch(console.error);
-          }
-        }
-      }
+      requestUpload(files, resolvedProjectId);
     },
-    [
-      resolvedProjectId,
-      createVideo,
-      getUploadUrl,
-      markUploadComplete,
-      markUploadFailed,
-    ],
+    [requestUpload, resolvedProjectId],
   );
-
-  const handleCancelUpload = async (uploadId: string) => {
-    const upload = uploads.find((u) => u.id === uploadId);
-    if (upload?.abortController) {
-      upload.abortController.abort();
-    }
-    if (upload?.videoId) {
-      markUploadFailed({ videoId: upload.videoId }).catch(console.error);
-    }
-    setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-  };
+  const projectUploads = resolvedProjectId
+    ? uploads.filter((upload) => upload.projectId === resolvedProjectId)
+    : [];
 
   const handleDeleteVideo = async (videoId: Id<"videos">) => {
     if (!confirm("Are you sure you want to delete this video?")) return;
@@ -391,9 +217,9 @@ export default function ProjectPage() {
       </header>
 
       {/* Upload progress */}
-      {uploads.length > 0 && (
+      {projectUploads.length > 0 && (
         <div className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4 space-y-3">
-          {uploads.map((upload) => (
+          {projectUploads.map((upload) => (
             <UploadProgress
               key={upload.id}
               fileName={upload.file.name}
@@ -403,7 +229,7 @@ export default function ProjectPage() {
               error={upload.error}
               bytesPerSecond={upload.bytesPerSecond}
               estimatedSecondsRemaining={upload.estimatedSecondsRemaining}
-              onCancel={() => handleCancelUpload(upload.id)}
+              onCancel={() => cancelUpload(upload.id)}
             />
           ))}
         </div>
@@ -411,7 +237,7 @@ export default function ProjectPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {!isLoadingData && videos.length === 0 && uploads.length === 0 ? (
+        {!isLoadingData && videos.length === 0 && projectUploads.length === 0 ? (
           <div className="h-full flex items-center justify-center p-6 animate-in fade-in duration-300">
             <DropZone
               onFilesSelected={handleFilesSelected}

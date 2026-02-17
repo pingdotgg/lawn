@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireTeamAccess, requireProjectAccess } from "./auth";
+import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 
 export const create = mutation({
   args: {
@@ -59,6 +59,54 @@ export const list = query({
     );
 
     return projectsWithCounts;
+  },
+});
+
+export const listUploadTargets = query({
+  args: {
+    teamSlug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getUser(ctx);
+    if (!user) return [];
+
+    const memberships = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
+      .collect();
+
+    const uploadableMemberships = memberships.filter(
+      (membership) => membership.role !== "viewer",
+    );
+
+    const targets = await Promise.all(
+      uploadableMemberships.map(async (membership) => {
+        const team = await ctx.db.get(membership.teamId);
+        if (!team) return [];
+        if (args.teamSlug && team.slug !== args.teamSlug) return [];
+
+        const projects = await ctx.db
+          .query("projects")
+          .withIndex("by_team", (q) => q.eq("teamId", team._id))
+          .collect();
+
+        return projects.map((project) => ({
+          projectId: project._id,
+          projectName: project.name,
+          teamId: team._id,
+          teamName: team.name,
+          teamSlug: team.slug,
+          role: membership.role,
+        }));
+      }),
+    );
+
+    return targets
+      .flat()
+      .sort((a, b) =>
+        a.teamName.localeCompare(b.teamName) ||
+        a.projectName.localeCompare(b.projectName),
+      );
   },
 });
 
