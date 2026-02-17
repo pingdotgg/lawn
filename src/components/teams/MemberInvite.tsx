@@ -176,14 +176,14 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
               >
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={member.avatarUrl} />
+                    <AvatarImage src={member.userAvatarUrl} />
                     <AvatarFallback>
-                      {getInitials(member.name)}
+                      {getInitials(member.userName)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="text-sm font-bold text-[#1a1a1a]">{member.name}</p>
-                    <p className="text-xs text-[#888]">{member.email}</p>
+                    <p className="text-sm font-bold text-[#1a1a1a]">{member.userName}</p>
+                    <p className="text-xs text-[#888]">{member.userEmail}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

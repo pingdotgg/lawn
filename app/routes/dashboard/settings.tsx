@@ -196,8 +196,8 @@ export default function TeamSettingsPage() {
                   className="flex items-center justify-between py-2 border-b-2 border-[#e8e8e0] last:border-0"
                 >
                   <div>
-                    <p className="font-bold text-[#1a1a1a]">{member.name}</p>
-                    <p className="text-sm text-[#888]">{member.email}</p>
+                    <p className="font-bold text-[#1a1a1a]">{member.userName}</p>
+                    <p className="text-sm text-[#888]">{member.userEmail}</p>
                   </div>
                   <Badge variant="secondary">{member.role}</Badge>
                 </div>

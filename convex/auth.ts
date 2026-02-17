@@ -9,37 +9,31 @@ function hasString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function getOptionalString(identity: ClerkIdentity, key: string): string | undefined {
+  const value = (identity as Record<string, unknown>)[key];
+  return hasString(value) ? value : undefined;
+}
+
 export function identityName(identity: ClerkIdentity): string {
-  if (hasString((identity as { name?: unknown }).name)) {
-    return (identity as { name: string }).name;
-  }
-  if (
-    hasString((identity as { firstName?: unknown }).firstName) &&
-    hasString((identity as { lastName?: unknown }).lastName)
-  ) {
-    return `${(identity as { firstName: string }).firstName} ${(identity as { lastName: string }).lastName}`;
-  }
-  if (hasString((identity as { email?: unknown }).email)) {
-    return (identity as { email: string }).email;
-  }
+  const name = getOptionalString(identity, "name");
+  if (name) return name;
+
+  const firstName = getOptionalString(identity, "firstName");
+  const lastName = getOptionalString(identity, "lastName");
+  if (firstName && lastName) return `${firstName} ${lastName}`;
+
+  const email = getOptionalString(identity, "email");
+  if (email) return email;
+
   return "Unknown";
 }
 
 export function identityEmail(identity: ClerkIdentity): string {
-  if (hasString((identity as { email?: unknown }).email)) {
-    return (identity as { email: string }).email;
-  }
-  return "";
+  return getOptionalString(identity, "email") ?? "";
 }
 
 export function identityAvatarUrl(identity: ClerkIdentity): string | undefined {
-  if (hasString((identity as { imageUrl?: unknown }).imageUrl)) {
-    return (identity as { imageUrl: string }).imageUrl;
-  }
-  if (hasString((identity as { avatarUrl?: unknown }).avatarUrl)) {
-    return (identity as { avatarUrl: string }).avatarUrl;
-  }
-  return undefined;
+  return getOptionalString(identity, "imageUrl") ?? getOptionalString(identity, "avatarUrl");
 }
 
 export async function getUser(ctx: QueryCtx | MutationCtx) {
