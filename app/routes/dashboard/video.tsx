@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { Id } from "@convex/_generated/dataModel";
 import { projectPath } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { prewarmProject } from "./project.data";
+import { useVideoData } from "./video.data";
 
 export default function VideoPage() {
   const params = useParams();
@@ -29,24 +32,21 @@ export default function VideoPage() {
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
   const videoId = params.videoId as Id<"videos">;
+  const convex = useConvex();
 
-  const context = useQuery(api.workspace.resolveContext, {
+  const {
+    context,
+    resolvedTeamSlug,
+    resolvedProjectId,
+    resolvedVideoId,
+    video,
+    comments,
+    commentsThreaded,
+  } = useVideoData({
     teamSlug,
     projectId,
     videoId,
   });
-  const resolvedTeamSlug = context?.team.slug ?? teamSlug;
-  const resolvedProjectId = context?.project?._id;
-  const resolvedVideoId = context?.video?._id;
-
-  const video = useQuery(
-    api.videos.get,
-    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
-  );
-  const comments = useQuery(
-    api.comments.list,
-    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
-  );
   const updateVideo = useMutation(api.videos.update);
   const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
@@ -64,6 +64,13 @@ export default function VideoPage() {
   const isPlayable = video?.status === "ready" && Boolean(video?.s3Key);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
+  const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
+    if (!resolvedProjectId) return;
+    return prewarmProject(convex, {
+      teamSlug: resolvedTeamSlug,
+      projectId: resolvedProjectId,
+    });
+  });
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
@@ -162,7 +169,9 @@ export default function VideoPage() {
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <Link
           to={projectPath(resolvedTeamSlug, resolvedProjectId)}
+          prefetch="intent"
           className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] transition-colors mb-3"
+          {...prewarmProjectIntentHandlers}
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Videos
@@ -339,6 +348,7 @@ export default function VideoPage() {
           <div className="flex-1 overflow-hidden">
             <CommentList
               videoId={resolvedVideoId}
+              comments={commentsThreaded}
               onTimestampClick={handleTimestampClick}
               highlightedCommentId={highlightedCommentId}
               canResolve={canEdit}

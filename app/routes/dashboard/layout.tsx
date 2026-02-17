@@ -1,6 +1,8 @@
 
 import { UserButton } from "@clerk/react-router";
 import { getAuth } from "@clerk/react-router/server";
+import { useConvex } from "convex/react";
+import type { ComponentType } from "react";
 
 import {
   Outlet,
@@ -18,6 +20,51 @@ import {
   teamHomePath,
   teamSettingsPath,
 } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { prewarmDashboardIndex } from "./index.data";
+import { prewarmSettings } from "./settings.data";
+import { prewarmTeam } from "./team.data";
+
+type DashboardNavItemProps = {
+  name: string;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+  disabled?: boolean;
+  isActive: boolean;
+  prewarm?: () => void | Promise<void>;
+};
+
+function DashboardNavItem({
+  name,
+  href,
+  icon: Icon,
+  disabled,
+  isActive,
+  prewarm,
+}: DashboardNavItemProps) {
+  const prewarmIntentHandlers = useRoutePrewarmIntent(() => prewarm?.());
+
+  return (
+    <Link
+      to={href}
+      prefetch="intent"
+      aria-disabled={disabled}
+      tabIndex={disabled ? -1 : undefined}
+      className={cn(
+        "w-10 h-10 flex items-center justify-center transition-colors",
+        disabled
+          ? "text-[#c2c2b9] pointer-events-none"
+          : isActive
+          ? "bg-[#1a1a1a] text-[#f0f0e8]"
+          : "text-[#888] hover:bg-[#e8e8e0] hover:text-[#1a1a1a]"
+      )}
+      title={name}
+      {...prewarmIntentHandlers}
+    >
+      <Icon className="h-5 w-5" />
+    </Link>
+  );
+}
 
 export async function loader(args: LoaderFunctionArgs) {
   const { userId } = await getAuth(args);
@@ -52,16 +99,21 @@ function ThemeToggleButton() {
 export default function DashboardLayout() {
   const pathname = useLocation().pathname;
   const params = useParams();
+  const convex = useConvex();
   const teamSlug =
     typeof params.teamSlug === "string" ? params.teamSlug : undefined;
   const teamHome = teamSlug ? teamHomePath(teamSlug) : null;
   const settingsPath = teamSlug ? teamSettingsPath(teamSlug) : null;
+  const prewarmHomeIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmDashboardIndex(convex),
+  );
 
   const navigation = [
     {
       name: "Home",
       href: dashboardHomePath(),
       icon: Home,
+      prewarm: () => prewarmDashboardIndex(convex),
       isActive: pathname === dashboardHomePath(),
     },
     {
@@ -69,6 +121,9 @@ export default function DashboardLayout() {
       href: teamHome ?? dashboardHomePath(),
       icon: FolderOpen,
       disabled: !teamHome,
+      prewarm: teamSlug
+        ? () => prewarmTeam(convex, { teamSlug })
+        : undefined,
       isActive:
         !!teamHome &&
         (pathname === teamHome ||
@@ -81,6 +136,9 @@ export default function DashboardLayout() {
       href: settingsPath ?? dashboardHomePath(),
       icon: Settings,
       disabled: !settingsPath,
+      prewarm: teamSlug
+        ? () => prewarmSettings(convex, { teamSlug })
+        : undefined,
       isActive:
         !!settingsPath &&
         (pathname === settingsPath || pathname.startsWith(`${settingsPath}/`)),
@@ -92,7 +150,12 @@ export default function DashboardLayout() {
       {/* Sidebar */}
       <aside className="w-16 border-r-2 border-[#1a1a1a] bg-[#f0f0e8] flex flex-col items-center py-4">
         {/* Logo */}
-        <Link to={dashboardHomePath()} className="mb-8">
+        <Link
+          to={dashboardHomePath()}
+          prefetch="intent"
+          className="mb-8"
+          {...prewarmHomeIntentHandlers}
+        >
           <span className="text-lg font-black">l</span>
         </Link>
 
@@ -100,23 +163,15 @@ export default function DashboardLayout() {
         <nav className="flex-1 flex flex-col items-center gap-2">
           {navigation.map((item) => {
             return (
-              <Link
+              <DashboardNavItem
                 key={item.name}
-                to={item.href}
-                aria-disabled={item.disabled}
-                tabIndex={item.disabled ? -1 : undefined}
-                className={cn(
-                  "w-10 h-10 flex items-center justify-center transition-colors",
-                  item.disabled
-                    ? "text-[#c2c2b9] pointer-events-none"
-                    : item.isActive
-                    ? "bg-[#1a1a1a] text-[#f0f0e8]"
-                    : "text-[#888] hover:bg-[#e8e8e0] hover:text-[#1a1a1a]"
-                )}
-                title={item.name}
-              >
-                <item.icon className="h-5 w-5" />
-              </Link>
+                name={item.name}
+                href={item.href}
+                icon={item.icon}
+                disabled={item.disabled}
+                isActive={item.isActive}
+                prewarm={item.prewarm}
+              />
             );
           })}
         </nav>

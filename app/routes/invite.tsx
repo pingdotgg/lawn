@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useNavigate, useParams } from "react-router";
 import { useState } from "react";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Users, Mail, Check } from "lucide-react";
 import { teamHomePath } from "@/lib/routes";
+import { useInviteData } from "./invite.data";
 
 export default function InvitePage() {
   const params = useParams();
@@ -16,7 +17,7 @@ export default function InvitePage() {
   const token = params.token as string;
   const { user, isLoaded } = useUser();
 
-  const invite = useQuery(api.teams.getInviteByToken, { token });
+  const { invite } = useInviteData({ token });
   const acceptInvite = useMutation(api.teams.acceptInvite);
 
   const [isAccepting, setIsAccepting] = useState(false);
@@ -59,7 +60,7 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/" className="block">
+            <Link to="/" prefetch="intent" className="block">
               <Button variant="outline" className="w-full">
                 Go to lawn
               </Button>
@@ -95,7 +96,7 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Sign in with the email address above to accept this invite.
             </p>
-            <Link to={`/sign-in?redirect_url=/invite/${token}`} className="block">
+            <Link to={`/sign-in?redirect_url=/invite/${token}`} prefetch="intent" className="block">
               <Button className="w-full">Sign in to accept</Button>
             </Link>
           </CardContent>
@@ -123,7 +124,7 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Please sign in with the correct email address to accept this invite.
             </p>
-            <Link to={`/sign-in?redirect_url=/invite/${token}`} className="block">
+            <Link to={`/sign-in?redirect_url=/invite/${token}`} prefetch="intent" className="block">
               <Button className="w-full" variant="outline">
                 Sign in with different account
               </Button>
@@ -168,7 +169,7 @@ export default function InvitePage() {
               </>
             )}
           </Button>
-          <Link to="/" className="block">
+          <Link to="/" prefetch="intent" className="block">
             <Button variant="ghost" className="w-full">
               Decline
             </Button>

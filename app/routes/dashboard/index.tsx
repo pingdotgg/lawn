@@ -1,7 +1,5 @@
 
-
-import { useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
+import { useConvex } from "convex/react";
 import { useNavigate } from "react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,9 +9,51 @@ import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { teamHomePath } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { prewarmTeam } from "./team.data";
+import { useDashboardIndexData } from "./index.data";
+
+type TeamCardProps = {
+  plan: string;
+  role: string;
+  name: string;
+  slug: string;
+  onOpen: () => void;
+};
+
+function TeamCardItem({ name, role, plan, slug, onOpen }: TeamCardProps) {
+  const convex = useConvex();
+  const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmTeam(convex, { teamSlug: slug }),
+  );
+
+  return (
+    <Card
+      className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
+      onClick={onOpen}
+      {...prewarmIntentHandlers}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{name}</CardTitle>
+          <Badge variant="secondary">{plan}</Badge>
+        </div>
+        <CardDescription className="capitalize">
+          {role}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between text-sm text-[#888] group-hover:text-[#1a1a1a] transition-colors">
+          <span>Open team</span>
+          <ArrowRight className="h-4 w-4" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardPage() {
-  const teams = useQuery(api.teams.list);
+  const { teams } = useDashboardIndexData();
   const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -76,27 +116,14 @@ export default function DashboardPage() {
           {teams?.map(
             (team) =>
               team && (
-                <Card
+                <TeamCardItem
                   key={team._id}
-                  className="group cursor-pointer hover:bg-[#e8e8e0] transition-colors"
-                  onClick={() => navigate(teamHomePath(team.slug))}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{team.name}</CardTitle>
-                      <Badge variant="secondary">{team.plan}</Badge>
-                    </div>
-                    <CardDescription className="capitalize">
-                      {team.role}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm text-[#888] group-hover:text-[#1a1a1a] transition-colors">
-                      <span>Open team</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </div>
-                  </CardContent>
-                </Card>
+                  name={team.name}
+                  role={team.role}
+                  plan={team.plan}
+                  slug={team.slug}
+                  onOpen={() => navigate(teamHomePath(team.slug))}
+                />
               )
           )}
         </div>

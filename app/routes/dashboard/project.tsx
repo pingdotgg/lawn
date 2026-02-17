@@ -1,8 +1,8 @@
 
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropZone } from "@/components/upload/DropZone";
@@ -32,6 +32,10 @@ import {
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { teamHomePath, videoPath } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { useProjectData } from "./project.data";
+import { prewarmTeam } from "./team.data";
+import { prewarmVideo } from "./video.data";
 
 interface UploadItem {
   id: string;
@@ -48,24 +52,53 @@ interface UploadItem {
 
 type ViewMode = "grid" | "list";
 
+type VideoIntentTargetProps = {
+  className: string;
+  teamSlug: string;
+  projectId: Id<"projects">;
+  videoId: Id<"videos">;
+  onOpen: () => void;
+  children: ReactNode;
+};
+
+function VideoIntentTarget({
+  className,
+  teamSlug,
+  projectId,
+  videoId,
+  onOpen,
+  children,
+}: VideoIntentTargetProps) {
+  const convex = useConvex();
+  const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmVideo(convex, {
+      teamSlug,
+      projectId,
+      videoId,
+    }),
+  );
+
+  return (
+    <div
+      className={className}
+      onClick={onOpen}
+      {...prewarmIntentHandlers}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function ProjectPage() {
   const params = useParams();
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
+  const convex = useConvex();
 
-  const context = useQuery(api.workspace.resolveContext, { teamSlug, projectId });
-  const resolvedProjectId = context?.project?._id;
-  const resolvedTeamSlug = context?.team.slug ?? teamSlug;
-  const project = useQuery(
-    api.projects.get,
-    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
-  );
-  const videos = useQuery(
-    api.videos.list,
-    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
-  );
+  const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
+    useProjectData({ teamSlug, projectId });
   const createVideo = useMutation(api.videos.create);
   const deleteVideo = useMutation(api.videos.remove);
   const getUploadUrl = useAction(api.videoActions.getUploadUrl);
@@ -82,6 +115,9 @@ export default function ProjectPage() {
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
+  const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmTeam(convex, { teamSlug: resolvedTeamSlug }),
+  );
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
@@ -411,7 +447,9 @@ export default function ProjectPage() {
           <div className="flex items-center gap-4">
             <Link
               to={teamHomePath(resolvedTeamSlug)}
+              prefetch="intent"
               className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
+              {...prewarmTeamIntentHandlers}
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -505,10 +543,13 @@ export default function ProjectPage() {
                   : undefined;
 
                 return (
-                  <div
+                  <VideoIntentTarget
                     key={video._id}
                     className="group cursor-pointer"
-                    onClick={() =>
+                    teamSlug={resolvedTeamSlug}
+                    projectId={project._id}
+                    videoId={video._id}
+                    onOpen={() =>
                       navigate(
                         videoPath(resolvedTeamSlug, project._id, video._id),
                       )
@@ -623,7 +664,7 @@ export default function ProjectPage() {
                       {formatRelativeTime(video._creationTime)}
                     </p>
                   </div>
-                  </div>
+                  </VideoIntentTarget>
                 );
               })}
             </div>
@@ -640,10 +681,13 @@ export default function ProjectPage() {
                 : undefined;
 
               return (
-                <div
+                <VideoIntentTarget
                   key={video._id}
                   className="group flex items-center gap-4 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
-                  onClick={() =>
+                  teamSlug={resolvedTeamSlug}
+                  projectId={project._id}
+                  videoId={video._id}
+                  onOpen={() =>
                     navigate(
                       videoPath(resolvedTeamSlug, project._id, video._id),
                     )
@@ -761,7 +805,7 @@ export default function ProjectPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                </div>
+                </VideoIntentTarget>
               );
             })}
           </div>

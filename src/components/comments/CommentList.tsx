@@ -3,11 +3,15 @@
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { FunctionReturnType } from "convex/server";
 import { CommentItem } from "./CommentItem";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+type ThreadedComments = FunctionReturnType<typeof api.comments.getThreaded>;
+
 interface CommentListProps {
   videoId: Id<"videos">;
+  comments?: ThreadedComments;
   onTimestampClick: (seconds: number) => void;
   highlightedCommentId?: Id<"comments">;
   canResolve?: boolean;
@@ -15,11 +19,13 @@ interface CommentListProps {
 
 export function CommentList({
   videoId,
+  comments: providedComments,
   onTimestampClick,
   highlightedCommentId,
   canResolve = false,
 }: CommentListProps) {
-  const comments = useQuery(api.comments.getThreaded, { videoId });
+  const queriedComments = useQuery(api.comments.getThreaded, { videoId });
+  const comments = providedComments ?? queriedComments;
 
   if (comments === undefined) {
     return (

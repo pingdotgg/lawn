@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useEffect, useState } from "react";
@@ -14,19 +14,18 @@ import {
   dashboardHomePath,
   teamHomePath,
 } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { prewarmTeam } from "./team.data";
+import { useSettingsData } from "./settings.data";
 
 export default function TeamSettingsPage() {
   const params = useParams();
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
+  const convex = useConvex();
 
-  const context = useQuery(api.workspace.resolveContext, { teamSlug });
-  const team = context?.team;
-  const members = useQuery(
-    api.teams.getMembers,
-    team ? { teamId: team._id } : "skip",
-  );
+  const { context, team, members } = useSettingsData({ teamSlug });
   const updateTeam = useMutation(api.teams.update);
   const deleteTeam = useMutation(api.teams.deleteTeam);
 
@@ -99,12 +98,17 @@ export default function TeamSettingsPage() {
   };
 
   const currentPlanFeatures = planFeatures[team.plan];
+  const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmTeam(convex, { teamSlug: team.slug }),
+  );
 
   return (
     <div className="p-8 max-w-3xl">
       <Link
         to={teamHomePath(team.slug)}
+        prefetch="intent"
         className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
+        {...prewarmTeamIntentHandlers}
       >
         <ArrowLeft className="mr-1 h-4 w-4" />
         Back to team
