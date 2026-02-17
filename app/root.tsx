@@ -31,6 +31,10 @@ export const meta: MetaFunction = () => [
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.ico" },
+  { rel: "preconnect", href: "https://stream.mux.com", crossOrigin: "anonymous" },
+  { rel: "preconnect", href: "https://image.mux.com", crossOrigin: "anonymous" },
+  { rel: "dns-prefetch", href: "//stream.mux.com" },
+  { rel: "dns-prefetch", href: "//image.mux.com" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

@@ -81,6 +81,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [currentTime, setCurrentTime] = useState(0);
   const [bufferedPercent, setBufferedPercent] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMediaReady, setIsMediaReady] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [volume, setVolume] = useState(1);
@@ -178,7 +179,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !isMediaReady) return;
 
     showControls();
 
@@ -192,7 +193,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     } else {
       video.pause();
     }
-  }, [showControls]);
+  }, [isMediaReady, showControls]);
 
   const setVideoVolume = useCallback((nextVolume: number) => {
     const video = videoRef.current;
@@ -391,6 +392,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       }
     };
 
+    const handleLoadedData = () => {
+      if (cancelled) return;
+      setIsMediaReady(true);
+      setIsBuffering(false);
+    };
+
     const handleDurationChange = () => {
       if (cancelled) return;
       setDuration(video.duration || 0);
@@ -424,6 +431,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     const handlePlaying = () => {
       if (cancelled) return;
+      setIsMediaReady(true);
+      setIsBuffering(false);
+    };
+
+    const handleCanPlay = () => {
+      if (cancelled) return;
+      setIsMediaReady(true);
+    };
+
+    const handleError = () => {
+      if (cancelled) return;
+      setIsMediaReady(true);
       setIsBuffering(false);
     };
 
@@ -459,6 +478,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setDuration(0);
       setCurrentTime(0);
       setBufferedPercent(0);
+      setIsMediaReady(false);
+      setIsBuffering(false);
 
       // Reset the element source before attaching a new one.
       video.removeAttribute("src");
@@ -485,12 +506,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     };
 
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("loadeddata", handleLoadedData);
     video.addEventListener("durationchange", handleDurationChange);
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("playing", handlePlaying);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("error", handleError);
     video.addEventListener("volumechange", handleVolumeChange);
     video.addEventListener("ratechange", handleRateChange);
     video.addEventListener("progress", handleProgress);
@@ -505,12 +529,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       cancelled = true;
 
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("loadeddata", handleLoadedData);
       video.removeEventListener("durationchange", handleDurationChange);
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("error", handleError);
       video.removeEventListener("volumechange", handleVolumeChange);
       video.removeEventListener("ratechange", handleRateChange);
       video.removeEventListener("progress", handleProgress);
@@ -582,7 +609,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         onMouseMove={showControls}
         onMouseEnter={showControls}
         onMouseLeave={() => {
-          if (isPlaying) {
+          if (isPlaying && isMediaReady) {
             setControlsVisible(false);
           }
         }}
@@ -626,18 +653,39 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <video
           ref={videoRef}
           poster={poster}
-          className="h-full w-full"
+          className={cn(
+            "h-full w-full object-contain transition-opacity duration-200",
+            isMediaReady ? "opacity-100" : "opacity-0"
+          )}
           playsInline
-          preload="metadata"
+          preload="auto"
           onClick={(e) => {
             e.stopPropagation();
             togglePlay();
           }}
         />
 
+        {!isMediaReady && (
+          <div className="pointer-events-none absolute inset-0 z-[5]">
+            {poster ? (
+              <img
+                src={poster}
+                alt=""
+                className="h-full w-full object-cover blur-[4px]"
+              />
+            ) : (
+              <div className="h-full w-full bg-zinc-900" />
+            )}
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+              <p className="text-sm font-medium text-white/85">Loading stream...</p>
+            </div>
+          </div>
+        )}
 
         {/* Big play button */}
-        {!isPlaying && (
+        {!isPlaying && isMediaReady && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <button
               type="button"
@@ -664,7 +712,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 z-20 transition-opacity",
-            controlsVisible ? "opacity-100" : "opacity-0"
+            controlsVisible && isMediaReady ? "opacity-100" : "opacity-0"
           )}
         >
           <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">

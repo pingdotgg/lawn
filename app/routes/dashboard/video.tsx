@@ -2,7 +2,7 @@
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { CommentList } from "@/components/comments/CommentList";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { ShareDialog } from "@/components/ShareDialog";
 import { formatDuration, formatTimestamp } from "@/lib/utils";
+import { buildMuxPlaybackHlsUrl } from "@/lib/muxPlayback";
 import {
   ArrowLeft,
   Edit2,
@@ -48,7 +49,6 @@ export default function VideoPage() {
     videoId,
   });
   const updateVideo = useMutation(api.videos.update);
-  const getPlaybackUrl = useAction(api.videoActions.getPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -58,10 +58,12 @@ export default function VideoPage() {
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentTimestamp, setCommentTimestamp] = useState(0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
+  const playbackUrl = useMemo(() => {
+    if (!isPlayable || !video?.muxPlaybackId) return null;
+    return buildMuxPlaybackHlsUrl(video.muxPlaybackId);
+  }, [isPlayable, video?.muxPlaybackId]);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
@@ -77,27 +79,6 @@ export default function VideoPage() {
       navigate(context.canonicalPath, { replace: true });
     }
   }, [shouldCanonicalize, context, navigate]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!isPlayable || !resolvedVideoId) return;
-
-    getPlaybackUrl({ videoId: resolvedVideoId })
-      .then(({ url }) => {
-        if (cancelled) return;
-        setPlaybackError(null);
-        setPlaybackUrl(url);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setPlaybackError(err.message || "Failed to load video");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isPlayable, resolvedVideoId, getPlaybackUrl]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -308,25 +289,38 @@ export default function VideoPage() {
               </div>
             ) : (
               <div className="h-full flex items-center justify-center">
-                <div className="max-w-2xl w-full aspect-video bg-[#e8e8e0] flex items-center justify-center border-2 border-[#1a1a1a]">
-                  <div className="text-center">
-                    {video.status === "uploading" && (
-                      <p className="text-[#888]">Uploading...</p>
-                    )}
-                    {video.status === "processing" && (
-                      <p className="text-[#888]">Processing video...</p>
-                    )}
-                    {video.status === "ready" && !playbackUrl && !playbackError && (
-                      <p className="text-[#888]">Loading...</p>
-                    )}
-                    {video.status === "ready" && playbackError && (
-                      <p className="text-[#dc2626]">{playbackError}</p>
-                    )}
-                    {video.status === "failed" && (
-                      <p className="text-[#dc2626]">Processing failed</p>
-                    )}
+                {video.status === "ready" && !playbackUrl ? (
+                  <div className="w-full max-w-6xl">
+                    <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
+                      {video.thumbnailUrl?.startsWith("http") ? (
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={`${video.title} thumbnail`}
+                          className="h-full w-full object-cover blur-[4px]"
+                        />
+                      ) : null}
+                      <div className="absolute inset-0 bg-black/45" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                        <p className="text-sm font-medium text-white/85">Loading stream...</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="max-w-2xl w-full aspect-video bg-[#e8e8e0] flex items-center justify-center border-2 border-[#1a1a1a]">
+                    <div className="text-center">
+                      {video.status === "uploading" && (
+                        <p className="text-[#888]">Uploading...</p>
+                      )}
+                      {video.status === "processing" && (
+                        <p className="text-[#888]">Processing video...</p>
+                      )}
+                      {video.status === "failed" && (
+                        <p className="text-[#dc2626]">Processing failed</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

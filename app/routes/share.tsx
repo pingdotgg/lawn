@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useParams } from "react-router";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
+import { buildMuxPlaybackHlsUrl } from "@/lib/muxPlayback";
 import { Lock, Download, Video, AlertCircle } from "lucide-react";
 import { useShareData } from "./share.data";
 
@@ -19,14 +20,11 @@ export default function SharePage() {
   const { shareInfo, videoData } = useShareData({ token });
   const verifyPassword = useMutation(api.videos.verifySharePassword);
   const incrementViewCount = useMutation(api.videos.incrementViewCount);
-  const getSharedPlaybackUrl = useAction(api.videoActions.getSharedPlaybackUrl);
   const getSharedDownloadUrl = useAction(api.videoActions.getSharedDownloadUrl);
 
   const [passwordInput, setPasswordInput] = useState("");
   const [isPasswordVerified, setIsPasswordVerified] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [isHeaderDownloading, setIsHeaderDownloading] = useState(false);
   const lastTrackedTokenRef = useRef<string | null>(null);
 
@@ -35,6 +33,11 @@ export default function SharePage() {
   const canPlay =
     Boolean(videoData?.video?.muxPlaybackId) &&
     (!videoData?.hasPassword || isPasswordVerified);
+  const playbackUrl = useMemo(() => {
+    const playbackId = videoData?.video?.muxPlaybackId;
+    if (!canPlay || !playbackId) return null;
+    return buildMuxPlaybackHlsUrl(playbackId);
+  }, [canPlay, videoData?.video?.muxPlaybackId]);
 
   // Track view on first load
   useEffect(() => {
@@ -42,27 +45,6 @@ export default function SharePage() {
     lastTrackedTokenRef.current = token;
     incrementViewCount({ token }).catch(console.error);
   }, [hasVideo, token, incrementViewCount]);
-
-  // Fetch presigned playback URL when video data is available and password is verified (if needed)
-  useEffect(() => {
-    let cancelled = false;
-    if (!canPlay) return;
-
-    getSharedPlaybackUrl({ token })
-      .then(({ url }) => {
-        if (cancelled) return;
-        setPlaybackError(null);
-        setPlaybackUrl(url);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setPlaybackError(err.message || "Failed to load video");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canPlay, token, getSharedPlaybackUrl]);
 
   const requestDownload = useCallback(async () => {
     if (!allowDownload) return null;
@@ -249,13 +231,20 @@ export default function SharePage() {
               onRequestDownload={requestDownload}
             />
           </div>
-        ) : playbackError ? (
-          <div className="aspect-video bg-[#e8e8e0] border-2 border-[#1a1a1a] flex items-center justify-center">
-            <p className="text-[#dc2626]">{playbackError}</p>
-          </div>
         ) : (
-          <div className="aspect-video bg-[#e8e8e0] border-2 border-[#1a1a1a] flex items-center justify-center">
-            <p className="text-[#888]">Loading video...</p>
+          <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
+            {video.thumbnailUrl?.startsWith("http") ? (
+              <img
+                src={video.thumbnailUrl}
+                alt={`${video.title} thumbnail`}
+                className="h-full w-full object-cover blur-[4px]"
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-black/45" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+              <p className="text-sm font-medium text-white/85">Loading stream...</p>
+            </div>
           </div>
         )}
       </main>
