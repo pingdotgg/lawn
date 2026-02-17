@@ -1,6 +1,6 @@
 
 import { useConvex } from "convex/react";
-import { useNavigate } from "react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { teamHomePath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
-import { prewarmTeam } from "./team.data";
-import { useDashboardIndexData } from "./index.data";
+import { prewarmTeam } from "./-team.data";
+import { useDashboardIndexData } from "./-index.data";
+
+export const Route = createFileRoute("/dashboard/")({
+  component: DashboardPage,
+});
 
 type TeamCardProps = {
   plan: string;
@@ -54,7 +58,7 @@ function TeamCardItem({ name, role, plan, slug, onOpen }: TeamCardProps) {
 
 export default function DashboardPage() {
   const { teams } = useDashboardIndexData();
-  const navigate = useNavigate();
+  const navigate = useNavigate({});
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const isLoading = teams === undefined;
@@ -122,7 +126,7 @@ export default function DashboardPage() {
                   role={team.role}
                   plan={team.plan}
                   slug={team.slug}
-                  onOpen={() => navigate(teamHomePath(team.slug))}
+                  onOpen={() => navigate({ to: teamHomePath(team.slug) })}
                 />
               )
           )}

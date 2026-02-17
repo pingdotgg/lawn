@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useParams } from "react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { VideoPlayer } from "@/components/video-player/VideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,10 @@ import { formatDuration } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
 import { buildMuxPlaybackHlsUrl } from "@/lib/muxPlayback";
 import { Lock, Download, Video, AlertCircle } from "lucide-react";
-import { useShareData } from "./share.data";
+import { useShareData } from "./-share.data";
 
 export default function SharePage() {
-  const params = useParams();
+  const params = useParams({ strict: false });
   const token = params.token as string;
 
   const { shareInfo, videoData } = useShareData({ token });
@@ -101,7 +101,7 @@ export default function SharePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/" prefetch="intent" className="block">
+            <Link to="/" preload="intent" className="block">
               <Button variant="outline" className="w-full">
                 Go to lawn
               </Button>
@@ -176,7 +176,7 @@ export default function SharePage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
             <Link
-              prefetch="intent"
+              preload="intent"
               to="/"
               className="text-[#888] hover:text-[#1a1a1a] text-sm flex items-center gap-2 font-bold"
             >
@@ -253,7 +253,7 @@ export default function SharePage() {
       <footer className="border-t-2 border-[#1a1a1a] px-6 py-4 mt-8">
         <div className="max-w-6xl mx-auto text-center text-sm text-[#888]">
           Shared via{" "}
-          <Link to="/" prefetch="intent" className="text-[#1a1a1a] hover:text-[#2d5a2d] font-bold">
+          <Link to="/" preload="intent" className="text-[#1a1a1a] hover:text-[#2d5a2d] font-bold">
             lawn
           </Link>
         </div>

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Link } from "react-router";
+import { Link } from "@tanstack/react-router";
 
 export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
@@ -186,8 +186,8 @@ export default function Homepage() {
         <div className="max-w-5xl mx-auto flex justify-between items-center text-sm">
           <span className="font-black text-xl">lawn</span>
           <div className="flex gap-6 text-[#888]">
-            <Link to="/github" className="hover:text-[#1a1a1a]">GitHub</Link>
-            <Link to="/docs" className="hover:text-[#1a1a1a]">Docs</Link>
+            <a href="/github" className="hover:text-[#1a1a1a]">GitHub</a>
+            <a href="/docs" className="hover:text-[#1a1a1a]">Docs</a>
           </div>
         </div>
       </footer>

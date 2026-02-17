@@ -1,9 +1,8 @@
 
 import { useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate, useOutletContext, useParams } from "react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadProgress } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
@@ -35,10 +34,10 @@ import {
   VideoWorkflowStatusControl,
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
-import { useProjectData } from "./project.data";
-import { prewarmTeam } from "./team.data";
-import { prewarmVideo } from "./video.data";
-import type { DashboardUploadOutletContext } from "./layout";
+import { useProjectData } from "./-project.data";
+import { prewarmTeam } from "./-team.data";
+import { prewarmVideo } from "./-video.data";
+import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
 
 type ViewMode = "grid" | "list";
 
@@ -85,18 +84,21 @@ function VideoIntentTarget({
   );
 }
 
-export default function ProjectPage() {
-  const params = useParams();
-  const navigate = useNavigate();
+export default function ProjectPage({
+  teamSlug,
+  projectId,
+}: {
+  teamSlug: string;
+  projectId: Id<"projects">;
+}) {
+  const navigate = useNavigate({});
   const pathname = useLocation().pathname;
-  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
-  const projectId = params.projectId as Id<"projects">;
   const convex = useConvex();
 
   const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
     useProjectData({ teamSlug, projectId });
   const { requestUpload, uploads, cancelUpload } =
-    useOutletContext<DashboardUploadOutletContext>();
+    useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
@@ -111,7 +113,7 @@ export default function ProjectPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      navigate(context.canonicalPath, { replace: true });
+      navigate({ to: context.canonicalPath, replace: true });
     }
   }, [shouldCanonicalize, context, navigate]);
 
@@ -185,7 +187,7 @@ export default function ProjectPage() {
           <div className="flex items-center gap-4">
             <Link
               to={teamHomePath(resolvedTeamSlug)}
-              prefetch="intent"
+              preload="intent"
               className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
               {...prewarmTeamIntentHandlers}
             >
@@ -290,9 +292,9 @@ export default function ProjectPage() {
                     videoId={video._id}
                     muxPlaybackId={video.muxPlaybackId}
                     onOpen={() =>
-                      navigate(
-                        videoPath(resolvedTeamSlug, project._id, video._id),
-                      )
+                      navigate({
+                        to: videoPath(resolvedTeamSlug, project._id, video._id),
+                      })
                     }
                   >
                     <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] transition-colors">
@@ -423,9 +425,9 @@ export default function ProjectPage() {
                   videoId={video._id}
                   muxPlaybackId={video.muxPlaybackId}
                   onOpen={() =>
-                    navigate(
-                      videoPath(resolvedTeamSlug, project._id, video._id),
-                    )
+                    navigate({
+                      to: videoPath(resolvedTeamSlug, project._id, video._id),
+                    })
                   }
                 >
                   {/* Thumbnail */}

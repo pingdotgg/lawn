@@ -1,19 +1,19 @@
 
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
-import { useUser } from "@clerk/react-router";
+import { useUser } from "@clerk/tanstack-react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Users, Mail, Check } from "lucide-react";
 import { teamHomePath } from "@/lib/routes";
-import { useInviteData } from "./invite.data";
+import { useInviteData } from "./-invite.data";
 
 export default function InvitePage() {
-  const params = useParams();
-  const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const navigate = useNavigate({});
   const token = params.token as string;
   const { user, isLoaded } = useUser();
 
@@ -29,7 +29,7 @@ export default function InvitePage() {
     try {
       const team = await acceptInvite({ token });
       if (team) {
-        navigate(teamHomePath(team.slug));
+        navigate({ to: teamHomePath(team.slug) });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to accept invite");
@@ -60,7 +60,7 @@ export default function InvitePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/" prefetch="intent" className="block">
+            <Link to="/" preload="intent" className="block">
               <Button variant="outline" className="w-full">
                 Go to lawn
               </Button>
@@ -96,9 +96,9 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Sign in with the email address above to accept this invite.
             </p>
-            <Link to={`/sign-in?redirect_url=/invite/${token}`} prefetch="intent" className="block">
+            <a href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`} className="block">
               <Button className="w-full">Sign in to accept</Button>
-            </Link>
+            </a>
           </CardContent>
         </Card>
       </div>
@@ -124,11 +124,11 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Please sign in with the correct email address to accept this invite.
             </p>
-            <Link to={`/sign-in?redirect_url=/invite/${token}`} prefetch="intent" className="block">
+            <a href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`} className="block">
               <Button className="w-full" variant="outline">
                 Sign in with different account
               </Button>
-            </Link>
+            </a>
           </CardContent>
         </Card>
       </div>
@@ -169,7 +169,7 @@ export default function InvitePage() {
               </>
             )}
           </Button>
-          <Link to="/" prefetch="intent" className="block">
+          <Link to="/" preload="intent" className="block">
             <Button variant="ghost" className="w-full">
               Decline
             </Button>

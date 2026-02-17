@@ -11,7 +11,7 @@ import {
   prewarmSpecs,
   resetPrewarmDedupeForTests,
 } from "@/lib/convexRouteData";
-import { prewarmTeam } from "../../app/routes/dashboard/team.data";
+import { prewarmTeam } from "../../app/routes/dashboard/-team.data";
 
 test("prewarmSpecs dedupes within the dedupe window", () => {
   resetPrewarmDedupeForTests();

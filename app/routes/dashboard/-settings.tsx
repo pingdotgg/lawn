@@ -1,7 +1,7 @@
 
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,12 @@ import {
   teamHomePath,
 } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
-import { prewarmTeam } from "./team.data";
-import { useSettingsData } from "./settings.data";
+import { prewarmTeam } from "./-team.data";
+import { useSettingsData } from "./-settings.data";
 
 export default function TeamSettingsPage() {
-  const params = useParams();
-  const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const navigate = useNavigate({});
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const convex = useConvex();
@@ -40,7 +40,7 @@ export default function TeamSettingsPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && canonicalSettingsPath) {
-      navigate(canonicalSettingsPath, { replace: true });
+      navigate({ to: canonicalSettingsPath, replace: true });
     }
   }, [shouldCanonicalize, canonicalSettingsPath, navigate]);
 
@@ -85,7 +85,7 @@ export default function TeamSettingsPage() {
 
     try {
       await deleteTeam({ teamId: team._id });
-      navigate(dashboardHomePath());
+      navigate({ to: dashboardHomePath() });
     } catch (error) {
       console.error("Failed to delete team:", error);
     }
@@ -106,7 +106,7 @@ export default function TeamSettingsPage() {
     <div className="p-8 max-w-3xl">
       <Link
         to={teamHomePath(team.slug)}
-        prefetch="intent"
+        preload="intent"
         className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
         {...prewarmTeamIntentHandlers}
       >

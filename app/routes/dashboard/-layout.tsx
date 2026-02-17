@@ -1,6 +1,5 @@
 
-import { UserButton } from "@clerk/react-router";
-import { getAuth } from "@clerk/react-router/server";
+import { UserButton, useAuth } from "@clerk/tanstack-react-start";
 import { useConvex, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { api } from "@convex/_generated/api";
@@ -9,11 +8,9 @@ import type { Id } from "@convex/_generated/dataModel";
 import {
   Outlet,
   Link,
-  redirect,
   useLocation,
   useParams,
-  type LoaderFunctionArgs,
-} from "react-router";
+} from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Home, FolderOpen, Settings, Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeToggle";
@@ -31,10 +28,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UploadProgress } from "@/components/upload/UploadProgress";
-import { prewarmDashboardIndex } from "./index.data";
-import { prewarmSettings } from "./settings.data";
-import { prewarmTeam } from "./team.data";
-import { useVideoUploadManager, type ManagedUploadItem } from "./useVideoUploadManager";
+import { prewarmDashboardIndex } from "./-index.data";
+import { prewarmSettings } from "./-settings.data";
+import { prewarmTeam } from "./-team.data";
+import { useVideoUploadManager } from "./-useVideoUploadManager";
+import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
 
 const VIDEO_FILE_EXTENSIONS = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
 
@@ -50,12 +48,6 @@ function getVideoFiles(files: FileList | null) {
 function dragEventHasFiles(event: DragEvent) {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
-
-export type DashboardUploadOutletContext = {
-  requestUpload: (files: File[], preferredProjectId?: Id<"projects">) => void;
-  uploads: ManagedUploadItem[];
-  cancelUpload: (uploadId: string) => void;
-};
 
 type DashboardNavItemProps = {
   name: string;
@@ -79,7 +71,7 @@ function DashboardNavItem({
   return (
     <Link
       to={href}
-      prefetch="intent"
+      preload="intent"
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : undefined}
       className={cn(
@@ -96,15 +88,6 @@ function DashboardNavItem({
       <Icon className="h-5 w-5" />
     </Link>
   );
-}
-
-export async function loader(args: LoaderFunctionArgs) {
-  const { userId } = await getAuth(args);
-  if (userId) return null;
-
-  const url = new URL(args.request.url);
-  const redirectUrl = `${url.pathname}${url.search}`;
-  throw redirect(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
 }
 
 function ThemeToggleButton() {
@@ -129,8 +112,10 @@ function ThemeToggleButton() {
 }
 
 export default function DashboardLayout() {
-  const pathname = useLocation().pathname;
-  const params = useParams();
+  const { isLoaded, userId } = useAuth();
+  const location = useLocation();
+  const { pathname, searchStr } = location;
+  const params = useParams({ strict: false });
   const convex = useConvex();
   const teamSlug =
     typeof params.teamSlug === "string" ? params.teamSlug : undefined;
@@ -267,7 +252,7 @@ export default function DashboardLayout() {
     };
   }, [requestUpload]);
 
-  const outletContext = useMemo<DashboardUploadOutletContext>(
+  const uploadContext = useMemo(
     () => ({
       requestUpload,
       uploads,
@@ -275,6 +260,29 @@ export default function DashboardLayout() {
     }),
     [requestUpload, uploads, cancelUpload],
   );
+
+  useEffect(() => {
+    if (!isLoaded || userId) return;
+    if (typeof window === "undefined") return;
+    const redirectUrl = `${pathname}${searchStr}`;
+    window.location.replace(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+  }, [isLoaded, userId, pathname, searchStr]);
+
+  if (!isLoaded) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
+        <div className="text-[#888]">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
+        <div className="text-[#888]">Redirecting to sign in...</div>
+      </div>
+    );
+  }
 
   const navigation = [
     {
@@ -320,7 +328,7 @@ export default function DashboardLayout() {
         {/* Logo */}
         <Link
           to={dashboardHomePath()}
-          prefetch="intent"
+          preload="intent"
           className="mb-8"
           {...prewarmHomeIntentHandlers}
         >
@@ -363,7 +371,9 @@ export default function DashboardLayout() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        <Outlet context={outletContext} />
+        <DashboardUploadProvider value={uploadContext}>
+          <Outlet />
+        </DashboardUploadProvider>
       </main>
 
       {isGlobalDragActive && (

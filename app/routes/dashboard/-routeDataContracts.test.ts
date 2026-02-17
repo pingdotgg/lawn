@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getFunctionName } from "convex/server";
 import { Id } from "@convex/_generated/dataModel";
-import { getDashboardIndexEssentialSpecs } from "./index.data";
-import { getProjectEssentialSpecs } from "./project.data";
-import { getSettingsEssentialSpecs } from "./settings.data";
-import { getTeamEssentialSpecs } from "./team.data";
-import { getVideoEssentialSpecs } from "./video.data";
+import { getDashboardIndexEssentialSpecs } from "./-index.data";
+import { getProjectEssentialSpecs } from "./-project.data";
+import { getSettingsEssentialSpecs } from "./-settings.data";
+import { getTeamEssentialSpecs } from "./-team.data";
+import { getVideoEssentialSpecs } from "./-video.data";
 
 function names(specs: Array<{ query: unknown }>) {
   return specs.map((spec) => getFunctionName(spec.query as never)).sort();

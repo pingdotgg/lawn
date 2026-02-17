@@ -1,6 +1,7 @@
-import { Link, Outlet } from "react-router";
+import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
-export default function AuthLayout() {
+export function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f0f0e8] relative">
       {/* Subtle grid pattern */}
@@ -24,8 +25,10 @@ export default function AuthLayout() {
             Video collaboration, simplified
           </p>
         </div>
-        <Outlet />
+        {children}
       </div>
     </div>
   );
 }
+
+export default AuthShell;

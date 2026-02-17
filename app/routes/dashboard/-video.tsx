@@ -1,7 +1,7 @@
 
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +27,12 @@ import {
 import { Id } from "@convex/_generated/dataModel";
 import { projectPath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
-import { prewarmProject } from "./project.data";
-import { useVideoData } from "./video.data";
+import { prewarmProject } from "./-project.data";
+import { useVideoData } from "./-video.data";
 
 export default function VideoPage() {
-  const params = useParams();
-  const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const navigate = useNavigate({});
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
   const projectId = params.projectId as Id<"projects">;
@@ -81,7 +81,7 @@ export default function VideoPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      navigate(context.canonicalPath, { replace: true });
+      navigate({ to: context.canonicalPath, replace: true });
     }
   }, [shouldCanonicalize, context, navigate]);
 
@@ -167,7 +167,7 @@ export default function VideoPage() {
       <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
         <Link
           to={projectPath(resolvedTeamSlug, resolvedProjectId)}
-          prefetch="intent"
+          preload="intent"
           className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] transition-colors mb-3"
           {...prewarmProjectIntentHandlers}
         >

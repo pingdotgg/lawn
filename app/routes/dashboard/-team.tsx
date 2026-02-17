@@ -1,7 +1,7 @@
 
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +32,8 @@ import { cn } from "@/lib/utils";
 import { projectPath } from "@/lib/routes";
 import { Id } from "@convex/_generated/dataModel";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
-import { prewarmProject } from "./project.data";
-import { useTeamData } from "./team.data";
+import { prewarmProject } from "./-project.data";
+import { useTeamData } from "./-team.data";
 
 type TeamProjectCardProps = {
   teamSlug: string;
@@ -115,8 +115,8 @@ function TeamProjectCard({
 }
 
 export default function TeamPage() {
-  const params = useParams();
-  const navigate = useNavigate();
+  const params = useParams({ strict: false });
+  const navigate = useNavigate({});
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
@@ -134,7 +134,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
-      navigate(context.canonicalPath, { replace: true });
+      navigate({ to: context.canonicalPath, replace: true });
     }
   }, [shouldCanonicalize, context, navigate]);
 
@@ -164,7 +164,7 @@ export default function TeamPage() {
       });
       setCreateDialogOpen(false);
       setNewProjectName("");
-      navigate(projectPath(team.slug, projectId));
+      navigate({ to: projectPath(team.slug, projectId) });
     } catch (error) {
       console.error("Failed to create project:", error);
     } finally {
@@ -254,7 +254,9 @@ export default function TeamPage() {
                 teamSlug={team.slug}
                 project={project}
                 canCreateProject={canCreateProject}
-                onOpen={() => navigate(projectPath(team.slug, project._id))}
+                onOpen={() =>
+                  navigate({ to: projectPath(team.slug, project._id) })
+                }
                 onDelete={handleDeleteProject}
               />
             ))}

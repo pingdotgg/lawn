@@ -2,7 +2,7 @@
 
 import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { useAuth } from "@clerk/react-router";
+import { useAuth } from "@clerk/tanstack-react-start";
 import { ReactNode } from "react";
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL;
