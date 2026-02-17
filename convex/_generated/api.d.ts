@@ -15,7 +15,6 @@ import type * as projects from "../projects.js";
 import type * as s3 from "../s3.js";
 import type * as shareLinks from "../shareLinks.js";
 import type * as teams from "../teams.js";
-import type * as users from "../users.js";
 import type * as videoActions from "../videoActions.js";
 import type * as videos from "../videos.js";
 import type * as workspace from "../workspace.js";
@@ -34,7 +33,6 @@ declare const fullApi: ApiFromModules<{
   s3: typeof s3;
   shareLinks: typeof shareLinks;
   teams: typeof teams;
-  users: typeof users;
   videoActions: typeof videoActions;
   videos: typeof videos;
   workspace: typeof workspace;

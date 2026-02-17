@@ -80,17 +80,20 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
     }
   };
 
-  const handleRemoveMember = async (userId: Id<"users">) => {
+  const handleRemoveMember = async (memberId: Id<"teamMembers">) => {
     try {
-      await removeMember({ teamId, userId });
+      await removeMember({ teamId, membershipId: memberId });
     } catch (error) {
       console.error("Failed to remove member:", error);
     }
   };
 
-  const handleUpdateRole = async (userId: Id<"users">, newRole: Role) => {
+  const handleUpdateRole = async (
+    memberId: Id<"teamMembers">,
+    newRole: Role,
+  ) => {
     try {
-      await updateRole({ teamId, userId, role: newRole });
+      await updateRole({ teamId, membershipId: memberId, role: newRole });
     } catch (error) {
       console.error("Failed to update role:", error);
     }

@@ -62,7 +62,7 @@ export const resolveContext = query({
     const membership = await ctx.db
       .query("teamMembers")
       .withIndex("by_team_and_user", (q) =>
-        q.eq("teamId", team._id).eq("userId", user._id),
+        q.eq("teamId", team._id).eq("userClerkId", user.subject),
       )
       .unique();
 

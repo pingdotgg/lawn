@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireVideoAccess } from "./auth";
+import { requireVideoAccess, identityName } from "./auth";
 
 function generateToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -29,7 +29,8 @@ export const create = mutation({
     await ctx.db.insert("shareLinks", {
       videoId: args.videoId,
       token,
-      createdBy: user._id,
+      createdByClerkId: user.subject,
+      createdByName: identityName(user),
       expiresAt,
       allowDownload: args.allowDownload,
       password: args.password,
@@ -50,16 +51,11 @@ export const list = query({
       .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
       .collect();
 
-    const linksWithCreator = await Promise.all(
-      links.map(async (link) => {
-        const creator = await ctx.db.get(link.createdBy);
-        return {
-          ...link,
-          creatorName: creator?.name ?? "Unknown",
-          isExpired: link.expiresAt ? link.expiresAt < Date.now() : false,
-        };
-      })
-    );
+    const linksWithCreator = links.map((link) => ({
+      ...link,
+      creatorName: link.createdByName,
+      isExpired: link.expiresAt ? link.expiresAt < Date.now() : false,
+    }));
 
     return linksWithCreator;
   },

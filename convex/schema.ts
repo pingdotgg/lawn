@@ -2,29 +2,23 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  users: defineTable({
-    clerkId: v.string(),
-    email: v.string(),
-    name: v.string(),
-    avatarUrl: v.optional(v.string()),
-  })
-    .index("by_clerk_id", ["clerkId"])
-    .index("by_email", ["email"]),
-
   teams: defineTable({
     name: v.string(),
     slug: v.string(),
-    ownerId: v.id("users"),
+    ownerClerkId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerId"]),
+    .index("by_owner", ["ownerClerkId"]),
 
   teamMembers: defineTable({
     teamId: v.id("teams"),
-    userId: v.id("users"),
+    userClerkId: v.string(),
+    userEmail: v.string(),
+    userName: v.string(),
+    userAvatarUrl: v.optional(v.string()),
     role: v.union(
       v.literal("owner"),
       v.literal("admin"),
@@ -33,8 +27,9 @@ export default defineSchema({
     ),
   })
     .index("by_team", ["teamId"])
-    .index("by_user", ["userId"])
-    .index("by_team_and_user", ["teamId", "userId"]),
+    .index("by_user", ["userClerkId"])
+    .index("by_team_and_user", ["teamId", "userClerkId"])
+    .index("by_team_and_email", ["teamId", "userEmail"]),
 
   teamInvites: defineTable({
     teamId: v.id("teams"),
@@ -44,7 +39,8 @@ export default defineSchema({
       v.literal("member"),
       v.literal("viewer")
     ),
-    invitedBy: v.id("users"),
+    invitedByClerkId: v.string(),
+    invitedByName: v.string(),
     token: v.string(),
     expiresAt: v.number(),
   })
@@ -60,7 +56,8 @@ export default defineSchema({
 
   videos: defineTable({
     projectId: v.id("projects"),
-    uploadedBy: v.id("users"),
+    uploadedByClerkId: v.string(),
+    uploaderName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
     // S3 storage
@@ -85,7 +82,9 @@ export default defineSchema({
 
   comments: defineTable({
     videoId: v.id("videos"),
-    userId: v.id("users"),
+    userClerkId: v.string(),
+    userName: v.string(),
+    userAvatarUrl: v.optional(v.string()),
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
@@ -98,7 +97,8 @@ export default defineSchema({
   shareLinks: defineTable({
     videoId: v.id("videos"),
     token: v.string(),
-    createdBy: v.id("users"),
+    createdByClerkId: v.string(),
+    createdByName: v.string(),
     expiresAt: v.optional(v.number()),
     allowDownload: v.boolean(),
     password: v.optional(v.string()),

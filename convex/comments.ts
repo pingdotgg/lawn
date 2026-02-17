@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireVideoAccess, requireUser, getUser } from "./auth";
+import {
+  identityAvatarUrl,
+  identityName,
+  requireVideoAccess,
+  requireUser,
+  getUser,
+} from "./auth";
 
 export const list = query({
   args: { videoId: v.id("videos") },
@@ -21,20 +27,8 @@ export const list = query({
       .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
       .collect();
 
-    // Get user info for each comment
-    const commentsWithUsers = await Promise.all(
-      comments.map(async (comment) => {
-        const commentUser = await ctx.db.get(comment.userId);
-        return {
-          ...comment,
-          userName: commentUser?.name ?? "Unknown",
-          userAvatarUrl: commentUser?.avatarUrl,
-        };
-      })
-    );
-
     // Sort by timestamp
-    return commentsWithUsers.sort(
+    return comments.sort(
       (a, b) => a.timestampSeconds - b.timestampSeconds
     );
   },
@@ -60,7 +54,9 @@ export const create = mutation({
 
     return await ctx.db.insert("comments", {
       videoId: args.videoId,
-      userId: user._id,
+      userClerkId: user.subject,
+      userName: identityName(user),
+      userAvatarUrl: identityAvatarUrl(user),
       text: args.text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
@@ -81,7 +77,7 @@ export const update = mutation({
     if (!comment) throw new Error("Comment not found");
 
     // Only comment owner can edit
-    if (comment.userId !== user._id) {
+    if (comment.userClerkId !== user.subject) {
       throw new Error("You can only edit your own comments");
     }
 
@@ -98,7 +94,7 @@ export const remove = mutation({
     if (!comment) throw new Error("Comment not found");
 
     // Check if user owns the comment or has admin access to the video
-    if (comment.userId !== user._id) {
+    if (comment.userClerkId !== user.subject) {
       await requireVideoAccess(ctx, comment.videoId, "admin");
     }
 
@@ -142,26 +138,14 @@ export const getThreaded = query({
       .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
       .collect();
 
-    // Get user info for each comment
-    const commentsWithUsers = await Promise.all(
-      comments.map(async (comment) => {
-        const commentUser = await ctx.db.get(comment.userId);
-        return {
-          ...comment,
-          userName: commentUser?.name ?? "Unknown",
-          userAvatarUrl: commentUser?.avatarUrl,
-        };
-      })
-    );
-
     // Build threaded structure
-    const topLevel = commentsWithUsers
+    const topLevel = comments
       .filter((c) => !c.parentId)
       .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
 
     const threaded = topLevel.map((comment) => ({
       ...comment,
-      replies: commentsWithUsers
+      replies: comments
         .filter((c) => c.parentId === comment._id)
         .sort((a, b) => a._creationTime - b._creationTime),
     }));

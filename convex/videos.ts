@@ -46,7 +46,8 @@ export const create = mutation({
 
     const videoId = await ctx.db.insert("videos", {
       projectId: args.projectId,
-      uploadedBy: user._id,
+      uploadedByClerkId: user.subject,
+      uploaderName: identityName(user),
       title: args.title,
       description: args.description,
       fileSize: args.fileSize,
@@ -71,12 +72,11 @@ export const list = query({
 
     const videosWithUploader = await Promise.all(
       videos.map(async (video) => {
-        const uploader = await ctx.db.get(video.uploadedBy);
         const resolvedThumbnailUrl = await resolveThumbnailUrlSafe(ctx, video);
         return {
           ...video,
           thumbnailUrl: resolvedThumbnailUrl ?? video.thumbnailUrl,
-          uploaderName: uploader?.name ?? "Unknown",
+          uploaderName: video.uploaderName ?? "Unknown",
         };
       })
     );
@@ -89,12 +89,11 @@ export const get = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
     const { video, membership } = await requireVideoAccess(ctx, args.videoId);
-    const uploader = await ctx.db.get(video.uploadedBy);
     const resolvedThumbnailUrl = await resolveThumbnailUrlSafe(ctx, video);
     return {
       ...video,
       thumbnailUrl: resolvedThumbnailUrl ?? video.thumbnailUrl,
-      uploaderName: uploader?.name ?? "Unknown",
+      uploaderName: video.uploaderName ?? "Unknown",
       role: membership.role,
     };
   },

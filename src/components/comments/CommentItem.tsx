@@ -20,7 +20,6 @@ import { CommentInput } from "./CommentInput";
 interface Comment {
   _id: Id<"comments">;
   videoId: Id<"videos">;
-  userId: Id<"users">;
   text: string;
   timestampSeconds: number;
   parentId?: Id<"comments">;
