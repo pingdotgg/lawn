@@ -10,11 +10,9 @@ import {
   buildMuxPlaybackUrl,
   buildMuxThumbnailUrl,
   createMuxAssetFromInputUrl,
-  createSignedPlaybackId,
+  createPublicPlaybackId,
   deletePlaybackId,
   getMuxAsset,
-  signPlaybackToken,
-  signThumbnailToken,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
 
@@ -154,16 +152,48 @@ async function requireVideoMemberAccess(
   }
 }
 
-async function buildSignedPlaybackSession(
+function buildPublicPlaybackSession(
   playbackId: string,
-): Promise<{ url: string; posterUrl: string }> {
-  const playbackToken = await signPlaybackToken(playbackId, "1h");
-  const thumbnailToken = await signThumbnailToken(playbackId, "1h");
-
+): { url: string; posterUrl: string } {
   return {
-    url: buildMuxPlaybackUrl(playbackId, playbackToken),
-    posterUrl: buildMuxThumbnailUrl(playbackId, thumbnailToken),
+    url: buildMuxPlaybackUrl(playbackId),
+    posterUrl: buildMuxThumbnailUrl(playbackId),
   };
+}
+
+async function ensurePublicPlaybackId(
+  ctx: ActionCtx,
+  params: {
+    videoId?: Id<"videos">;
+    muxAssetId?: string | null;
+    muxPlaybackId: string;
+  },
+): Promise<string> {
+  const { videoId, muxAssetId, muxPlaybackId } = params;
+  if (!muxAssetId) return muxPlaybackId;
+
+  const asset = await getMuxAsset(muxAssetId);
+  const playbackIds = (asset.playback_ids ?? []) as Array<{
+    id?: string;
+    policy?: string;
+  }>;
+
+  let publicPlaybackId = playbackIds.find((entry) => entry.policy === "public" && entry.id)?.id;
+  if (!publicPlaybackId) {
+    const created = await createPublicPlaybackId(muxAssetId);
+    publicPlaybackId = created.id;
+  }
+
+  const resolvedPlaybackId = publicPlaybackId ?? muxPlaybackId;
+  if (videoId && resolvedPlaybackId !== muxPlaybackId) {
+    await ctx.runMutation(internal.videos.setMuxPlaybackId, {
+      videoId,
+      muxPlaybackId: resolvedPlaybackId,
+      thumbnailUrl: buildMuxThumbnailUrl(resolvedPlaybackId),
+    });
+  }
+
+  return resolvedPlaybackId;
 }
 
 export const getUploadUrl = action({
@@ -283,7 +313,12 @@ export const getPlaybackSession = action({
       throw new Error("Video not found or not ready");
     }
 
-    return await buildSignedPlaybackSession(video.muxPlaybackId);
+    const playbackId = await ensurePublicPlaybackId(ctx, {
+      videoId: args.videoId,
+      muxAssetId: video.muxAssetId,
+      muxPlaybackId: video.muxPlaybackId,
+    });
+    return buildPublicPlaybackSession(playbackId);
   },
 });
 
@@ -301,7 +336,12 @@ export const getPlaybackUrl = action({
       throw new Error("Video not found or not ready");
     }
 
-    const session = await buildSignedPlaybackSession(video.muxPlaybackId);
+    const playbackId = await ensurePublicPlaybackId(ctx, {
+      videoId: args.videoId,
+      muxAssetId: video.muxAssetId,
+      muxPlaybackId: video.muxPlaybackId,
+    });
+    const session = buildPublicPlaybackSession(playbackId);
     return { url: session.url };
   },
 });
@@ -324,7 +364,12 @@ export const getPublicPlaybackSession = action({
       throw new Error("Video not found or not ready");
     }
 
-    return await buildSignedPlaybackSession(result.video.muxPlaybackId);
+    const playbackId = await ensurePublicPlaybackId(ctx, {
+      videoId: result.video._id,
+      muxAssetId: result.video.muxAssetId,
+      muxPlaybackId: result.video.muxPlaybackId,
+    });
+    return buildPublicPlaybackSession(playbackId);
   },
 });
 
@@ -346,7 +391,12 @@ export const getSharedPlaybackSession = action({
       throw new Error("Video not found or not ready");
     }
 
-    return await buildSignedPlaybackSession(result.video.muxPlaybackId);
+    const playbackId = await ensurePublicPlaybackId(ctx, {
+      videoId: result.video._id,
+      muxAssetId: result.video.muxAssetId,
+      muxPlaybackId: result.video.muxPlaybackId,
+    });
+    return buildPublicPlaybackSession(playbackId);
   },
 });
 
@@ -448,15 +498,10 @@ export const runPublicAccessBackfill = action({
   },
 });
 
-export const rotatePlaybackIdsToSigned = action({
-  args: {
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.object({
-    scanned: v.number(),
-    updated: v.number(),
-  }),
-  handler: async (ctx, args) => {
+const rotatePlaybackIdsToPublicHandler = async (
+  ctx: ActionCtx,
+  args: { batchSize?: number },
+): Promise<{ scanned: number; updated: number }> => {
     let cursor: string | undefined;
     let scanned = 0;
     let updated = 0;
@@ -480,33 +525,33 @@ export const rotatePlaybackIdsToSigned = action({
           policy?: string;
         }>;
 
-        let signedPlaybackId = playbackIds.find((entry) => entry.policy === "signed" && entry.id)?.id;
+        let publicPlaybackId = playbackIds.find((entry) => entry.policy === "public" && entry.id)?.id;
 
-        if (!signedPlaybackId) {
-          const created = await createSignedPlaybackId(item.muxAssetId);
-          signedPlaybackId = created.id;
+        if (!publicPlaybackId) {
+          const created = await createPublicPlaybackId(item.muxAssetId);
+          publicPlaybackId = created.id;
         }
 
-        if (!signedPlaybackId) {
+        if (!publicPlaybackId) {
           continue;
         }
 
-        if (item.muxPlaybackId && item.muxPlaybackId !== signedPlaybackId) {
+        if (item.muxPlaybackId && item.muxPlaybackId !== publicPlaybackId) {
           const currentPlayback = playbackIds.find((entry) => entry.id === item.muxPlaybackId);
-          if (currentPlayback?.policy === "public") {
+          if (currentPlayback?.policy === "signed") {
             try {
               await deletePlaybackId(item.muxAssetId, item.muxPlaybackId);
             } catch {
-              // Best effort. We still patch the video to the signed playback id.
+              // Best effort. We still patch the video to the public playback id.
             }
           }
         }
 
-        if (item.muxPlaybackId !== signedPlaybackId) {
+        if (item.muxPlaybackId !== publicPlaybackId) {
           await ctx.runMutation(internal.videos.setMuxPlaybackId, {
             videoId: item.videoId,
-            muxPlaybackId: signedPlaybackId,
-            thumbnailUrl: buildMuxThumbnailUrl(signedPlaybackId),
+            muxPlaybackId: publicPlaybackId,
+            thumbnailUrl: buildMuxThumbnailUrl(publicPlaybackId),
           });
           updated += 1;
         }
@@ -519,5 +564,26 @@ export const rotatePlaybackIdsToSigned = action({
     }
 
     return { scanned, updated };
+};
+
+export const rotatePlaybackIdsToSigned = action({
+  args: {
+    batchSize: v.optional(v.number()),
   },
+  returns: v.object({
+    scanned: v.number(),
+    updated: v.number(),
+  }),
+  handler: rotatePlaybackIdsToPublicHandler,
+});
+
+export const rotatePlaybackIdsToPublic = action({
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    updated: v.number(),
+  }),
+  handler: rotatePlaybackIdsToPublicHandler,
 });

@@ -28,22 +28,20 @@ function getMuxJwtCredentials(): { keyId: string; keySecret: string } {
   const keyId = readEnv(
     "MUX_SIGNING_KEY",
     "MUX_SIGNING_KEY_ID",
-    "MUX_TOKEN_ID",
   );
   if (!keyId) {
     throw new Error(
-      "Missing required environment variable: MUX_SIGNING_KEY, MUX_SIGNING_KEY_ID, or MUX_TOKEN_ID",
+      "Missing required environment variable: MUX_SIGNING_KEY (or legacy MUX_SIGNING_KEY_ID)",
     );
   }
 
   const keySecret = readEnv(
     "MUX_PRIVATE_KEY",
     "MUX_SIGNING_PRIVATE_KEY",
-    "MUX_TOKEN_SECRET",
   );
   if (!keySecret) {
     throw new Error(
-      "Missing required environment variable: MUX_PRIVATE_KEY, MUX_SIGNING_PRIVATE_KEY, or MUX_TOKEN_SECRET",
+      "Missing required environment variable: MUX_PRIVATE_KEY (or legacy MUX_SIGNING_PRIVATE_KEY)",
     );
   }
 
@@ -67,7 +65,7 @@ export async function createMuxAssetFromInputUrl(videoId: string, inputUrl: stri
   const mux = getMuxClient();
   return await mux.video.assets.create({
     inputs: [{ url: inputUrl }],
-    playback_policy: ["signed"],
+    playback_policy: ["public"],
     mp4_support: "none",
     passthrough: videoId,
   });
@@ -87,6 +85,13 @@ export async function createSignedPlaybackId(assetId: string) {
   const mux = getMuxClient();
   return await mux.video.assets.createPlaybackId(assetId, {
     policy: "signed",
+  });
+}
+
+export async function createPublicPlaybackId(assetId: string) {
+  const mux = getMuxClient();
+  return await mux.video.assets.createPlaybackId(assetId, {
+    policy: "public",
   });
 }
 
