@@ -165,6 +165,24 @@ export const getByPublicId = query({
   },
 });
 
+export const getPublicIdByVideoId = query({
+  args: { videoId: v.string() },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const normalizedVideoId = ctx.db.normalizeId("videos", args.videoId);
+    if (!normalizedVideoId) {
+      return null;
+    }
+
+    const video = await ctx.db.get(normalizedVideoId);
+    if (!video || video.visibility !== "public" || video.status !== "ready" || !video.publicId) {
+      return null;
+    }
+
+    return video.publicId;
+  },
+});
+
 export const getByShareGrant = query({
   args: { grantToken: v.string() },
   handler: async (ctx, args) => {
