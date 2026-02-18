@@ -32,7 +32,7 @@ export const Route = createRootRoute({
   component: RootComponent,
   errorComponent: ({ error }) => {
     return (
-      <RootDocument>
+      <AppShell>
         <main className="pt-16 p-4 container mx-auto">
           <h1>Error</h1>
           <p>{error instanceof Error ? error.message : "An unexpected error occurred."}</p>
@@ -42,20 +42,28 @@ export const Route = createRootRoute({
             </pre>
           ) : null}
         </main>
-      </RootDocument>
+      </AppShell>
     );
   },
   notFoundComponent: () => (
-    <RootDocument>
+    <AppShell>
       <main className="pt-16 p-4 container mx-auto">
         <h1>404</h1>
         <p>The requested page could not be found.</p>
       </main>
-    </RootDocument>
+    </AppShell>
   ),
 });
 
 function RootComponent() {
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+
+function AppShell({ children }: { children: ReactNode }) {
   const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   if (!publishableKey) {
@@ -64,9 +72,7 @@ function RootComponent() {
 
   return (
     <ClerkProvider publishableKey={publishableKey}>
-      <RootDocument>
-        <Outlet />
-      </RootDocument>
+      <RootDocument>{children}</RootDocument>
     </ClerkProvider>
   );
 }
@@ -93,7 +99,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="h-full antialiased">
+      <body className="h-full antialiased" suppressHydrationWarning>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <ConvexClientProvider>
           <ThemeProvider>

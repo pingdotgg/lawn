@@ -45,6 +45,7 @@ bun run lint
 - `MUX_TOKEN_ID`
 - `MUX_TOKEN_SECRET`
 - `MUX_WEBHOOK_SECRET`
+- Optional legacy JWT vars (if you keep signing creds separate): `MUX_SIGNING_KEY`, `MUX_PRIVATE_KEY`
 - Convex deployment vars as needed (`CONVEX_DEPLOYMENT`, etc.)
 
 ## Design Language

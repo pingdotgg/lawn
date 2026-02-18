@@ -1,13 +1,17 @@
 import { v } from "convex/values";
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query, MutationCtx } from "./_generated/server";
 import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Id } from "./_generated/dataModel";
+import { generateUniqueToken } from "./security";
+import { resolveActiveShareGrant } from "./shareAccess";
 
 const workflowStatusValidator = v.union(
   v.literal("review"),
   v.literal("rework"),
   v.literal("done"),
 );
+
+const visibilityValidator = v.union(v.literal("public"), v.literal("private"));
 
 type WorkflowStatus =
   | "review"
@@ -34,6 +38,32 @@ function normalizeWorkflowStatus(status: StoredWorkflowStatus): WorkflowStatus {
   return "review";
 }
 
+async function generatePublicId(ctx: MutationCtx) {
+  return await generateUniqueToken(
+    32,
+    async (candidate) =>
+      (await ctx.db
+        .query("videos")
+        .withIndex("by_public_id", (q) => q.eq("publicId", candidate))
+        .unique()) !== null,
+    5,
+  );
+}
+
+async function deleteShareAccessGrantsForLink(
+  ctx: MutationCtx,
+  linkId: Id<"shareLinks">,
+) {
+  const grants = await ctx.db
+    .query("shareAccessGrants")
+    .withIndex("by_share_link", (q) => q.eq("shareLinkId", linkId))
+    .collect();
+
+  for (const grant of grants) {
+    await ctx.db.delete(grant._id);
+  }
+}
+
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
@@ -44,6 +74,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireProjectAccess(ctx, args.projectId, "member");
+    const publicId = await generatePublicId(ctx);
 
     const videoId = await ctx.db.insert("videos", {
       projectId: args.projectId,
@@ -56,6 +87,8 @@ export const create = mutation({
       status: "uploading",
       muxAssetStatus: "preparing",
       workflowStatus: "review",
+      visibility: "public",
+      publicId,
     });
 
     return videoId;
@@ -104,6 +137,62 @@ export const get = query({
   },
 });
 
+export const getByPublicId = query({
+  args: { publicId: v.string() },
+  handler: async (ctx, args) => {
+    const video = await ctx.db
+      .query("videos")
+      .withIndex("by_public_id", (q) => q.eq("publicId", args.publicId))
+      .unique();
+
+    if (!video || video.visibility !== "public" || video.status !== "ready") {
+      return null;
+    }
+
+    return {
+      video: {
+        _id: video._id,
+        title: video.title,
+        description: video.description,
+        duration: video.duration,
+        thumbnailUrl: video.thumbnailUrl,
+        muxPlaybackId: video.muxPlaybackId,
+        contentType: video.contentType,
+        s3Key: video.s3Key,
+      },
+    };
+  },
+});
+
+export const getByShareGrant = query({
+  args: { grantToken: v.string() },
+  handler: async (ctx, args) => {
+    const resolved = await resolveActiveShareGrant(ctx, args.grantToken);
+    if (!resolved) {
+      return null;
+    }
+
+    const video = await ctx.db.get(resolved.shareLink.videoId);
+    if (!video || video.status !== "ready") {
+      return null;
+    }
+
+    return {
+      video: {
+        _id: video._id,
+        title: video.title,
+        description: video.description,
+        duration: video.duration,
+        thumbnailUrl: video.thumbnailUrl,
+        muxPlaybackId: video.muxPlaybackId,
+        contentType: video.contentType,
+        s3Key: video.s3Key,
+      },
+      grantExpiresAt: resolved.grant.expiresAt,
+    };
+  },
+});
+
 export const update = mutation({
   args: {
     videoId: v.id("videos"),
@@ -118,6 +207,20 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.videoId, updates);
+  },
+});
+
+export const setVisibility = mutation({
+  args: {
+    videoId: v.id("videos"),
+    visibility: visibilityValidator,
+  },
+  handler: async (ctx, args) => {
+    await requireVideoAccess(ctx, args.videoId, "member");
+
+    await ctx.db.patch(args.videoId, {
+      visibility: args.visibility,
+    });
   },
 });
 
@@ -153,6 +256,7 @@ export const remove = mutation({
       .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
       .collect();
     for (const link of shareLinks) {
+      await deleteShareAccessGrantsForLink(ctx, link._id);
       await ctx.db.delete(link._id);
     }
 
@@ -258,6 +362,20 @@ export const setMuxAssetReference = internalMutation({
   },
 });
 
+export const setMuxPlaybackId = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    muxPlaybackId: v.string(),
+    thumbnailUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      muxPlaybackId: args.muxPlaybackId,
+      thumbnailUrl: args.thumbnailUrl,
+    });
+  },
+});
+
 export const getVideoByMuxUploadId = internalQuery({
   args: {
     muxUploadId: v.string(),
@@ -300,64 +418,47 @@ export const getVideoByMuxAssetId = internalQuery({
   },
 });
 
+export const listVideosForPlaybackMigration = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    cursor: v.string(),
+    done: v.boolean(),
+    videos: v.array(
+      v.object({
+        videoId: v.id("videos"),
+        muxAssetId: v.union(v.string(), v.null()),
+        muxPlaybackId: v.union(v.string(), v.null()),
+        status: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("videos").paginate({
+      cursor: args.cursor ?? null,
+      numItems: Math.max(1, Math.min(args.batchSize ?? 50, 200)),
+    });
+
+    return {
+      cursor: page.continueCursor,
+      done: page.isDone,
+      videos: page.page.map((video) => ({
+        videoId: video._id,
+        muxAssetId: video.muxAssetId ?? null,
+        muxPlaybackId: video.muxPlaybackId ?? null,
+        status: video.status,
+      })),
+    };
+  },
+});
+
 export const getVideoForPlayback = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
     const { video } = await requireVideoAccess(ctx, args.videoId, "viewer");
     return video;
-  },
-});
-
-export const getByShareToken = query({
-  args: { token: v.string() },
-  handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query("shareLinks")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .unique();
-
-    if (!shareLink) return null;
-
-    if (shareLink.expiresAt && shareLink.expiresAt < Date.now()) {
-      return null;
-    }
-
-    const video = await ctx.db.get(shareLink.videoId);
-    if (!video || video.status !== "ready") return null;
-
-    return {
-      video: {
-        _id: video._id,
-        title: video.title,
-        description: video.description,
-        s3Key: video.s3Key,
-        duration: video.duration,
-        thumbnailUrl: video.thumbnailUrl,
-        muxPlaybackId: video.muxPlaybackId,
-        contentType: video.contentType,
-      },
-      allowDownload: shareLink.allowDownload,
-      hasPassword: !!shareLink.password,
-    };
-  },
-});
-
-export const verifySharePassword = mutation({
-  args: {
-    token: v.string(),
-    password: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const shareLink = await ctx.db
-      .query("shareLinks")
-      .withIndex("by_token", (q) => q.eq("token", args.token))
-      .unique();
-
-    if (!shareLink || shareLink.password !== args.password) {
-      return false;
-    }
-
-    return true;
   },
 });
 
@@ -385,5 +486,49 @@ export const updateDuration = mutation({
   handler: async (ctx, args) => {
     await requireVideoAccess(ctx, args.videoId, "member");
     await ctx.db.patch(args.videoId, { duration: args.duration });
+  },
+});
+
+export const backfillVisibilityAndPublicIds = internalMutation({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    cursor: v.string(),
+    done: v.boolean(),
+    scanned: v.number(),
+    updated: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("videos").paginate({
+      cursor: args.cursor ?? null,
+      numItems: Math.max(1, Math.min(args.batchSize ?? 50, 200)),
+    });
+
+    let updated = 0;
+    for (const video of page.page) {
+      const updates: Partial<{ visibility: "public" | "private"; publicId: string }> = {};
+
+      if (!video.visibility) {
+        updates.visibility = "private";
+      }
+
+      if (!video.publicId) {
+        updates.publicId = await generatePublicId(ctx);
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(video._id, updates);
+        updated += 1;
+      }
+    }
+
+    return {
+      cursor: page.continueCursor,
+      done: page.isDone,
+      scanned: page.page.length,
+      updated,
+    };
   },
 });

@@ -54,6 +54,9 @@ function getErrorMessage(data: MuxData): string | undefined {
 function getPreferredPlaybackId(playbackIds: MuxData["playback_ids"]): string | undefined {
   if (!playbackIds || playbackIds.length === 0) return undefined;
 
+  const signedPlayback = playbackIds.find((item) => item.policy === "signed" && item.id);
+  if (signedPlayback?.id) return signedPlayback.id;
+
   const publicPlayback = playbackIds.find((item) => item.policy === "public" && item.id);
   if (publicPlayback?.id) return publicPlayback.id;
 

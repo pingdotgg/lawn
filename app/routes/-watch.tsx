@@ -2,31 +2,24 @@ import { useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useParams } from "@tanstack/react-router";
 import { useUser } from "@clerk/tanstack-react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/VideoPlayer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
-import { useVideoPresence } from "@/lib/useVideoPresence";
-import { VideoWatchers } from "@/components/presence/VideoWatchers";
-import { Lock, Video, AlertCircle, MessageSquare, Clock } from "lucide-react";
-import { useShareData } from "./-share.data";
+import { AlertCircle, MessageSquare, Clock } from "lucide-react";
+import { useWatchData } from "./-watch.data";
 
-export default function SharePage() {
+export default function WatchPage() {
   const params = useParams({ strict: false });
-  const token = params.token as string;
+  const publicId = params.publicId as string;
   const { user, isLoaded: isUserLoaded } = useUser();
 
-  const issueAccessGrant = useMutation(api.shareLinks.issueAccessGrant);
-  const createComment = useMutation(api.comments.createForShareGrant);
-  const getPlaybackSession = useAction(api.videoActions.getSharedPlaybackSession);
+  const createComment = useMutation(api.comments.createForPublic);
+  const getPlaybackSession = useAction(api.videoActions.getPublicPlaybackSession);
 
-  const [grantToken, setGrantToken] = useState<string | null>(null);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [passwordError, setPasswordError] = useState(false);
-  const [isRequestingGrant, setIsRequestingGrant] = useState(false);
+  const { videoData, comments } = useWatchData({ publicId });
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
     posterUrl: string;
@@ -39,50 +32,9 @@ export default function SharePage() {
   const [commentError, setCommentError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
 
-  const { shareInfo, videoData, comments } = useShareData({ token, grantToken });
-  const canTrackPresence = Boolean(playbackSession?.url && videoData?.video?._id);
-  const { watchers } = useVideoPresence({
-    videoId: videoData?.video?._id,
-    enabled: canTrackPresence,
-    shareToken: token,
-  });
-
-  const acquireGrant = useCallback(
-    async (password?: string) => {
-      if (isRequestingGrant) return;
-      setIsRequestingGrant(true);
-      setPasswordError(false);
-
-      try {
-        const result = await issueAccessGrant({ token, password });
-        if (result.ok && result.grantToken) {
-          setGrantToken(result.grantToken);
-          return true;
-        }
-
-        setPasswordError(Boolean(password));
-        return false;
-      } catch {
-        setPasswordError(Boolean(password));
-        return false;
-      } finally {
-        setIsRequestingGrant(false);
-      }
-    },
-    [isRequestingGrant, issueAccessGrant, token],
-  );
-
   useEffect(() => {
-    if (!shareInfo || grantToken) return;
-    if (shareInfo.status !== "ok") return;
-
-    void acquireGrant();
-  }, [acquireGrant, grantToken, shareInfo]);
-
-  useEffect(() => {
-    if (!grantToken) {
+    if (!videoData?.video?.muxPlaybackId) {
       setPlaybackSession(null);
-      setPlaybackError(null);
       return;
     }
 
@@ -90,7 +42,7 @@ export default function SharePage() {
     setIsLoadingPlayback(true);
     setPlaybackError(null);
 
-    void getPlaybackSession({ grantToken })
+    void getPlaybackSession({ publicId })
       .then((session) => {
         if (cancelled) return;
         setPlaybackSession(session);
@@ -107,7 +59,7 @@ export default function SharePage() {
     return () => {
       cancelled = true;
     };
-  }, [getPlaybackSession, grantToken]);
+  }, [getPlaybackSession, publicId, videoData?.video?.muxPlaybackId]);
 
   const flattenedComments = useMemo(() => {
     if (!comments) return [] as Array<{ _id: string; timestampSeconds: number; resolved: boolean }>;
@@ -132,13 +84,13 @@ export default function SharePage() {
 
   const handleSubmitComment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!grantToken || !commentText.trim() || isSubmittingComment) return;
+    if (!commentText.trim() || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
     setCommentError(null);
     try {
       await createComment({
-        grantToken,
+        publicId,
         text: commentText.trim(),
         timestampSeconds: currentTime,
       });
@@ -150,76 +102,10 @@ export default function SharePage() {
     }
   };
 
-  if (shareInfo === undefined) {
+  if (videoData === undefined) {
     return (
       <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center">
         <div className="text-[#888]">Loading...</div>
-      </div>
-    );
-  }
-
-  if (shareInfo.status === "missing" || shareInfo.status === "expired") {
-    return (
-      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-[#dc2626]/10 flex items-center justify-center mb-4 border-2 border-[#dc2626]">
-              <AlertCircle className="h-6 w-6 text-[#dc2626]" />
-            </div>
-            <CardTitle>Link expired or invalid</CardTitle>
-            <CardDescription>
-              This share link is no longer valid. Please ask the video owner for a new link.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/" preload="intent" className="block">
-              <Button variant="outline" className="w-full">
-                Go to lawn
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (shareInfo.status === "requiresPassword" && !grantToken) {
-    return (
-      <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-4 border-2 border-[#1a1a1a]">
-              <Lock className="h-6 w-6 text-[#888]" />
-            </div>
-            <CardTitle>Password required</CardTitle>
-            <CardDescription>
-              This video is password protected. Enter the password to view.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={async (event) => {
-                event.preventDefault();
-                await acquireGrant(passwordInput);
-              }}
-              className="space-y-4"
-            >
-              <Input
-                type="password"
-                placeholder="Enter password"
-                value={passwordInput}
-                onChange={(event) => setPasswordInput(event.target.value)}
-                autoFocus
-              />
-              {passwordError && (
-                <p className="text-sm text-[#dc2626]">Incorrect password</p>
-              )}
-              <Button type="submit" className="w-full" disabled={!passwordInput || isRequestingGrant}>
-                {isRequestingGrant ? "Verifying..." : "View video"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -229,14 +115,19 @@ export default function SharePage() {
       <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-4 border-2 border-[#1a1a1a]">
-              <Video className="h-6 w-6 text-[#888]" />
+            <div className="mx-auto w-12 h-12 bg-[#dc2626]/10 flex items-center justify-center mb-4 border-2 border-[#dc2626]">
+              <AlertCircle className="h-6 w-6 text-[#dc2626]" />
             </div>
-            <CardTitle>Video not available</CardTitle>
+            <CardTitle>Video unavailable</CardTitle>
             <CardDescription>
-              This video is not available or is still processing.
+              This video is private, invalid, or no longer available.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Link to="/" preload="intent" className="block">
+              <Button variant="outline" className="w-full">Go to lawn</Button>
+            </Link>
+          </CardContent>
         </Card>
       </div>
     );
@@ -247,7 +138,7 @@ export default function SharePage() {
   return (
     <div className="min-h-screen bg-[#f0f0e8]">
       <header className="bg-[#f0f0e8] border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-6xl mx-auto">
           <Link
             preload="intent"
             to="/"
@@ -261,13 +152,10 @@ export default function SharePage() {
       <main className="max-w-6xl mx-auto p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a]">{video.title}</h1>
-          {video.description && (
-            <p className="text-[#888] mt-1">{video.description}</p>
-          )}
+          {video.description && <p className="text-[#888] mt-1">{video.description}</p>}
           <div className="flex items-center gap-4 mt-2 text-sm text-[#888]">
             {video.duration && <span className="font-mono">{formatDuration(video.duration)}</span>}
             {comments && <span>{comments.length} threads</span>}
-            <VideoWatchers watchers={watchers} className="ml-auto" />
           </div>
         </div>
 
@@ -327,7 +215,7 @@ export default function SharePage() {
             </form>
           ) : (
             <a
-              href={`/sign-in?redirect_url=${encodeURIComponent(`/share/${token}`)}`}
+              href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
               className="inline-flex"
             >
               <Button>
@@ -383,15 +271,6 @@ export default function SharePage() {
           )}
         </section>
       </main>
-
-      <footer className="border-t-2 border-[#1a1a1a] px-6 py-4 mt-8">
-        <div className="max-w-6xl mx-auto text-center text-sm text-[#888]">
-          Shared via{" "}
-          <Link to="/" preload="intent" className="text-[#1a1a1a] hover:text-[#2d5a2d] font-bold">
-            lawn
-          </Link>
-        </div>
-      </footer>
     </div>
   );
 }

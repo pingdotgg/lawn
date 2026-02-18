@@ -21,9 +21,9 @@ import {
   Plus,
   Trash2,
   Eye,
-  Download,
   Lock,
   ExternalLink,
+  Globe,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -40,15 +40,17 @@ interface ShareDialogProps {
 }
 
 export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
+  const video = useQuery(api.videos.get, { videoId });
   const shareLinks = useQuery(api.shareLinks.list, { videoId });
   const createShareLink = useMutation(api.shareLinks.create);
   const deleteShareLink = useMutation(api.shareLinks.remove);
+  const setVisibility = useMutation(api.videos.setVisibility);
 
   const [isCreating, setIsCreating] = useState(false);
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [newLinkOptions, setNewLinkOptions] = useState({
     expiresInDays: undefined as number | undefined,
-    allowDownload: false,
     password: undefined as string | undefined,
   });
 
@@ -58,12 +60,11 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
       await createShareLink({
         videoId,
         expiresInDays: newLinkOptions.expiresInDays,
-        allowDownload: newLinkOptions.allowDownload,
+        allowDownload: false,
         password: newLinkOptions.password,
       });
       setNewLinkOptions({
         expiresInDays: undefined,
-        allowDownload: false,
         password: undefined,
       });
     } catch (error) {
@@ -73,10 +74,30 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     }
   };
 
+  const handleSetVisibility = async (visibility: "public" | "private") => {
+    if (!video || isUpdatingVisibility || video.visibility === visibility) return;
+    setIsUpdatingVisibility(true);
+    try {
+      await setVisibility({ videoId, visibility });
+    } catch (error) {
+      console.error("Failed to update visibility:", error);
+    } finally {
+      setIsUpdatingVisibility(false);
+    }
+  };
+
   const handleCopyLink = (token: string) => {
     const url = `${window.location.origin}/share/${token}`;
     navigator.clipboard.writeText(url);
     setCopiedId(token);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCopyPublicLink = () => {
+    if (!video?.publicId) return;
+    const url = `${window.location.origin}/watch/${video.publicId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId("public");
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -89,80 +110,124 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     }
   };
 
+  const publicWatchPath = video?.publicId ? `/watch/${video.publicId}` : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Share video</DialogTitle>
           <DialogDescription>
-            Create shareable links to let others view this video without signing in.
+            Public videos can be viewed by anyone with the URL. Only signed-in users can comment.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Create new link section */}
+        <div className="space-y-3 border-2 border-[#1a1a1a] p-4 bg-[#e8e8e0]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-sm text-[#1a1a1a]">Visibility</h3>
+              <p className="text-xs text-[#666]">
+                Private disables the public URL. Restricted share links can still be used.
+              </p>
+            </div>
+            <Badge variant={video?.visibility === "public" ? "success" : "secondary"}>
+              {video?.visibility === "public" ? "Public" : "Private"}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={video?.visibility === "public" ? "default" : "outline"}
+              disabled={isUpdatingVisibility || video === undefined}
+              onClick={() => void handleSetVisibility("public")}
+            >
+              <Globe className="mr-2 h-4 w-4" />
+              Public
+            </Button>
+            <Button
+              variant={video?.visibility === "private" ? "default" : "outline"}
+              disabled={isUpdatingVisibility || video === undefined}
+              onClick={() => void handleSetVisibility("private")}
+            >
+              <Lock className="mr-2 h-4 w-4" />
+              Private
+            </Button>
+          </div>
+
+          {publicWatchPath ? (
+            <div className="p-3 border-2 border-[#1a1a1a] bg-[#f0f0e8] space-y-2">
+              <div className="text-xs text-[#666]">Public URL</div>
+              <code className="block text-sm bg-[#e8e8e0] px-2 py-1 font-mono truncate">
+                {publicWatchPath}
+              </code>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleCopyPublicLink}
+                  disabled={video?.visibility !== "public"}
+                >
+                  {copiedId === "public" ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                  Copy URL
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={video?.visibility !== "public"}
+                  onClick={() => window.open(publicWatchPath, "_blank")}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Open
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         <div className="space-y-4 border-2 border-[#1a1a1a] p-4 bg-[#e8e8e0]">
-          <h3 className="font-bold text-sm text-[#1a1a1a]">Create new link</h3>
+          <h3 className="font-bold text-sm text-[#1a1a1a]">Create restricted share link</h3>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-[#888]">Expiration</label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between mt-1">
-                    {newLinkOptions.expiresInDays
-                      ? `${newLinkOptions.expiresInDays} days`
-                      : "Never"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setNewLinkOptions((o) => ({ ...o, expiresInDays: undefined }))
-                    }
-                  >
-                    Never
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setNewLinkOptions((o) => ({ ...o, expiresInDays: 1 }))
-                    }
-                  >
-                    1 day
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setNewLinkOptions((o) => ({ ...o, expiresInDays: 7 }))
-                    }
-                  >
-                    7 days
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setNewLinkOptions((o) => ({ ...o, expiresInDays: 30 }))
-                    }
-                  >
-                    30 days
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div>
-              <label className="text-sm text-[#888]">Allow download</label>
-              <Button
-                variant={newLinkOptions.allowDownload ? "default" : "outline"}
-                className="w-full mt-1"
-                onClick={() =>
-                  setNewLinkOptions((o) => ({
-                    ...o,
-                    allowDownload: !o.allowDownload,
-                  }))
-                }
-              >
-                <Download className="mr-2 h-4 w-4" />
-                {newLinkOptions.allowDownload ? "Enabled" : "Disabled"}
-              </Button>
-            </div>
+          <div>
+            <label className="text-sm text-[#888]">Expiration</label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full justify-between mt-1">
+                  {newLinkOptions.expiresInDays
+                    ? `${newLinkOptions.expiresInDays} days`
+                    : "Never"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setNewLinkOptions((o) => ({ ...o, expiresInDays: undefined }))
+                  }
+                >
+                  Never
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 1 }))
+                  }
+                >
+                  1 day
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 7 }))
+                  }
+                >
+                  7 days
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 30 }))
+                  }
+                >
+                  30 days
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div>
@@ -183,15 +248,14 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
 
           <Button onClick={handleCreateLink} disabled={isCreating} className="w-full">
             <Plus className="mr-2 h-4 w-4" />
-            {isCreating ? "Creating..." : "Create share link"}
+            {isCreating ? "Creating..." : "Create restricted link"}
           </Button>
         </div>
 
         <Separator />
 
-        {/* Existing links */}
         <div className="space-y-2">
-          <h3 className="font-bold text-sm text-[#1a1a1a]">Active links</h3>
+          <h3 className="font-bold text-sm text-[#1a1a1a]">Restricted links</h3>
           {shareLinks === undefined ? (
             <p className="text-sm text-[#888]">Loading...</p>
           ) : shareLinks.length === 0 ? (
@@ -208,32 +272,26 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                       <code className="text-sm bg-[#e8e8e0] px-2 py-0.5 font-mono truncate max-w-[200px]">
                         /share/{link.token}
                       </code>
-                      {link.isExpired && (
+                      {link.isExpired ? (
                         <Badge variant="destructive">Expired</Badge>
-                      )}
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-[#888]">
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
                         {link.viewCount} views
                       </span>
-                      {link.allowDownload && (
-                        <span className="flex items-center gap-1">
-                          <Download className="h-3 w-3" />
-                          Download
-                        </span>
-                      )}
-                      {link.password && (
+                      {link.password ? (
                         <span className="flex items-center gap-1">
                           <Lock className="h-3 w-3" />
                           Protected
                         </span>
-                      )}
-                      {link.expiresAt && (
+                      ) : null}
+                      {link.expiresAt ? (
                         <span>
                           Expires {formatRelativeTime(link.expiresAt)}
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -251,9 +309,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() =>
-                        window.open(`/share/${link.token}`, "_blank")
-                      }
+                      onClick={() => window.open(`/share/${link.token}`, "_blank")}
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>

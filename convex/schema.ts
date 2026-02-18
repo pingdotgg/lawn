@@ -60,6 +60,8 @@ export default defineSchema({
     uploaderName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
+    publicId: v.optional(v.string()),
     // Mux video references
     muxUploadId: v.optional(v.string()),
     muxAssetId: v.optional(v.string()),
@@ -100,6 +102,7 @@ export default defineSchema({
     ),
   })
     .index("by_project", ["projectId"])
+    .index("by_public_id", ["publicId"])
     .index("by_mux_upload_id", ["muxUploadId"])
     .index("by_mux_asset_id", ["muxAssetId"])
     .index("by_mux_playback_id", ["muxPlaybackId"]),
@@ -130,4 +133,13 @@ export default defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_video", ["videoId"]),
+
+  shareAccessGrants: defineTable({
+    shareLinkId: v.id("shareLinks"),
+    token: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_share_link", ["shareLinkId"]),
 });

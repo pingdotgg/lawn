@@ -1,5 +1,5 @@
 
-import { useAction, useConvex, useMutation } from "convex/react";
+import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, type ReactNode } from "react";
@@ -18,6 +18,7 @@ import {
   LayoutList,
   Download,
   MessageSquare,
+  Eye,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -97,6 +98,10 @@ export default function ProjectPage({
 
   const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
     useProjectData({ teamSlug, projectId });
+  const projectPresenceCounts = useQuery(
+    api.videoPresence.listProjectOnlineCounts,
+    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+  );
   const { requestUpload, uploads, cancelUpload } =
     useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
@@ -282,6 +287,8 @@ export default function ProjectPage({
                   ? video.thumbnailUrl
                   : undefined;
                 const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+                const watchingCount =
+                  projectPresenceCounts?.counts?.[video._id] ?? 0;
 
                 return (
                   <VideoIntentTarget
@@ -394,6 +401,12 @@ export default function ProjectPage({
                           {video.commentCount}
                         </span>
                       )}
+                      {watchingCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-[#1a1a1a]">
+                          <Eye className="h-3 w-3" />
+                          {watchingCount}
+                        </span>
+                      )}
                       <span className="text-[11px] text-[#888] ml-auto font-mono">
                         {formatRelativeTime(video._creationTime)}
                       </span>
@@ -415,6 +428,8 @@ export default function ProjectPage({
                 ? video.thumbnailUrl
                 : undefined;
               const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+              const watchingCount =
+                projectPresenceCounts?.counts?.[video._id] ?? 0;
 
               return (
                 <VideoIntentTarget
@@ -476,6 +491,12 @@ export default function ProjectPage({
                       <span className="inline-flex items-center gap-1 text-xs text-[#888]">
                         <MessageSquare className="h-3.5 w-3.5" />
                         {video.commentCount}
+                      </span>
+                    )}
+                    {watchingCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs text-[#1a1a1a]">
+                        <Eye className="h-3.5 w-3.5" />
+                        {watchingCount}
                       </span>
                     )}
                     <span className="text-xs text-[#888] font-mono">

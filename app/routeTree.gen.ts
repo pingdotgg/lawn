@@ -15,6 +15,7 @@ import { Route as MonoRouteImport } from './routes/mono'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as WatchPublicIdRouteImport } from './routes/watch.$publicId'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -55,6 +56,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRouteRoute,
+} as any)
+const WatchPublicIdRoute = WatchPublicIdRouteImport.update({
+  id: '/watch/$publicId',
+  path: '/watch/$publicId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SignUpSplatRoute = SignUpSplatRouteImport.update({
   id: '/$',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/share/$token': typeof ShareTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/watch/$publicId': typeof WatchPublicIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$teamSlug/$projectId': typeof DashboardTeamSlugProjectIdRouteWithChildren
   '/dashboard/$teamSlug/settings': typeof DashboardTeamSlugSettingsRoute
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/share/$token': typeof ShareTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/watch/$publicId': typeof WatchPublicIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$teamSlug/settings': typeof DashboardTeamSlugSettingsRoute
   '/dashboard/$teamSlug': typeof DashboardTeamSlugIndexRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/share/$token': typeof ShareTokenRoute
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/watch/$publicId': typeof WatchPublicIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$teamSlug/$projectId': typeof DashboardTeamSlugProjectIdRouteWithChildren
   '/dashboard/$teamSlug/settings': typeof DashboardTeamSlugSettingsRoute
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/watch/$publicId'
     | '/dashboard/'
     | '/dashboard/$teamSlug/$projectId'
     | '/dashboard/$teamSlug/settings'
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/watch/$publicId'
     | '/dashboard'
     | '/dashboard/$teamSlug/settings'
     | '/dashboard/$teamSlug'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/sign-in/$'
     | '/sign-up/$'
+    | '/watch/$publicId'
     | '/dashboard/'
     | '/dashboard/$teamSlug/$projectId'
     | '/dashboard/$teamSlug/settings'
@@ -225,6 +237,7 @@ export interface RootRouteChildren {
   SignUpRoute: typeof SignUpRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
+  WatchPublicIdRoute: typeof WatchPublicIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -270,6 +283,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
+    }
+    '/watch/$publicId': {
+      id: '/watch/$publicId'
+      path: '/watch/$publicId'
+      fullPath: '/watch/$publicId'
+      preLoaderRoute: typeof WatchPublicIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/sign-up/$': {
       id: '/sign-up/$'
@@ -420,6 +440,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignUpRoute: SignUpRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
+  WatchPublicIdRoute: WatchPublicIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

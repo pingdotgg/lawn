@@ -162,6 +162,13 @@ export const remove = mutation({
         .withIndex("by_video", (q) => q.eq("videoId", video._id))
         .collect();
       for (const link of shareLinks) {
+        const grants = await ctx.db
+          .query("shareAccessGrants")
+          .withIndex("by_share_link", (q) => q.eq("shareLinkId", link._id))
+          .collect();
+        for (const grant of grants) {
+          await ctx.db.delete(grant._id);
+        }
         await ctx.db.delete(link._id);
       }
 

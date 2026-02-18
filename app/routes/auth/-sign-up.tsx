@@ -1,14 +1,15 @@
 import { SignUp } from "@clerk/tanstack-react-start";
+import { useRouterState } from "@tanstack/react-router";
 
 export default function SignUpPage() {
-  const redirectUrl =
-    typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.search).get("redirect_url");
+  const search = useRouterState({
+    select: (state) => state.location.searchStr,
+  });
+  const redirectUrl = new URLSearchParams(search).get("redirect_url");
 
   return (
     <SignUp
-      forceRedirectUrl={redirectUrl || "/dashboard"}
+      fallbackRedirectUrl={redirectUrl || "/dashboard"}
       appearance={{
         elements: {
           formButtonPrimary:

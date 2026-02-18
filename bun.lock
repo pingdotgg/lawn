@@ -8,6 +8,7 @@
         "@aws-sdk/client-s3": "^3.991.0",
         "@aws-sdk/s3-request-presigner": "^3.991.0",
         "@clerk/tanstack-react-start": "^0.27.14",
+        "@convex-dev/presence": "^0.3.0",
         "@mux/mux-node": "^12.8.1",
         "@radix-ui/react-avatar": "^1.1.11",
         "@radix-ui/react-dialog": "^1.1.15",
@@ -195,6 +196,8 @@
     "@clerk/tanstack-react-start": ["@clerk/tanstack-react-start@0.27.17", "", { "dependencies": { "@clerk/backend": "^2.29.5", "@clerk/clerk-react": "^5.59.6", "@clerk/shared": "^3.43.2", "@clerk/types": "^4.101.13", "tslib": "2.8.1" }, "peerDependencies": { "@tanstack/react-router": "^1.132.0", "@tanstack/react-start": "^1.132.0", "react": "^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0", "react-dom": "^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0" } }, "sha512-Xmg7lan8DgiRjmbCkrc0RuO8wtCPuIIwQuLGhNORkBO74EhNBWc0dMuCJm2uK+8uLrt8dtU4H+lQ4swFmGvMXQ=="],
 
     "@clerk/types": ["@clerk/types@4.101.14", "", { "dependencies": { "@clerk/shared": "^3.44.0" } }, "sha512-jl7DywmeaZx1IntgEXcjDZq2uyk+X/1yAZOjxOboeGTS0rNTiQNhv7xK8tFVjexsUAFrYlwC1AxhFuJiMDQjow=="],
+
+    "@convex-dev/presence": ["@convex-dev/presence@0.3.0", "", { "peerDependencies": { "convex": "^1.24.8", "expo-crypto": ">=14.1.0", "react": "~18.3.1 || ^19.0.0", "react-dom": "~18.3.1 || ^19.0.0", "react-native": ">=0.79.0" }, "optionalPeers": ["expo-crypto", "react-native"] }, "sha512-adV+ao1L77u+egobyJabNwuai/0y/VgzMbqZiy+Q49JmX6fbSaiYg6FpFVACqPaq3giOfjrN2k+5mK2jTAUG0g=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.27.0", "", { "os": "aix", "cpu": "ppc64" }, "sha512-KuZrd2hRjz01y5JK9mEBSD3Vj3mbCvemhT466rSuJYeE/hjuBrHfjjcjMdTm/sz7au+++sdbJZJmuBwQLuw68A=="],
 

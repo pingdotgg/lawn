@@ -10,6 +10,11 @@ import {
   buildMuxPlaybackUrl,
   buildMuxThumbnailUrl,
   createMuxAssetFromInputUrl,
+  createSignedPlaybackId,
+  deletePlaybackId,
+  getMuxAsset,
+  signPlaybackToken,
+  signThumbnailToken,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
 
@@ -149,6 +154,18 @@ async function requireVideoMemberAccess(
   }
 }
 
+async function buildSignedPlaybackSession(
+  playbackId: string,
+): Promise<{ url: string; posterUrl: string }> {
+  const playbackToken = await signPlaybackToken(playbackId, "1h");
+  const thumbnailToken = await signThumbnailToken(playbackId, "1h");
+
+  return {
+    url: buildMuxPlaybackUrl(playbackId, playbackToken),
+    posterUrl: buildMuxThumbnailUrl(playbackId, thumbnailToken),
+  };
+}
+
 export const getUploadUrl = action({
   args: {
     videoId: v.id("videos"),
@@ -248,6 +265,28 @@ export const markUploadFailed = action({
   },
 });
 
+export const getPlaybackSession = action({
+  args: { videoId: v.id("videos") },
+  returns: v.object({
+    url: v.string(),
+    posterUrl: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ url: string; posterUrl: string }> => {
+    const video = await ctx.runQuery(api.videos.getVideoForPlayback, {
+      videoId: args.videoId,
+    });
+
+    if (!video || !video.muxPlaybackId || video.status !== "ready") {
+      throw new Error("Video not found or not ready");
+    }
+
+    return await buildSignedPlaybackSession(video.muxPlaybackId);
+  },
+});
+
 export const getPlaybackUrl = action({
   args: { videoId: v.id("videos") },
   returns: v.object({
@@ -262,7 +301,52 @@ export const getPlaybackUrl = action({
       throw new Error("Video not found or not ready");
     }
 
-    return { url: buildMuxPlaybackUrl(video.muxPlaybackId) };
+    const session = await buildSignedPlaybackSession(video.muxPlaybackId);
+    return { url: session.url };
+  },
+});
+
+export const getPublicPlaybackSession = action({
+  args: { publicId: v.string() },
+  returns: v.object({
+    url: v.string(),
+    posterUrl: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ url: string; posterUrl: string }> => {
+    const result = await ctx.runQuery(api.videos.getByPublicId, {
+      publicId: args.publicId,
+    });
+
+    if (!result?.video?.muxPlaybackId) {
+      throw new Error("Video not found or not ready");
+    }
+
+    return await buildSignedPlaybackSession(result.video.muxPlaybackId);
+  },
+});
+
+export const getSharedPlaybackSession = action({
+  args: { grantToken: v.string() },
+  returns: v.object({
+    url: v.string(),
+    posterUrl: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ url: string; posterUrl: string }> => {
+    const result = await ctx.runQuery(api.videos.getByShareGrant, {
+      grantToken: args.grantToken,
+    });
+
+    if (!result?.video?.muxPlaybackId) {
+      throw new Error("Video not found or not ready");
+    }
+
+    return await buildSignedPlaybackSession(result.video.muxPlaybackId);
   },
 });
 
@@ -305,16 +389,8 @@ export const getSharedPlaybackUrl = action({
   returns: v.object({
     url: v.string(),
   }),
-  handler: async (ctx, args): Promise<{ url: string }> => {
-    const result = await ctx.runQuery(api.videos.getByShareToken, {
-      token: args.token,
-    });
-
-    if (!result || !result.video.muxPlaybackId) {
-      throw new Error("Video not found or not ready");
-    }
-
-    return { url: buildMuxPlaybackUrl(result.video.muxPlaybackId) };
+  handler: async () => {
+    throw new Error("Shared token playback URL endpoint is deprecated");
   },
 });
 
@@ -324,30 +400,8 @@ export const getSharedDownloadUrl = action({
     url: v.string(),
     filename: v.string(),
   }),
-  handler: async (ctx, args): Promise<{ url: string; filename: string }> => {
-    const result = await ctx.runQuery(api.videos.getByShareToken, {
-      token: args.token,
-    });
-
-    if (!result || !result.video) {
-      throw new Error("Video not found or not ready");
-    }
-
-    if (!result.allowDownload) {
-      throw new Error("Downloads are not allowed for this share link");
-    }
-
-    const key = await ensureOriginalBucketKey(ctx, result.video);
-    const filename = buildDownloadFilename(result.video.title, key);
-
-    return {
-      url: await buildSignedBucketObjectUrl(key, {
-        expiresIn: 600,
-        filename,
-        contentType: result.video.contentType ?? "video/mp4",
-      }),
-      filename,
-    };
+  handler: async () => {
+    throw new Error("DOWNLOAD_DISABLED_FOR_EXTERNAL");
   },
 });
 
@@ -356,23 +410,114 @@ export const getSharedThumbnailUrl = action({
   returns: v.object({
     url: v.union(v.string(), v.null()),
   }),
-  handler: async (ctx, args): Promise<{ url: string | null }> => {
-    const result = await ctx.runQuery(api.videos.getByShareToken, {
-      token: args.token,
-    });
-
-    if (!result?.video) {
-      return { url: null };
-    }
-
-    if (result.video.thumbnailUrl) {
-      return { url: result.video.thumbnailUrl };
-    }
-
-    if (result.video.muxPlaybackId) {
-      return { url: buildMuxThumbnailUrl(result.video.muxPlaybackId) };
-    }
-
+  handler: async () => {
     return { url: null };
+  },
+});
+
+export const runPublicAccessBackfill = action({
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    updated: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    let cursor: string | undefined;
+    let scanned = 0;
+    let updated = 0;
+
+    while (true) {
+      const result = await ctx.runMutation(internal.videos.backfillVisibilityAndPublicIds, {
+        cursor,
+        batchSize: args.batchSize,
+      });
+
+      scanned += result.scanned;
+      updated += result.updated;
+
+      if (result.done) {
+        break;
+      }
+
+      cursor = result.cursor;
+    }
+
+    return { scanned, updated };
+  },
+});
+
+export const rotatePlaybackIdsToSigned = action({
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    updated: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    let cursor: string | undefined;
+    let scanned = 0;
+    let updated = 0;
+
+    while (true) {
+      const page = await ctx.runQuery(internal.videos.listVideosForPlaybackMigration, {
+        cursor,
+        batchSize: args.batchSize,
+      });
+
+      scanned += page.videos.length;
+
+      for (const item of page.videos) {
+        if (item.status !== "ready" || !item.muxAssetId) {
+          continue;
+        }
+
+        const asset = await getMuxAsset(item.muxAssetId);
+        const playbackIds = (asset.playback_ids ?? []) as Array<{
+          id?: string;
+          policy?: string;
+        }>;
+
+        let signedPlaybackId = playbackIds.find((entry) => entry.policy === "signed" && entry.id)?.id;
+
+        if (!signedPlaybackId) {
+          const created = await createSignedPlaybackId(item.muxAssetId);
+          signedPlaybackId = created.id;
+        }
+
+        if (!signedPlaybackId) {
+          continue;
+        }
+
+        if (item.muxPlaybackId && item.muxPlaybackId !== signedPlaybackId) {
+          const currentPlayback = playbackIds.find((entry) => entry.id === item.muxPlaybackId);
+          if (currentPlayback?.policy === "public") {
+            try {
+              await deletePlaybackId(item.muxAssetId, item.muxPlaybackId);
+            } catch {
+              // Best effort. We still patch the video to the signed playback id.
+            }
+          }
+        }
+
+        if (item.muxPlaybackId !== signedPlaybackId) {
+          await ctx.runMutation(internal.videos.setMuxPlaybackId, {
+            videoId: item.videoId,
+            muxPlaybackId: signedPlaybackId,
+            thumbnailUrl: buildMuxThumbnailUrl(signedPlaybackId),
+          });
+          updated += 1;
+        }
+      }
+
+      if (page.done) {
+        break;
+      }
+      cursor = page.cursor;
+    }
+
+    return { scanned, updated };
   },
 });
