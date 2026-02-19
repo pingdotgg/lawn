@@ -4,6 +4,7 @@ import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Id } from "./_generated/dataModel";
 import { generateUniqueToken } from "./security";
 import { resolveActiveShareGrant } from "./shareAccess";
+import { buildPublicUrl } from "./s3";
 
 const workflowStatusValidator = v.union(
   v.literal("review"),
@@ -36,6 +37,71 @@ function normalizeWorkflowStatus(status: StoredWorkflowStatus): WorkflowStatus {
     return "rework";
   }
   return "review";
+}
+
+export type VideoPlaybackOption = {
+  id: "720p" | "original";
+  label: "720p" | "Original";
+  type: "hls" | "mp4";
+  url: string;
+};
+
+export type VideoPlayback = {
+  options: VideoPlaybackOption[];
+  defaultOptionId: "720p" | "original";
+  posterUrl?: string;
+};
+
+function toPublicAssetUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  try {
+    return buildPublicUrl(value);
+  } catch {
+    // Local tests may not configure public bucket URL env vars.
+    return value;
+  }
+}
+
+export function getVideoPlayback(video: {
+  status: string;
+  s3Key?: string | null;
+  playback720ManifestKey?: string | null;
+  thumbnailUrl?: string | null;
+}): VideoPlayback | null {
+  if (video.status !== "ready") return null;
+
+  const options: VideoPlaybackOption[] = [];
+  const playback720Url = toPublicAssetUrl(video.playback720ManifestKey ?? undefined);
+  const originalUrl = toPublicAssetUrl(video.s3Key ?? undefined);
+
+  if (playback720Url) {
+    options.push({
+      id: "720p",
+      label: "720p",
+      type: "hls",
+      url: playback720Url,
+    });
+  }
+
+  if (originalUrl) {
+    options.push({
+      id: "original",
+      label: "Original",
+      type: "mp4",
+      url: originalUrl,
+    });
+  }
+
+  if (options.length === 0) {
+    return null;
+  }
+
+  return {
+    options,
+    defaultOptionId: playback720Url ? "720p" : "original",
+    posterUrl: toPublicAssetUrl(video.thumbnailUrl ?? undefined),
+  };
 }
 
 async function generatePublicId(ctx: MutationCtx) {
@@ -85,7 +151,7 @@ export const create = mutation({
       fileSize: args.fileSize,
       contentType: args.contentType,
       status: "uploading",
-      muxAssetStatus: "preparing",
+      transcodeStatus: "queued",
       workflowStatus: "review",
       visibility: "public",
       publicId,
@@ -118,6 +184,7 @@ export const list = query({
           uploaderName: video.uploaderName ?? "Unknown",
           workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
           commentCount: comments.length,
+          playback: getVideoPlayback(video),
         };
       }),
     );
@@ -128,11 +195,13 @@ export const get = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
     const { video, membership } = await requireVideoAccess(ctx, args.videoId);
+    const playback = getVideoPlayback(video);
     return {
       ...video,
       uploaderName: video.uploaderName ?? "Unknown",
       workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
       role: membership.role,
+      playback,
     };
   },
 });
@@ -149,17 +218,18 @@ export const getByPublicId = query({
       return null;
     }
 
+    const playback = getVideoPlayback(video);
+
     return {
       video: {
         _id: video._id,
         title: video.title,
         description: video.description,
         duration: video.duration,
-        thumbnailUrl: video.thumbnailUrl,
-        muxAssetId: video.muxAssetId,
-        muxPlaybackId: video.muxPlaybackId,
+        thumbnailUrl: toPublicAssetUrl(video.thumbnailUrl),
         contentType: video.contentType,
         s3Key: video.s3Key,
+        playback,
       },
     };
   },
@@ -196,17 +266,18 @@ export const getByShareGrant = query({
       return null;
     }
 
+    const playback = getVideoPlayback(video);
+
     return {
       video: {
         _id: video._id,
         title: video.title,
         description: video.description,
         duration: video.duration,
-        thumbnailUrl: video.thumbnailUrl,
-        muxAssetId: video.muxAssetId,
-        muxPlaybackId: video.muxPlaybackId,
+        thumbnailUrl: toPublicAssetUrl(video.thumbnailUrl),
         contentType: video.contentType,
         s3Key: video.s3Key,
+        playback,
       },
       grantExpiresAt: resolved.grant.expiresAt,
     };
@@ -294,10 +365,13 @@ export const setUploadInfo = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
       s3Key: args.s3Key,
-      muxUploadId: undefined,
-      muxAssetId: undefined,
-      muxPlaybackId: undefined,
-      muxAssetStatus: "preparing",
+      transcodeProvider: "chunkify",
+      transcodeJobId: undefined,
+      transcodeStatus: "queued",
+      transcodeError: undefined,
+      playback720ManifestKey: undefined,
+      playback720Codec: undefined,
+      playback720SegmentFormat: undefined,
       thumbnailUrl: undefined,
       duration: undefined,
       uploadError: undefined,
@@ -315,8 +389,26 @@ export const markAsProcessing = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
       status: "processing",
-      muxAssetStatus: "preparing",
+      transcodeProvider: "chunkify",
+      transcodeStatus: "processing",
+      transcodeError: undefined,
       uploadError: undefined,
+    });
+  },
+});
+
+export const setTranscodeJobInfo = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    transcodeJobId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      transcodeProvider: "chunkify",
+      transcodeJobId: args.transcodeJobId,
+      transcodeStatus: "processing",
+      transcodeError: undefined,
+      status: "processing",
     });
   },
 });
@@ -324,18 +416,19 @@ export const markAsProcessing = internalMutation({
 export const markAsReady = internalMutation({
   args: {
     videoId: v.id("videos"),
-    muxAssetId: v.string(),
-    muxPlaybackId: v.string(),
+    playback720ManifestKey: v.string(),
     duration: v.optional(v.number()),
     thumbnailUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
-      muxAssetId: args.muxAssetId,
-      muxPlaybackId: args.muxPlaybackId,
-      muxAssetStatus: "ready",
+      playback720ManifestKey: args.playback720ManifestKey,
+      playback720Codec: "h264",
+      playback720SegmentFormat: "fmp4",
       duration: args.duration,
       thumbnailUrl: args.thumbnailUrl,
+      transcodeStatus: "ready",
+      transcodeError: undefined,
       uploadError: undefined,
       status: "ready",
     });
@@ -345,12 +438,13 @@ export const markAsReady = internalMutation({
 export const markAsFailed = internalMutation({
   args: {
     videoId: v.id("videos"),
-    uploadError: v.optional(v.string()),
+    transcodeError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
-      muxAssetStatus: "errored",
-      uploadError: args.uploadError,
+      transcodeStatus: "failed",
+      transcodeError: args.transcodeError,
+      uploadError: args.transcodeError,
       status: "failed",
     });
   },
@@ -368,109 +462,24 @@ export const setOriginalBucketKey = internalMutation({
   },
 });
 
-export const setMuxAssetReference = internalMutation({
+export const getVideoByTranscodeJobId = internalQuery({
   args: {
-    videoId: v.id("videos"),
-    muxAssetId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.videoId, {
-      muxAssetId: args.muxAssetId,
-      muxAssetStatus: "preparing",
-      status: "processing",
-    });
-  },
-});
-
-export const setMuxPlaybackId = internalMutation({
-  args: {
-    videoId: v.id("videos"),
-    muxPlaybackId: v.string(),
-    thumbnailUrl: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.videoId, {
-      muxPlaybackId: args.muxPlaybackId,
-      thumbnailUrl: args.thumbnailUrl,
-    });
-  },
-});
-
-export const getVideoByMuxUploadId = internalQuery({
-  args: {
-    muxUploadId: v.string(),
+    transcodeJobId: v.string(),
   },
   returns: v.union(
     v.object({
       videoId: v.id("videos"),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args): Promise<{ videoId: Id<"videos"> } | null> => {
     const video = await ctx.db
       .query("videos")
-      .withIndex("by_mux_upload_id", (q) => q.eq("muxUploadId", args.muxUploadId))
+      .withIndex("by_transcode_job_id", (q) => q.eq("transcodeJobId", args.transcodeJobId))
       .unique();
 
     if (!video) return null;
     return { videoId: video._id };
-  },
-});
-
-export const getVideoByMuxAssetId = internalQuery({
-  args: {
-    muxAssetId: v.string(),
-  },
-  returns: v.union(
-    v.object({
-      videoId: v.id("videos"),
-    }),
-    v.null()
-  ),
-  handler: async (ctx, args): Promise<{ videoId: Id<"videos"> } | null> => {
-    const video = await ctx.db
-      .query("videos")
-      .withIndex("by_mux_asset_id", (q) => q.eq("muxAssetId", args.muxAssetId))
-      .unique();
-
-    if (!video) return null;
-    return { videoId: video._id };
-  },
-});
-
-export const listVideosForPlaybackMigration = internalQuery({
-  args: {
-    cursor: v.optional(v.string()),
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.object({
-    cursor: v.string(),
-    done: v.boolean(),
-    videos: v.array(
-      v.object({
-        videoId: v.id("videos"),
-        muxAssetId: v.union(v.string(), v.null()),
-        muxPlaybackId: v.union(v.string(), v.null()),
-        status: v.string(),
-      }),
-    ),
-  }),
-  handler: async (ctx, args) => {
-    const page = await ctx.db.query("videos").paginate({
-      cursor: args.cursor ?? null,
-      numItems: Math.max(1, Math.min(args.batchSize ?? 50, 200)),
-    });
-
-    return {
-      cursor: page.continueCursor,
-      done: page.isDone,
-      videos: page.page.map((video) => ({
-        videoId: video._id,
-        muxAssetId: video.muxAssetId ?? null,
-        muxPlaybackId: video.muxPlaybackId ?? null,
-        status: video.status,
-      })),
-    };
   },
 });
 
@@ -479,6 +488,13 @@ export const getVideoForPlayback = query({
   handler: async (ctx, args) => {
     const { video } = await requireVideoAccess(ctx, args.videoId, "viewer");
     return video;
+  },
+});
+
+export const getVideoInternal = internalQuery({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.videoId);
   },
 });
 

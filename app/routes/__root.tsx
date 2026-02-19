@@ -5,9 +5,10 @@ import {
   createRootRoute,
 } from "@tanstack/react-router";
 import { ClerkProvider } from "@clerk/tanstack-react-start";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { ConvexClientProvider } from "@/lib/convex";
+import { installHlsRuntimeWarmup } from "@/lib/hlsPlayback";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme/ThemeToggle";
 import appCss from "../app.css?url";
@@ -23,10 +24,6 @@ export const Route = createRootRoute({
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico" },
-      { rel: "preconnect", href: "https://stream.mux.com", crossOrigin: "anonymous" },
-      { rel: "preconnect", href: "https://image.mux.com", crossOrigin: "anonymous" },
-      { rel: "dns-prefetch", href: "//stream.mux.com" },
-      { rel: "dns-prefetch", href: "//image.mux.com" },
     ],
   }),
   component: RootComponent,
@@ -56,6 +53,10 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  useEffect(() => {
+    return installHlsRuntimeWarmup();
+  }, []);
+
   return (
     <AppShell>
       <Outlet />

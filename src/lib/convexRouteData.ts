@@ -4,7 +4,7 @@ import type { ConvexReactClient } from "convex/react";
 import type { FunctionArgs, FunctionReference } from "convex/server";
 
 export const PREWARM_DEBOUNCE_MS = 120;
-export const PREWARM_EXTEND_MS = 8_000;
+export const PREWARM_EXTEND_MS = 90_000;
 export const PREWARM_DEDUPE_MS = 3_000;
 
 export type RouteQuerySpec<Query extends FunctionReference<"query">> = {

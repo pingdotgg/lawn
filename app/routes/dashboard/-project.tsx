@@ -29,7 +29,7 @@ import {
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { teamHomePath, videoPath } from "@/lib/routes";
-import { prefetchHlsRuntime, prefetchMuxPlaybackManifest } from "@/lib/muxPlayback";
+import { prefetchHlsManifest, prefetchHlsRuntime } from "@/lib/hlsPlayback";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import {
   VideoWorkflowStatusControl,
@@ -47,7 +47,7 @@ type VideoIntentTargetProps = {
   teamSlug: string;
   projectId: Id<"projects">;
   videoId: Id<"videos">;
-  muxPlaybackId?: string;
+  prefetchHlsUrl?: string;
   onOpen: () => void;
   children: ReactNode;
 };
@@ -57,7 +57,7 @@ function VideoIntentTarget({
   teamSlug,
   projectId,
   videoId,
-  muxPlaybackId,
+  prefetchHlsUrl,
   onOpen,
   children,
 }: VideoIntentTargetProps) {
@@ -69,8 +69,8 @@ function VideoIntentTarget({
       videoId,
     });
     prefetchHlsRuntime();
-    if (muxPlaybackId) {
-      prefetchMuxPlaybackManifest(muxPlaybackId);
+    if (prefetchHlsUrl) {
+      prefetchHlsManifest(prefetchHlsUrl);
     }
   });
 
@@ -289,6 +289,9 @@ export default function ProjectPage({
                 const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
                 const watchingCount =
                   projectPresenceCounts?.counts?.[video._id] ?? 0;
+                const hlsUrl = video.playback?.options?.find(
+                  (option) => option.id === "720p" && option.type === "hls",
+                )?.url;
 
                 return (
                   <VideoIntentTarget
@@ -297,7 +300,7 @@ export default function ProjectPage({
                     teamSlug={resolvedTeamSlug}
                     projectId={project._id}
                     videoId={video._id}
-                    muxPlaybackId={video.muxPlaybackId}
+                    prefetchHlsUrl={hlsUrl}
                     onOpen={() =>
                       navigate({
                         to: videoPath(resolvedTeamSlug, project._id, video._id),
@@ -430,6 +433,9 @@ export default function ProjectPage({
               const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
               const watchingCount =
                 projectPresenceCounts?.counts?.[video._id] ?? 0;
+              const hlsUrl = video.playback?.options?.find(
+                (option) => option.id === "720p" && option.type === "hls",
+              )?.url;
 
               return (
                 <VideoIntentTarget
@@ -438,7 +444,7 @@ export default function ProjectPage({
                   teamSlug={resolvedTeamSlug}
                   projectId={project._id}
                   videoId={video._id}
-                  muxPlaybackId={video.muxPlaybackId}
+                  prefetchHlsUrl={hlsUrl}
                   onOpen={() =>
                     navigate({
                       to: videoPath(resolvedTeamSlug, project._id, video._id),

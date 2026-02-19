@@ -1,4 +1,4 @@
-import { useAction, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useParams } from "@tanstack/react-router";
 import { useUser } from "@clerk/tanstack-react-start";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
+import { prefetchHlsManifest } from "@/lib/hlsPlayback";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { Lock, Video, AlertCircle, MessageSquare, Clock } from "lucide-react";
@@ -21,18 +22,11 @@ export default function SharePage() {
 
   const issueAccessGrant = useMutation(api.shareLinks.issueAccessGrant);
   const createComment = useMutation(api.comments.createForShareGrant);
-  const getPlaybackSession = useAction(api.videoActions.getSharedPlaybackSession);
 
   const [grantToken, setGrantToken] = useState<string | null>(null);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [isRequestingGrant, setIsRequestingGrant] = useState(false);
-  const [playbackSession, setPlaybackSession] = useState<{
-    url: string;
-    posterUrl: string;
-  } | null>(null);
-  const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -40,7 +34,13 @@ export default function SharePage() {
   const playerRef = useRef<VideoPlayerHandle | null>(null);
 
   const { shareInfo, videoData, comments } = useShareData({ token, grantToken });
-  const canTrackPresence = Boolean(playbackSession?.url && videoData?.video?._id);
+  const playback = videoData?.video?.playback ?? null;
+  const playbackOptions = playback?.options ?? [];
+  const defaultPlaybackOption =
+    playbackOptions.find((option) => option.id === playback?.defaultOptionId) ??
+    playbackOptions[0] ??
+    null;
+  const canTrackPresence = Boolean(defaultPlaybackOption?.url && videoData?.video?._id);
   const { watchers } = useVideoPresence({
     videoId: videoData?.video?._id,
     enabled: canTrackPresence,
@@ -80,34 +80,12 @@ export default function SharePage() {
   }, [acquireGrant, grantToken, shareInfo]);
 
   useEffect(() => {
-    if (!grantToken) {
-      setPlaybackSession(null);
-      setPlaybackError(null);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoadingPlayback(true);
-    setPlaybackError(null);
-
-    void getPlaybackSession({ grantToken })
-      .then((session) => {
-        if (cancelled) return;
-        setPlaybackSession(session);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setPlaybackError("Unable to load playback session.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsLoadingPlayback(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getPlaybackSession, grantToken]);
+    const hlsUrl = playbackOptions.find(
+      (option) => option.id === "720p" && option.type === "hls",
+    )?.url;
+    if (!hlsUrl) return;
+    prefetchHlsManifest(hlsUrl);
+  }, [playbackOptions]);
 
   const flattenedComments = useMemo(() => {
     if (!comments) return [] as Array<{ _id: string; timestampSeconds: number; resolved: boolean }>;
@@ -272,20 +250,22 @@ export default function SharePage() {
         </div>
 
         <div className="border-2 border-[#1a1a1a] overflow-hidden">
-          {playbackSession?.url ? (
+          {defaultPlaybackOption?.url ? (
             <VideoPlayer
               ref={playerRef}
-              src={playbackSession.url}
-              poster={playbackSession.posterUrl}
+              src={defaultPlaybackOption.url}
+              poster={playback.posterUrl}
+              qualityOptions={playbackOptions}
+              defaultQualityId={playback?.defaultOptionId}
               comments={flattenedComments}
               onTimeUpdate={setCurrentTime}
               allowDownload={false}
             />
           ) : (
             <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-              {(playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http")) ? (
+              {(playback?.posterUrl || video.thumbnailUrl?.startsWith("http")) ? (
                 <img
-                  src={playbackSession?.posterUrl ?? video.thumbnailUrl}
+                  src={playback?.posterUrl ?? video.thumbnailUrl}
                   alt={`${video.title} thumbnail`}
                   className="h-full w-full object-cover blur-[4px]"
                 />
@@ -293,9 +273,7 @@ export default function SharePage() {
               <div className="absolute inset-0 bg-black/45" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                <p className="text-sm font-medium text-white/85">
-                  {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
-                </p>
+                <p className="text-sm font-medium text-white/85">Preparing stream...</p>
               </div>
             </div>
           )}

@@ -28,9 +28,18 @@ interface DownloadResult {
   filename?: string;
 }
 
+export interface VideoPlayerQualityOption {
+  id: string;
+  label: string;
+  url: string;
+  type: "hls" | "mp4";
+}
+
 interface VideoPlayerProps {
   src: string;
   poster?: string;
+  qualityOptions?: VideoPlayerQualityOption[];
+  defaultQualityId?: string;
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
   onMarkerClick?: (comment: Comment) => void;
@@ -60,6 +69,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   {
     src,
     poster,
+    qualityOptions = [],
+    defaultQualityId,
     comments = [],
     onTimeUpdate,
     onMarkerClick,
@@ -93,6 +104,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [isDownloading, setIsDownloading] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [selectedQualityId, setSelectedQualityId] = useState<string | null>(null);
 
   const hideControlsTimeoutRef = useRef<number | null>(null);
   const wasPlayingBeforeScrubRef = useRef(false);
@@ -134,6 +146,35 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const end = video.buffered.end(video.buffered.length - 1);
     setBufferedPercent(clamp(end / video.duration, 0, 1));
   }, []);
+
+  useEffect(() => {
+    if (qualityOptions.length === 0) {
+      if (selectedQualityId !== null) {
+        setSelectedQualityId(null);
+      }
+      return;
+    }
+
+    const defaultOption =
+      qualityOptions.find((option) => option.id === defaultQualityId) ??
+      qualityOptions[0];
+    const currentOption = qualityOptions.find((option) => option.id === selectedQualityId);
+    if (!currentOption || !selectedQualityId) {
+      setSelectedQualityId(defaultOption.id);
+    }
+  }, [defaultQualityId, qualityOptions, selectedQualityId]);
+
+  const activeSource = useMemo(() => {
+    if (qualityOptions.length === 0) {
+      return { id: "default", label: "Default", url: src, type: isHlsSource(src) ? "hls" : "mp4" } as const;
+    }
+
+    return (
+      qualityOptions.find((option) => option.id === selectedQualityId) ??
+      qualityOptions.find((option) => option.id === defaultQualityId) ??
+      qualityOptions[0]
+    );
+  }, [defaultQualityId, qualityOptions, selectedQualityId, src]);
 
   const applyTime = useCallback(
     (time: number) => {
@@ -480,28 +521,30 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setBufferedPercent(0);
       setIsMediaReady(false);
       setIsBuffering(false);
-
       // Reset the element source before attaching a new one.
       video.removeAttribute("src");
       video.load();
 
-      if (isHlsSource(src)) {
+      if (isHlsSource(activeSource.url)) {
+        const hasNativeHlsSupport = video.canPlayType("application/vnd.apple.mpegurl") !== "";
+        if (hasNativeHlsSupport) {
+          video.src = activeSource.url;
+          return;
+        }
+
         const { default: Hls } = await import("hls.js");
         if (cancelled) return;
 
         if (Hls.isSupported()) {
           const hls = new Hls({ enableWorker: true });
           hlsRef.current = hls;
-          hls.loadSource(src);
+          hls.loadSource(activeSource.url);
           hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            // Metadata events still drive readiness; nothing else needed here.
-          });
         } else {
-          video.src = src;
+          video.src = activeSource.url;
         }
       } else {
-        video.src = src;
+        video.src = activeSource.url;
       }
     };
 
@@ -522,7 +565,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     attachSource().catch(() => {
       // If HLS import fails, fall back to setting the src directly.
-      video.src = src;
+      video.src = activeSource.url;
     });
 
     return () => {
@@ -551,7 +594,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, initialTime, onTimeUpdate, showControls, updateBuffered]);
+  }, [activeSource.url, initialTime, onTimeUpdate, showControls, updateBuffered]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -653,10 +696,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <video
           ref={videoRef}
           poster={poster}
-          className={cn(
-            "h-full w-full object-contain transition-opacity duration-200",
-            isMediaReady ? "opacity-100" : "opacity-0"
-          )}
+          className="h-full w-full object-contain"
           playsInline
           preload="auto"
           onClick={(e) => {
@@ -863,6 +903,29 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                 >
                   {playbackRate}x
                 </button>
+
+                {qualityOptions.length > 1 && (
+                  <select
+                    value={selectedQualityId ?? qualityOptions[0]?.id}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      showControls();
+                      setSelectedQualityId(e.target.value);
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="h-9 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 outline-none transition hover:border-white/25 hover:bg-white/15"
+                    aria-label="Playback quality"
+                    title="Playback quality"
+                  >
+                    {qualityOptions.map((option) => (
+                      <option key={option.id} value={option.id} className="bg-zinc-900 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
                 {canDownload && (
                   <button

@@ -15,6 +15,7 @@ import {
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { formatDuration, formatTimestamp } from "@/lib/utils";
+import { prefetchHlsManifest } from "@/lib/hlsPlayback";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import {
@@ -55,7 +56,6 @@ export default function VideoPage() {
   });
   const updateVideo = useMutation(api.videos.update);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
-  const getPlaybackSession = useAction(api.videoActions.getPlaybackSession);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -65,14 +65,14 @@ export default function VideoPage() {
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentTimestamp, setCommentTimestamp] = useState(0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [playbackSession, setPlaybackSession] = useState<{
-    url: string;
-    posterUrl: string;
-  } | null>(null);
-  const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
-  const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
-  const playbackUrl = playbackSession?.url ?? null;
+  const playback = video?.playback ?? null;
+  const playbackOptions = playback?.options ?? [];
+  const defaultPlaybackOption =
+    playbackOptions.find((option) => option.id === playback?.defaultOptionId) ??
+    playbackOptions[0] ??
+    null;
+  const playbackUrl = defaultPlaybackOption?.url ?? null;
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
@@ -94,33 +94,12 @@ export default function VideoPage() {
   }, [shouldCanonicalize, context, navigate]);
 
   useEffect(() => {
-    if (!resolvedVideoId || !isPlayable) {
-      setPlaybackSession(null);
-      setIsLoadingPlayback(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoadingPlayback(true);
-
-    void getPlaybackSession({ videoId: resolvedVideoId })
-      .then((session) => {
-        if (cancelled) return;
-        setPlaybackSession(session);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setPlaybackSession(null);
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setIsLoadingPlayback(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getPlaybackSession, isPlayable, resolvedVideoId, video?.muxPlaybackId]);
+    const hlsUrl = playbackOptions.find(
+      (option) => option.id === "720p" && option.type === "hls",
+    )?.url;
+    if (!hlsUrl) return;
+    prefetchHlsManifest(hlsUrl);
+  }, [playbackOptions]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -305,7 +284,9 @@ export default function VideoPage() {
                     <VideoPlayer
                       ref={playerRef}
                       src={playbackUrl}
-                      poster={playbackSession?.posterUrl}
+                      poster={playback?.posterUrl}
+                      qualityOptions={playbackOptions}
+                      defaultQualityId={playback?.defaultOptionId}
                       comments={comments || []}
                       onTimeUpdate={handleTimeUpdate}
                       onMarkerClick={handleMarkerClick}
@@ -350,9 +331,9 @@ export default function VideoPage() {
                 {video.status === "ready" && !playbackUrl ? (
                   <div className="w-full max-w-6xl">
                     <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-                      {playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http") ? (
+                      {playback?.posterUrl || video.thumbnailUrl?.startsWith("http") ? (
                         <img
-                          src={playbackSession?.posterUrl ?? video.thumbnailUrl}
+                          src={playback?.posterUrl ?? video.thumbnailUrl}
                           alt={`${video.title} thumbnail`}
                           className="h-full w-full object-cover blur-[4px]"
                         />
@@ -360,9 +341,7 @@ export default function VideoPage() {
                       <div className="absolute inset-0 bg-black/45" />
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                        <p className="text-sm font-medium text-white/85">
-                          {isLoadingPlayback ? "Loading stream..." : "Preparing stream..."}
-                        </p>
+                        <p className="text-sm font-medium text-white/85">Preparing stream...</p>
                       </div>
                     </div>
                   </div>

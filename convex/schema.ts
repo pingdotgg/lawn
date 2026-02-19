@@ -62,17 +62,21 @@ export default defineSchema({
     description: v.optional(v.string()),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     publicId: v.optional(v.string()),
-    // Mux video references
-    muxUploadId: v.optional(v.string()),
-    muxAssetId: v.optional(v.string()),
-    muxPlaybackId: v.optional(v.string()),
-    muxAssetStatus: v.optional(
+    // Transcode references
+    transcodeProvider: v.optional(v.literal("chunkify")),
+    transcodeJobId: v.optional(v.string()),
+    transcodeStatus: v.optional(
       v.union(
-        v.literal("preparing"),
+        v.literal("queued"),
+        v.literal("processing"),
         v.literal("ready"),
-        v.literal("errored")
+        v.literal("failed")
       )
     ),
+    transcodeError: v.optional(v.string()),
+    playback720ManifestKey: v.optional(v.string()),
+    playback720Codec: v.optional(v.literal("h264")),
+    playback720SegmentFormat: v.optional(v.literal("fmp4")),
     // Metadata
     s3Key: v.optional(v.string()),
     duration: v.optional(v.number()),
@@ -103,9 +107,7 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_public_id", ["publicId"])
-    .index("by_mux_upload_id", ["muxUploadId"])
-    .index("by_mux_asset_id", ["muxAssetId"])
-    .index("by_mux_playback_id", ["muxPlaybackId"]),
+    .index("by_transcode_job_id", ["transcodeJobId"]),
 
   comments: defineTable({
     videoId: v.id("videos"),

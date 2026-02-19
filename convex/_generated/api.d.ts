@@ -9,10 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as chunkify from "../chunkify.js";
+import type * as chunkifyActions from "../chunkifyActions.js";
 import type * as comments from "../comments.js";
 import type * as http from "../http.js";
-import type * as mux from "../mux.js";
-import type * as muxActions from "../muxActions.js";
 import type * as projects from "../projects.js";
 import type * as s3 from "../s3.js";
 import type * as security from "../security.js";
@@ -32,10 +32,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  chunkify: typeof chunkify;
+  chunkifyActions: typeof chunkifyActions;
   comments: typeof comments;
   http: typeof http;
-  mux: typeof mux;
-  muxActions: typeof muxActions;
   projects: typeof projects;
   s3: typeof s3;
   security: typeof security;

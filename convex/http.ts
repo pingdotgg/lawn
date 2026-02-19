@@ -68,21 +68,24 @@ http.route({
 });
 
 http.route({
-  path: "/webhooks/mux",
+  path: "/webhooks/chunkify",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const rawBody = await request.text();
-    const signature = request.headers.get("mux-signature") ?? undefined;
+    const headers: Record<string, string> = {};
+    request.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
 
     try {
-      const result = await ctx.runAction(internal.muxActions.processWebhook, {
+      const result = await ctx.runAction(internal.chunkifyActions.processWebhook, {
         rawBody,
-        signature,
+        headers,
       });
 
       return new Response(result.message, { status: result.status });
     } catch (error) {
-      console.error("Mux webhook proxy failed", error);
+      console.error("Chunkify webhook proxy failed", error);
       return new Response("Webhook processing failed", { status: 500 });
     }
   }),

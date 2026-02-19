@@ -42,9 +42,10 @@ bun run lint
 - `VITE_CONVEX_SITE_URL`
 - `VITE_CLERK_PUBLISHABLE_KEY`
 - `CLERK_SECRET_KEY`
-- `MUX_TOKEN_ID`
-- `MUX_TOKEN_SECRET`
-- `MUX_WEBHOOK_SECRET`
+- `CHUNKIFY_TOKEN`
+- `CHUNKIFY_WEBHOOK_SECRET`
+- `CHUNKIFY_DIRECT_STORAGE_ID` (optional; preconfigured Chunkify storage for direct output mode)
+- `CHUNKIFY_TRY_DIRECT_STORAGE` (optional; set to `false` to force copy fallback mode)
 - Convex deployment vars as needed (`CONVEX_DEPLOYMENT`, etc.)
 
 ## Design Language
