@@ -37,7 +37,7 @@ export default function Homepage() {
       style={{ ...lightModeVars, backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
     >
       {/* Minimal nav */}
-      <nav className={`fixed w-full top-0 z-50 px-6 py-4 flex justify-between items-center transition-all duration-200 ${scrolled ? 'bg-[#f0f0e8] text-[#1a1a1a] border-b-2 border-[#1a1a1a]' : 'bg-transparent text-[#f0f0e8]'}`}>
+      <nav className={`fixed w-full top-0 z-50 px-6 py-4 flex justify-between items-center transition-all duration-200 ${scrolled ? 'bg-[#f0f0e8] text-[#1a1a1a] border-b-2 border-[#1a1a1a]' : 'bg-transparent text-[#f0f0e8] drop-shadow-md'}`}>
         <div className="flex items-center gap-4">
           <span className={`text-2xl font-black tracking-tighter transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn</span>
         </div>
@@ -52,31 +52,39 @@ export default function Homepage() {
         className="relative px-6 pt-32 pb-24 min-h-[85vh] flex flex-col justify-end bg-cover bg-center bg-no-repeat text-[#f0f0e8] border-b-2 border-[#1a1a1a]"
         style={{ backgroundImage: `url('/grassy-bg.avif')` }}
       >
-        {/* Dark tint to ensure text readability against any part of the grass */}
-        <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+        {/* Lighter tint since text is now in highly contrasting blocks or heavily shadowed */}
+        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
 
         <div className="relative z-10 w-full max-w-7xl mx-auto">
-          {/* Massive Title */}
-          <h1 className="text-[25vw] sm:text-[20vw] font-black leading-[0.75] tracking-tighter ml-[-0.5vw]">
-            lawn.
+          {/* Massive Title with Brutalist Depth */}
+          <h1 
+            className="text-[25vw] sm:text-[22vw] font-black leading-[0.75] tracking-tighter ml-[-0.5vw]"
+            style={{ 
+              textShadow: '8px 8px 0 #1a1a1a, 0 20px 40px rgba(0,0,0,0.5)'
+            }}
+          >
+            lawn
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12 md:mt-24 items-end">
-            <div className="max-w-xl">
-              <p className="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight tracking-tight">
-                Video review for creative teams.
-                <br />
-                <span className="text-[#7cb87c]">Less features.<br/>No bull$#!t.</span>
-              </p>
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-12 mt-16 md:mt-24">
+            
+            {/* Highly Creative Contrast Subheadline Blocks (Stickers) */}
+            <div className="flex flex-col items-start gap-4">
+              <div className="bg-[#f0f0e8] text-[#1a1a1a] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] -rotate-2 origin-bottom-left">
+                <p className="text-2xl md:text-4xl font-black tracking-tight uppercase">Video review for creative teams.</p>
+              </div>
+              <div className="bg-[#2d5a2d] text-[#f0f0e8] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] rotate-1 origin-top-left ml-4 md:ml-8">
+                <p className="text-xl md:text-3xl font-black tracking-tight uppercase">Less features. No bull$#!t.</p>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 md:justify-end pb-2">
+            <div className="flex flex-col sm:flex-row gap-6 lg:justify-end pb-2">
               <div className="bg-[#f0f0e8] text-[#1a1a1a] px-8 py-5 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)]">
                 <span className="text-4xl font-black">$5/mo</span>
                 <span className="block text-sm font-bold uppercase tracking-wider text-[#888] mt-1">Unlimited seats</span>
               </div>
               <Link to="/sign-up"
-                className="bg-[#2d5a2d] text-[#f0f0e8] px-8 py-5 border-2 border-[#1a1a1a] font-black text-xl hover:bg-[#3a6a3a] transition-colors flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)]"
+                className="bg-[#1a1a1a] text-[#f0f0e8] px-8 py-5 border-2 border-[#1a1a1a] font-black text-xl hover:bg-[#2d5a2d] transition-colors flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)]"
               >
                 START FREE TRIAL →
               </Link>
@@ -94,45 +102,45 @@ export default function Homepage() {
             { id: "03", title: "FLAT PRICING", desc: "$5 covers the whole agency. Stop counting seats." },
             { id: "04", title: "TOOL AGNOSTIC", desc: "Premiere, Final Cut, Resolve. We don't care. Bring whatever." },
           ].map((item, i) => (
-            <div key={i} className="p-8 lg:p-12 group hover:bg-[#e8e8e0] transition-colors flex flex-col">
-              <div className="text-sm font-black text-[#888] mb-8">/{item.id}</div>
+            <div key={i} className="p-8 lg:p-12 group hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors flex flex-col">
+              <div className="text-sm font-black text-[#888] group-hover:text-[#7cb87c] mb-8">/{item.id}</div>
               <h3 className="text-3xl lg:text-4xl font-black mb-4 uppercase tracking-tighter leading-none">{item.title}</h3>
-              <p className="text-lg text-[#1a1a1a] leading-snug mt-auto font-medium">{item.desc}</p>
+              <p className="text-lg font-medium opacity-80 mt-auto">{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* How it works - Stark Steps */}
-      <section className="border-b-2 border-[#1a1a1a] bg-[#e8e8e0] px-6 py-24">
+      {/* How it works - Completely Rethought */}
+      <section className="border-b-2 border-[#1a1a1a] bg-[#e8e8e0] px-6 py-24 md:py-32">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row gap-16 md:gap-8">
-            <div className="md:w-1/3">
-              <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none sticky top-32">
-                HOW IT<br/>WORKS.
-              </h2>
-            </div>
-            <div className="md:w-2/3 flex flex-col gap-12 border-l-2 border-[#1a1a1a] pl-8 md:pl-16">
-              {[
-                { step: "1", action: "UPLOAD", desc: "Drag and drop your cut. We process it fast." },
-                { step: "2", action: "SHARE", desc: "Send a link. No account required for clients." },
-                { step: "3", action: "REVIEW", desc: "Click to comment on exact frames. Export to your NLE." },
-              ].map((item, i) => (
-                <div key={i} className="relative">
-                  <span className="absolute -left-[5rem] md:-left-[6rem] top-0 text-6xl md:text-8xl font-black text-[#1a1a1a] opacity-20 leading-none">
-                    {item.step}
-                  </span>
-                  <h3 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-2">{item.action}</h3>
-                  <p className="text-xl text-[#888] font-medium">{item.desc}</p>
+          <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none mb-16 text-center">
+            HOW IT WORKS.
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+            {[
+              { step: "1", action: "UPLOAD", desc: "Drag and drop your cut. We process it instantly." },
+              { step: "2", action: "SHARE", desc: "Send a link. No account required for clients." },
+              { step: "3", action: "REVIEW", desc: "Click to comment on exact frames. Export to your NLE." },
+            ].map((item, i) => (
+              <div key={i} className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_rgba(26,26,26,1)] flex flex-col hover:-translate-y-2 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all">
+                <div className="border-b-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#f0f0e8] p-6 flex justify-between items-end">
+                  <span className="text-7xl font-black leading-none">{item.step}</span>
+                  <span className="text-xl font-bold tracking-widest text-[#888] mb-1">STEP</span>
                 </div>
-              ))}
-            </div>
+                <div className="p-8 flex-grow flex flex-col">
+                  <h3 className="text-3xl md:text-4xl font-black uppercase tracking-tighter mb-4 text-[#2d5a2d]">{item.action}</h3>
+                  <p className="text-lg font-medium text-[#1a1a1a]">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Comparison */}
-      <section className="px-6 py-24 border-b-2 border-[#1a1a1a] bg-[#f0f0e8]">
+      <section className="px-6 py-24 md:py-32 border-b-2 border-[#1a1a1a] bg-[#f0f0e8]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row gap-16">
             <div className="lg:w-1/3">
@@ -147,7 +155,7 @@ export default function Homepage() {
             <div className="lg:w-2/3">
               <div className="grid grid-cols-1 md:grid-cols-2 border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_rgba(26,26,26,1)]">
                 {/* Competitor */}
-                <div className="p-8 md:p-12 border-b-2 md:border-b-0 md:border-r-2 border-[#1a1a1a] bg-white">
+                <div className="p-8 md:p-12 border-b-2 md:border-b-0 md:border-r-2 border-[#1a1a1a] bg-[#ffffff]">
                   <div className="text-sm font-bold tracking-widest text-[#888] mb-2">THE OTHER GUYS</div>
                   <div className="text-5xl font-black tracking-tighter mb-8">Frame.io</div>
                   
@@ -156,7 +164,7 @@ export default function Homepage() {
                     <div className="text-[#888] font-bold uppercase text-sm tracking-wider">Per user / month</div>
                   </div>
 
-                  <ul className="space-y-4 text-lg font-medium">
+                  <ul className="space-y-4 text-lg font-medium text-[#1a1a1a]">
                     <li className="flex items-start gap-3">
                       <span className="text-[#dc2626] font-black">×</span>
                       Complex interface
