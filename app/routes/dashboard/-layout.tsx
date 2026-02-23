@@ -244,15 +244,7 @@ export default function DashboardLayout() {
     );
   }
 
-  if (isAllowed === null) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
-        <div className="text-[#888]">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAllowed) {
+  if (isAllowed === false) {
     return (
       <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
         <div className="max-w-md w-full text-center px-6">
@@ -266,13 +258,19 @@ export default function DashboardLayout() {
           <div className="mt-8 border-t-2 border-[#1a1a1a] pt-6">
             <UserButton
               appearance={{
+                variables: {
+                  colorText: "#1a1a1a",
+                  colorTextSecondary: "#888",
+                  colorBackground: "#f0f0e8",
+                },
                 elements: {
                   avatarBox: "w-9 h-9 rounded-none mx-auto border-2 border-[#1a1a1a]",
                   userButtonPopoverCard:
                     "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
                   userButtonPopoverActionButton:
-                    "text-[#1a1a1a] hover:bg-[#e8e8e0] rounded-none",
-                  userButtonPopoverActionButtonText: "text-[#1a1a1a] font-mono font-bold",
+                    "!text-[#1a1a1a] hover:!bg-[#e8e8e0] rounded-none",
+                  userButtonPopoverActionButtonText: "!text-[#1a1a1a] hover:!text-[#1a1a1a] font-mono font-bold",
+                  userButtonPopoverActionButtonIcon: "!text-[#1a1a1a] hover:!text-[#1a1a1a]",
                   userButtonPopoverFooter: "hidden",
                 },
               }}
@@ -283,8 +281,12 @@ export default function DashboardLayout() {
     );
   }
 
+  // While isAllowed is loading (undefined/null), render the layout invisible
+  // so child components mount and start fetching route data immediately.
+  const ready = isAllowed === true;
+
   return (
-    <div className="relative h-full flex flex-col bg-[#f0f0e8]">
+    <div className={cn("relative h-full flex flex-col bg-[#f0f0e8]", !ready && "invisible")}>
       {/* Main content */}
       <main className="flex-1 overflow-auto flex flex-col">
         <DashboardUploadProvider value={uploadContext}>

@@ -3,6 +3,9 @@ import { UserButton } from "@clerk/tanstack-react-start";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeToggle";
 import React from "react";
+import { useConvex } from "convex/react";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { prewarmDashboardIndex } from "../../app/routes/dashboard/-index.data";
 
 function ThemeToggleButton() {
   const { theme, toggleTheme, mounted } = useTheme();
@@ -37,10 +40,20 @@ export function DashboardHeader({
   children?: React.ReactNode;
   paths?: PathSegment[];
 }) {
+  const convex = useConvex();
+  const prewarmHomeIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmDashboardIndex(convex),
+  );
+
   return (
     <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] bg-[#f0f0e8] flex items-center px-6 h-14 w-full">
       <div className="flex items-center text-xl font-black tracking-tighter text-[#1a1a1a] min-w-0 flex-shrink">
-        <Link to="/dashboard" className="hover:text-[#2d5a2d] transition-colors mr-2">
+        <Link 
+          to="/dashboard" 
+          preload="intent"
+          className="hover:text-[#2d5a2d] transition-colors mr-2"
+          {...prewarmHomeIntentHandlers}
+        >
           lawn.
         </Link>
         {paths.map((path, index) => (
@@ -67,11 +80,17 @@ export function DashboardHeader({
         <ThemeToggleButton />
         <UserButton
           appearance={{
+            variables: {
+              colorText: "#1a1a1a",
+              colorTextSecondary: "#888",
+              colorBackground: "#f0f0e8",
+            },
             elements: {
               avatarBox: "w-8 h-8 rounded-none border-2 border-[#1a1a1a]",
               userButtonPopoverCard: "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
-              userButtonPopoverActionButton: "text-[#1a1a1a] hover:bg-[#e8e8e0] rounded-none",
-              userButtonPopoverActionButtonText: "text-[#1a1a1a] font-mono font-bold",
+              userButtonPopoverActionButton: "!text-[#1a1a1a] hover:!bg-[#e8e8e0] rounded-none",
+              userButtonPopoverActionButtonText: "!text-[#1a1a1a] hover:!text-[#1a1a1a] font-mono font-bold",
+              userButtonPopoverActionButtonIcon: "!text-[#1a1a1a] hover:!text-[#1a1a1a]",
               userButtonPopoverFooter: "hidden",
             },
           }}
