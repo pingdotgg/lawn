@@ -81,7 +81,7 @@ export default function Homepage() {
             <div className="flex flex-col sm:flex-row gap-6 lg:justify-end pb-2">
               <div className="bg-[#f0f0e8] text-[#1a1a1a] px-8 py-5 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)]">
                 <span className="text-4xl font-black">$5/mo</span>
-                <span className="block text-sm font-bold uppercase tracking-wider text-[#888] mt-1">Unlimited seats</span>
+                <span className="block text-sm font-bold uppercase tracking-wider text-[#888] mt-1">100GB storage</span>
               </div>
               <Link to="/sign-up"
                 className="bg-[#1a1a1a] text-[#f0f0e8] px-8 py-5 border-2 border-[#1a1a1a] font-black text-xl hover:bg-[#2d5a2d] transition-colors flex items-center justify-center shadow-[8px_8px_0px_0px_var(--shadow-color)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[6px_6px_0px_0px_var(--shadow-color)]"
@@ -99,7 +99,7 @@ export default function Homepage() {
           {[
             { id: "01", title: "FRAME EXACT", desc: "Drop a marker on the exact frame. No 'at 1:23ish' nonsense." },
             { id: "02", title: "ZERO LATENCY", desc: "Instant playback. Built for speed, not loading spinners." },
-            { id: "03", title: "FLAT PRICING", desc: "$5 covers the whole agency. Stop counting seats." },
+            { id: "03", title: "FLAT PRICING", desc: "$5 for 100GB. $25 for 1TB. Stop counting seats." },
             { id: "04", title: "TOOL AGNOSTIC", desc: "Premiere, Final Cut, Resolve. We don't care. Bring whatever." },
           ].map((item, i) => (
             <div key={i} className="p-8 lg:p-12 group hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors flex flex-col">
@@ -187,7 +187,7 @@ export default function Homepage() {
                   
                   <div className="mb-8">
                     <div className="text-3xl font-black text-[#7cb87c]">$5</div>
-                    <div className="text-[#888] font-bold uppercase text-sm tracking-wider">Flat total / month</div>
+                    <div className="text-[#888] font-bold uppercase text-sm tracking-wider">100GB / Flat / Month</div>
                   </div>
 
                   <ul className="space-y-4 text-lg font-medium">
@@ -225,6 +225,82 @@ export default function Homepage() {
           <a href="https://x.com/theo" target="_blank" rel="noopener noreferrer" className="inline-block border-2 border-[#f0f0e8] px-6 py-3 font-bold uppercase tracking-wider hover:bg-[#f0f0e8] hover:text-[#2d5a2d] transition-colors">
             — Theo
           </a>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="px-6 py-24 md:py-32 border-b-2 border-[#1a1a1a] bg-[#e8e8e0]">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none mb-16 text-center">
+            PRICING.
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Basic */}
+            <div className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_var(--shadow-color)] flex flex-col">
+              <div className="border-b-2 border-[#1a1a1a] p-8">
+                <div className="text-sm font-bold tracking-widest text-[#888] mb-2">STARTER</div>
+                <div className="text-4xl font-black tracking-tighter">Basic</div>
+                <div className="mt-4">
+                  <span className="text-5xl font-black">$5</span>
+                  <span className="text-lg font-bold text-[#888]">/mo</span>
+                </div>
+              </div>
+              <div className="p-8 flex-grow flex flex-col">
+                <ul className="space-y-4 text-lg font-medium text-[#1a1a1a] flex-grow">
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#2d5a2d] font-black">✓</span>
+                    100GB storage
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#2d5a2d] font-black">✓</span>
+                    Unlimited seats
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#2d5a2d] font-black">✓</span>
+                    Unlimited projects
+                  </li>
+                </ul>
+                <Link to="/sign-up"
+                  className="mt-8 block text-center bg-[#1a1a1a] text-[#f0f0e8] px-6 py-4 border-2 border-[#1a1a1a] font-black text-lg uppercase tracking-wider hover:bg-[#2d5a2d] transition-colors"
+                >
+                  START FREE TRIAL
+                </Link>
+              </div>
+            </div>
+
+            {/* Pro */}
+            <div className="bg-[#1a1a1a] text-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_var(--shadow-accent)] flex flex-col">
+              <div className="border-b-2 border-[#333] p-8">
+                <div className="text-sm font-bold tracking-widest text-[#7cb87c] mb-2">FOR TEAMS</div>
+                <div className="text-4xl font-black tracking-tighter text-[#7cb87c]">Pro</div>
+                <div className="mt-4">
+                  <span className="text-5xl font-black text-[#7cb87c]">$25</span>
+                  <span className="text-lg font-bold text-[#888]">/mo</span>
+                </div>
+              </div>
+              <div className="p-8 flex-grow flex flex-col">
+                <ul className="space-y-4 text-lg font-medium flex-grow">
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#7cb87c] font-black">✓</span>
+                    1TB storage
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#7cb87c] font-black">✓</span>
+                    Unlimited seats
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-[#7cb87c] font-black">✓</span>
+                    Unlimited projects
+                  </li>
+                </ul>
+                <Link to="/sign-up"
+                  className="mt-8 block text-center bg-[#7cb87c] text-[#1a1a1a] px-6 py-4 border-2 border-[#7cb87c] font-black text-lg uppercase tracking-wider hover:bg-[#2d5a2d] hover:text-[#f0f0e8] hover:border-[#2d5a2d] transition-colors"
+                >
+                  START FREE TRIAL
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

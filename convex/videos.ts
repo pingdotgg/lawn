@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query, MutationCtx } from "./_generated/server";
 import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { generateUniqueToken } from "./security";
 import { resolveActiveShareGrant } from "./shareAccess";
 
@@ -245,7 +246,15 @@ export const updateWorkflowStatus = mutation({
 export const remove = mutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
-    await requireVideoAccess(ctx, args.videoId, "admin");
+    const { video, project } = await requireVideoAccess(ctx, args.videoId, "admin");
+
+    const fileSize = video.fileSize ?? 0;
+    if (fileSize > 0) {
+      await ctx.scheduler.runAfter(0, internal.billingActions.reclaimStorage, {
+        teamId: project.teamId,
+        bytes: fileSize,
+      });
+    }
 
     const comments = await ctx.db
       .query("comments")
@@ -365,6 +374,19 @@ export const setMuxPlaybackId = internalMutation({
       muxPlaybackId: args.muxPlaybackId,
       thumbnailUrl: args.thumbnailUrl,
     });
+  },
+});
+
+export const getVideoTeamId = internalQuery({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    if (!video) throw new Error("Video not found");
+
+    const project = await ctx.db.get(video.projectId);
+    if (!project) throw new Error("Project not found");
+
+    return { teamId: project.teamId, fileSize: video.fileSize ?? 0 };
   },
 });
 

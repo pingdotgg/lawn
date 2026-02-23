@@ -6,9 +6,7 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     ownerClerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team")),
-    stripeCustomerId: v.optional(v.string()),
-    stripeSubscriptionId: v.optional(v.string()),
+    plan: v.union(v.literal("basic"), v.literal("pro")),
   })
     .index("by_slug", ["slug"])
     .index("by_owner", ["ownerClerkId"]),

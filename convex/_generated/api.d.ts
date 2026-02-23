@@ -9,6 +9,9 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as autumn from "../autumn.js";
+import type * as billing from "../billing.js";
+import type * as billingActions from "../billingActions.js";
 import type * as comments from "../comments.js";
 import type * as http from "../http.js";
 import type * as mux from "../mux.js";
@@ -33,6 +36,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  autumn: typeof autumn;
+  billing: typeof billing;
+  billingActions: typeof billingActions;
   comments: typeof comments;
   http: typeof http;
   mux: typeof mux;
@@ -139,4 +145,5 @@ export declare const components: {
       >;
     };
   };
+  autumn: {};
 };

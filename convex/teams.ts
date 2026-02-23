@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getUser, identityAvatarUrl, identityEmail, identityName, requireUser, requireAllowedUser, requireTeamAccess } from "./auth";
 
 function normalizedEmail(value: string) {
@@ -50,7 +51,7 @@ export const create = mutation({
       name: args.name,
       slug,
       ownerClerkId: user.subject,
-      plan: "free",
+      plan: "basic",
     });
 
     await ctx.db.insert("teamMembers", {
@@ -401,6 +402,24 @@ export const deleteTeam = mutation({
       .query("projects")
       .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
       .collect();
+
+    // Schedule storage reclaim for all video sizes across the team
+    let totalBytes = 0;
+    for (const project of projects) {
+      const projectVideos = await ctx.db
+        .query("videos")
+        .withIndex("by_project", (q) => q.eq("projectId", project._id))
+        .collect();
+      for (const video of projectVideos) {
+        totalBytes += video.fileSize ?? 0;
+      }
+    }
+    if (totalBytes > 0) {
+      await ctx.scheduler.runAfter(0, internal.billingActions.reclaimStorage, {
+        teamId: args.teamId,
+        bytes: totalBytes,
+      });
+    }
 
     for (const project of projects) {
       const videos = await ctx.db

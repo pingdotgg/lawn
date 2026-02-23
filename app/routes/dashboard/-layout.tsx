@@ -4,6 +4,7 @@ import { useConvex, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { AutumnProvider } from "autumn-js/react";
 
 import {
   Outlet,
@@ -286,6 +287,7 @@ export default function DashboardLayout() {
   const ready = isAllowed === true;
 
   return (
+    <AutumnProvider convex={convex} convexApi={(api as Record<string, unknown>).autumn}>
     <div className={cn("relative h-full flex flex-col bg-[#f0f0e8]", !ready && "invisible")}>
       {/* Main content */}
       <main className="flex-1 overflow-auto flex flex-col">
@@ -355,5 +357,6 @@ export default function DashboardLayout() {
         </DialogContent>
       </Dialog>
     </div>
+    </AutumnProvider>
   );
 }

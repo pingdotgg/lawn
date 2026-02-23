@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 
 export const create = mutation({
@@ -10,21 +11,6 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireTeamAccess(ctx, args.teamId, "member");
-
-    const team = await ctx.db.get(args.teamId);
-    if (!team) throw new Error("Team not found");
-
-    // Check plan limits for free tier
-    if (team.plan === "free") {
-      const existingProjects = await ctx.db
-        .query("projects")
-        .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-        .collect();
-
-      if (existingProjects.length >= 1) {
-        throw new Error("Free plan is limited to 1 project. Upgrade to create more.");
-      }
-    }
 
     return await ctx.db.insert("projects", {
       teamId: args.teamId,
@@ -138,13 +124,25 @@ export const update = mutation({
 export const remove = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    await requireProjectAccess(ctx, args.projectId, "admin");
+    const { project } = await requireProjectAccess(ctx, args.projectId, "admin");
 
     // Delete all videos in the project
     const videos = await ctx.db
       .query("videos")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
+
+    // Schedule storage reclaim for all video sizes
+    let totalBytes = 0;
+    for (const video of videos) {
+      totalBytes += video.fileSize ?? 0;
+    }
+    if (totalBytes > 0) {
+      await ctx.scheduler.runAfter(0, internal.billingActions.reclaimStorage, {
+        teamId: project.teamId,
+        bytes: totalBytes,
+      });
+    }
 
     for (const video of videos) {
       // Delete comments

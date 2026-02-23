@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { action, ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { getAutumnSDK } from "./autumn";
 import {
   buildMuxPlaybackUrl,
   buildMuxThumbnailUrl,
@@ -159,6 +160,19 @@ export const getUploadUrl = action({
   handler: async (ctx, args) => {
     await requireVideoMemberAccess(ctx, args.videoId);
 
+    // Check storage limit via Autumn
+    const videoInfo = await ctx.runQuery(internal.videos.getVideoTeamId, {
+      videoId: args.videoId,
+    });
+    const sdk = getAutumnSDK();
+    const checkResult = await sdk.check({
+      customer_id: videoInfo.teamId,
+      feature_id: "storage",
+    });
+    if (checkResult?.data?.allowed === false) {
+      throw new Error("Storage limit reached. Upgrade your plan for more storage.");
+    }
+
     const s3 = getS3Client();
     const ext = getExtensionFromKey(args.filename);
     const key = `videos/${args.videoId}/${Date.now()}.${ext}`;
@@ -211,6 +225,19 @@ export const markUploadComplete = action({
         await ctx.runMutation(internal.videos.setMuxAssetReference, {
           videoId: args.videoId,
           muxAssetId: asset.id,
+        });
+      }
+
+      // Track storage usage after successful Mux ingest
+      const videoInfo = await ctx.runQuery(internal.videos.getVideoTeamId, {
+        videoId: args.videoId,
+      });
+      if (videoInfo.fileSize > 0) {
+        const trackSdk = getAutumnSDK();
+        await trackSdk.track({
+          customer_id: videoInfo.teamId,
+          feature_id: "storage",
+          value: videoInfo.fileSize,
         });
       }
     } catch (error) {
