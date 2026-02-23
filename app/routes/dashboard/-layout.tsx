@@ -12,8 +12,6 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { Home, FolderOpen, Settings, Moon, Sun } from "lucide-react";
-import { useTheme } from "@/components/theme/ThemeToggle";
 import {
   dashboardHomePath,
   teamHomePath,
@@ -49,68 +47,6 @@ function dragEventHasFiles(event: DragEvent) {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-type DashboardNavItemProps = {
-  name: string;
-  href: string;
-  icon: ComponentType<{ className?: string }>;
-  disabled?: boolean;
-  isActive: boolean;
-  prewarm?: () => void | Promise<void>;
-};
-
-function DashboardNavItem({
-  name,
-  href,
-  icon: Icon,
-  disabled,
-  isActive,
-  prewarm,
-}: DashboardNavItemProps) {
-  const prewarmIntentHandlers = useRoutePrewarmIntent(() => prewarm?.());
-
-  return (
-    <Link
-      to={href}
-      preload="intent"
-      aria-disabled={disabled}
-      tabIndex={disabled ? -1 : undefined}
-      className={cn(
-        "w-10 h-10 flex items-center justify-center transition-colors",
-        disabled
-          ? "text-[#c2c2b9] pointer-events-none"
-          : isActive
-          ? "bg-[#1a1a1a] text-[#f0f0e8]"
-          : "text-[#888] hover:bg-[#e8e8e0] hover:text-[#1a1a1a]"
-      )}
-      title={name}
-      {...prewarmIntentHandlers}
-    >
-      <Icon className="h-5 w-5" />
-    </Link>
-  );
-}
-
-function ThemeToggleButton() {
-  const { theme, toggleTheme, mounted } = useTheme();
-
-  if (!mounted) return <div className="w-8 h-8" />;
-
-  return (
-    <button
-      onClick={toggleTheme}
-      className="w-8 h-8 flex items-center justify-center text-[#888] hover:text-[#1a1a1a] hover:bg-[#e8e8e0] transition-colors"
-      title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (⌘⇧L)`}
-      aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-    >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
-    </button>
-  );
-}
-
 export default function DashboardLayout() {
   const { isLoaded, userId } = useAuth();
   const isAllowed = useQuery(api.userAllowed.check);
@@ -132,7 +68,6 @@ export default function DashboardLayout() {
     api.videos.getPublicIdByVideoId,
     routeVideoId ? { videoId: routeVideoId } : "skip",
   );
-  const isProjectPageRoute = !!routeProjectId && !routeVideoId;
   const teamHome = teamSlug ? teamHomePath(teamSlug) : null;
   const settingsPath = teamSlug ? teamSettingsPath(teamSlug) : null;
   const uploadTargets = useQuery(
@@ -148,9 +83,6 @@ export default function DashboardLayout() {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const dragDepthRef = useRef(0);
-  const prewarmHomeIntentHandlers = useRoutePrewarmIntent(() =>
-    prewarmDashboardIndex(convex),
-  );
   const uploadableProjectIds = useMemo(
     () => new Set((uploadTargets ?? []).map((target) => target.projectId)),
     [uploadTargets],
@@ -335,12 +267,12 @@ export default function DashboardLayout() {
             <UserButton
               appearance={{
                 elements: {
-                  avatarBox: "w-9 h-9 rounded-none mx-auto",
+                  avatarBox: "w-9 h-9 rounded-none mx-auto border-2 border-[#1a1a1a]",
                   userButtonPopoverCard:
-                    "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-none",
+                    "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
                   userButtonPopoverActionButton:
                     "text-[#1a1a1a] hover:bg-[#e8e8e0] rounded-none",
-                  userButtonPopoverActionButtonText: "text-[#1a1a1a]",
+                  userButtonPopoverActionButtonText: "text-[#1a1a1a] font-mono font-bold",
                   userButtonPopoverFooter: "hidden",
                 },
               }}
@@ -351,93 +283,10 @@ export default function DashboardLayout() {
     );
   }
 
-  const navigation = [
-    {
-      name: "Home",
-      href: dashboardHomePath(),
-      icon: Home,
-      prewarm: () => prewarmDashboardIndex(convex),
-      isActive: pathname === dashboardHomePath(),
-    },
-    {
-      name: "Projects",
-      href: teamHome ?? dashboardHomePath(),
-      icon: FolderOpen,
-      disabled: !teamHome,
-      prewarm: teamSlug
-        ? () => prewarmTeam(convex, { teamSlug })
-        : undefined,
-      isActive:
-        !!teamHome &&
-        (pathname === teamHome ||
-          (pathname.startsWith(`${teamHome}/`) &&
-            pathname !== settingsPath &&
-            !pathname.startsWith(`${settingsPath}/`))),
-    },
-    {
-      name: "Settings",
-      href: settingsPath ?? dashboardHomePath(),
-      icon: Settings,
-      disabled: !settingsPath,
-      prewarm: teamSlug
-        ? () => prewarmSettings(convex, { teamSlug })
-        : undefined,
-      isActive:
-        !!settingsPath &&
-        (pathname === settingsPath || pathname.startsWith(`${settingsPath}/`)),
-    },
-  ];
-
   return (
-    <div className="relative h-full flex bg-[#f0f0e8]">
-      {/* Sidebar */}
-      <aside className="w-16 border-r-2 border-[#1a1a1a] bg-[#f0f0e8] flex flex-col items-center py-4">
-        {/* Logo */}
-        <Link
-          to={dashboardHomePath()}
-          preload="intent"
-          className="mb-8"
-          {...prewarmHomeIntentHandlers}
-        >
-          <span className="text-lg font-black">l</span>
-        </Link>
-
-        {/* Navigation */}
-        <nav className="flex-1 flex flex-col items-center gap-2">
-          {navigation.map((item) => {
-            return (
-              <DashboardNavItem
-                key={item.name}
-                name={item.name}
-                href={item.href}
-                icon={item.icon}
-                disabled={item.disabled}
-                isActive={item.isActive}
-                prewarm={item.prewarm}
-              />
-            );
-          })}
-        </nav>
-
-        {/* User & Theme */}
-        <div className="mt-auto flex flex-col items-center gap-3">
-          <ThemeToggleButton />
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: "w-9 h-9 rounded-none",
-                userButtonPopoverCard: "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-none",
-                userButtonPopoverActionButton: "text-[#1a1a1a] hover:bg-[#e8e8e0] rounded-none",
-                userButtonPopoverActionButtonText: "text-[#1a1a1a]",
-                userButtonPopoverFooter: "hidden",
-              },
-            }}
-          />
-        </div>
-      </aside>
-
+    <div className="relative h-full flex flex-col bg-[#f0f0e8]">
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto flex flex-col">
         <DashboardUploadProvider value={uploadContext}>
           <Outlet />
         </DashboardUploadProvider>
@@ -454,7 +303,7 @@ export default function DashboardLayout() {
         </div>
       )}
 
-      {!isProjectPageRoute && uploads.length > 0 && (
+      {uploads.length > 0 && (
         <div className="fixed bottom-4 right-4 z-50 w-full max-w-sm space-y-2 px-4 sm:px-0">
           {uploads.map((upload) => (
             <UploadProgress

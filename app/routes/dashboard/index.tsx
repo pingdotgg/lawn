@@ -1,34 +1,45 @@
-
 import { useConvex } from "convex/react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Plus, ArrowRight } from "lucide-react";
+import { Users, Plus, ArrowRight, Folder } from "lucide-react";
 import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { teamHomePath } from "@/lib/routes";
+import { teamHomePath, projectPath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmTeam } from "./-team.data";
+import { prewarmProject } from "./-project.data";
 import { useDashboardIndexData } from "./-index.data";
+import { Id } from "@convex/_generated/dataModel";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
 });
 
-type TeamCardProps = {
-  plan: string;
-  role: string;
-  name: string;
-  slug: string;
+type DashboardProjectCardProps = {
+  teamSlug: string;
+  project: {
+    _id: Id<"projects">;
+    name: string;
+    videoCount: number;
+  };
   onOpen: () => void;
 };
 
-function TeamCardItem({ name, role, plan, slug, onOpen }: TeamCardProps) {
+function DashboardProjectCard({
+  teamSlug,
+  project,
+  onOpen,
+}: DashboardProjectCardProps) {
   const convex = useConvex();
   const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
-    prewarmTeam(convex, { teamSlug: slug }),
+    prewarmProject(convex, {
+      teamSlug,
+      projectId: project._id,
+    }),
   );
 
   return (
@@ -37,18 +48,17 @@ function TeamCardItem({ name, role, plan, slug, onOpen }: TeamCardProps) {
       onClick={onOpen}
       {...prewarmIntentHandlers}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{name}</CardTitle>
-          <Badge variant="secondary">{plan}</Badge>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+        <div className="flex-1 min-w-0">
+          <CardTitle className="text-base truncate">{project.name}</CardTitle>
+          <CardDescription className="mt-1">
+            {project.videoCount} video{project.videoCount !== 1 ? "s" : ""}
+          </CardDescription>
         </div>
-        <CardDescription className="capitalize">
-          {role}
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between text-sm text-[#888] group-hover:text-[#1a1a1a] transition-colors">
-          <span>Open team</span>
+          <span>Open project</span>
           <ArrowRight className="h-4 w-4" />
         </div>
       </CardContent>
@@ -97,39 +107,73 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-black text-[#1a1a1a]">Your teams</h1>
-            <p className="text-[#888] text-sm mt-0.5">Select a team to continue</p>
-          </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New team
-          </Button>
-        </div>
-      </header>
+      <DashboardHeader paths={[{ label: "dashboard" }]}>
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          New team
+        </Button>
+      </DashboardHeader>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 space-y-12">
         <div
           className={cn(
-            "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
+            "transition-opacity duration-300",
             isLoading ? "opacity-0" : "opacity-100"
           )}
         >
-          {teams?.map(
-            (team) =>
-              team && (
-                <TeamCardItem
-                  key={team._id}
-                  name={team.name}
-                  role={team.role}
-                  plan={team.plan}
-                  slug={team.slug}
-                  onOpen={() => navigate({ to: teamHomePath(team.slug) })}
-                />
-              )
-          )}
+          {teams?.map((team) => {
+            if (!team) return null;
+            return (
+              <div key={team._id} className="mb-12 last:mb-0">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-black text-[#1a1a1a]">{team.name}</h2>
+                    <Badge variant="secondary">{team.plan}</Badge>
+                  </div>
+                  <Link 
+                    to={teamHomePath(team.slug)}
+                    className="text-[#888] hover:text-[#1a1a1a] text-sm font-bold flex items-center gap-1 transition-colors"
+                  >
+                    Manage team <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+                
+                {team.projects.length === 0 ? (
+                  <Card className="max-w-sm text-center">
+                    <CardHeader>
+                      <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
+                        <Folder className="h-6 w-6 text-[#888]" />
+                      </div>
+                      <CardTitle className="text-lg">No projects yet</CardTitle>
+                      <CardDescription>
+                        Head over to the team page to create your first project.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => navigate({ to: teamHomePath(team.slug) })}
+                      >
+                        Open team
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {team.projects.map((project) => (
+                      <DashboardProjectCard
+                        key={project._id}
+                        teamSlug={team.slug}
+                        project={project}
+                        onOpen={() => navigate({ to: projectPath(team.slug, project._id) })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

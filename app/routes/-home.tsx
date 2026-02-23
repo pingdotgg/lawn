@@ -70,21 +70,21 @@ export default function Homepage() {
             
             {/* Highly Creative Contrast Subheadline Blocks (Stickers) */}
             <div className="flex flex-col items-start gap-4">
-              <div className="bg-[#f0f0e8] text-[#1a1a1a] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] -rotate-2 origin-bottom-left">
+              <div className="bg-[#f0f0e8] text-[#1a1a1a] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] -rotate-2 origin-bottom-left">
                 <p className="text-2xl md:text-4xl font-black tracking-tight uppercase">Video review for creative teams.</p>
               </div>
-              <div className="bg-[#2d5a2d] text-[#f0f0e8] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] rotate-1 origin-top-left ml-4 md:ml-8">
+              <div className="bg-[#2d5a2d] text-[#f0f0e8] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] rotate-1 origin-top-left ml-4 md:ml-8">
                 <p className="text-xl md:text-3xl font-black tracking-tight uppercase">Less features. No bull$#!t.</p>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-6 lg:justify-end pb-2">
-              <div className="bg-[#f0f0e8] text-[#1a1a1a] px-8 py-5 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_rgba(26,26,26,1)]">
+              <div className="bg-[#f0f0e8] text-[#1a1a1a] px-8 py-5 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)]">
                 <span className="text-4xl font-black">$5/mo</span>
                 <span className="block text-sm font-bold uppercase tracking-wider text-[#888] mt-1">Unlimited seats</span>
               </div>
               <Link to="/sign-up"
-                className="bg-[#1a1a1a] text-[#f0f0e8] px-8 py-5 border-2 border-[#1a1a1a] font-black text-xl hover:bg-[#2d5a2d] transition-colors flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(26,26,26,1)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[6px_6px_0px_0px_rgba(26,26,26,1)]"
+                className="bg-[#1a1a1a] text-[#f0f0e8] px-8 py-5 border-2 border-[#1a1a1a] font-black text-xl hover:bg-[#2d5a2d] transition-colors flex items-center justify-center shadow-[8px_8px_0px_0px_var(--shadow-color)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[6px_6px_0px_0px_var(--shadow-color)]"
               >
                 START FREE TRIAL →
               </Link>
@@ -124,7 +124,7 @@ export default function Homepage() {
               { step: "2", action: "SHARE", desc: "Send a link. No account required for clients." },
               { step: "3", action: "REVIEW", desc: "Click to comment on exact frames. Export to your NLE." },
             ].map((item, i) => (
-              <div key={i} className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_rgba(26,26,26,1)] flex flex-col hover:-translate-y-2 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all">
+              <div key={i} className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_var(--shadow-color)] flex flex-col hover:-translate-y-2 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all">
                 <div className="border-b-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#f0f0e8] p-6 flex justify-between items-end">
                   <span className="text-7xl font-black leading-none">{item.step}</span>
                   <span className="text-xl font-bold tracking-widest text-[#888] mb-1">STEP</span>
@@ -153,7 +153,7 @@ export default function Homepage() {
             </div>
 
             <div className="lg:w-2/3">
-              <div className="grid grid-cols-1 md:grid-cols-2 border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_rgba(26,26,26,1)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_var(--shadow-color)]">
                 {/* Competitor */}
                 <div className="p-8 md:p-12 border-b-2 md:border-b-0 md:border-r-2 border-[#1a1a1a] bg-[#ffffff]">
                   <div className="text-sm font-bold tracking-widest text-[#888] mb-2">THE OTHER GUYS</div>
@@ -238,7 +238,7 @@ export default function Homepage() {
             14 days. No credit card. Zero risk.
           </p>
           <Link to="/sign-up"
-            className="bg-[#1a1a1a] text-[#f0f0e8] px-12 py-6 border-2 border-[#1a1a1a] text-2xl font-black uppercase tracking-wider hover:bg-[#2d5a2d] hover:border-[#2d5a2d] transition-colors shadow-[12px_12px_0px_0px_rgba(45,90,45,0.3)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[8px_8px_0px_0px_rgba(45,90,45,0.3)]"
+            className="bg-[#1a1a1a] text-[#f0f0e8] px-12 py-6 border-2 border-[#1a1a1a] text-2xl font-black uppercase tracking-wider hover:bg-[#2d5a2d] hover:border-[#2d5a2d] transition-colors shadow-[12px_12px_0px_0px_var(--shadow-accent)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[8px_8px_0px_0px_var(--shadow-accent)]"
           >
             START YOUR TRIAL
           </Link>

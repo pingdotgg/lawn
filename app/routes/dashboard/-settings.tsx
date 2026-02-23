@@ -17,6 +17,7 @@ import {
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmTeam } from "./-team.data";
 import { useSettingsData } from "./-settings.data";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 export default function TeamSettingsPage() {
   const params = useParams({ strict: false });
@@ -103,20 +104,14 @@ export default function TeamSettingsPage() {
   );
 
   return (
-    <div className="p-8 max-w-3xl">
-      <Link
-        to={teamHomePath(team.slug)}
-        preload="intent"
-        className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] mb-6 transition-colors"
-        {...prewarmTeamIntentHandlers}
-      >
-        <ArrowLeft className="mr-1 h-4 w-4" />
-        Back to team
-      </Link>
+    <div className="h-full flex flex-col">
+      <DashboardHeader paths={[
+        { label: team.slug, href: teamHomePath(team.slug) },
+        { label: "settings" }
+      ]} />
 
-      <h1 className="text-2xl font-black text-[#1a1a1a] mb-6">Team Settings</h1>
-
-      <div className="space-y-6">
+      <div className="flex-1 overflow-auto p-6 lg:p-8">
+        <div className="max-w-3xl space-y-6 mx-auto">
         {/* General Settings */}
         <Card>
           <CardHeader>
@@ -277,6 +272,8 @@ export default function TeamSettingsPage() {
             </CardContent>
           </Card>
         )}
+      </div>
+
       </div>
 
       {isAdmin && (

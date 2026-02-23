@@ -77,6 +77,8 @@
   /* Borders */
   --border: #1a1a1a;
   --border-subtle: #cccccc;
+  --shadow-color: #1a1a1a;
+  --shadow-accent: rgba(45,90,45,1);
 
   /* Accent - forest green */
   --accent: #2d5a2d;
@@ -112,8 +114,10 @@
   --foreground-inverse: #101410;
 
   /* Borders */
-  --border: #6c796d;
+  --border: #e7ede4;
   --border-subtle: #374038;
+  --shadow-color: #7cb87c;
+  --shadow-accent: #7cb87c;
 
   /* Accent - forest green lifted for dark backgrounds */
   --accent: #7cb87c;
@@ -148,8 +152,10 @@
     --foreground-inverse: #101410;
 
     /* Borders */
-    --border: #6c796d;
+    --border: #e7ede4;
     --border-subtle: #374038;
+    --shadow-color: #7cb87c;
+    --shadow-accent: #7cb87c;
 
     /* Accent - forest green lifted for dark backgrounds */
     --accent: #7cb87c;
@@ -187,7 +193,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist Mono', ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -360,7 +366,7 @@ body {
 [class~="bg-[#f0f0e8]"] { background-color: var(--background) !important; }
 [class~="text-[#f0f0e8]"] { color: var(--foreground-inverse) !important; }
 
-[class~="bg-[#1a1a1a]"] { background-color: var(--surface-strong) !important; }
+[class~="bg-[#1a1a1a]"] { background-color: var(--foreground) !important; }
 [class~="text-[#1a1a1a]"] { color: var(--foreground) !important; }
 [class~="border-[#1a1a1a]"] { border-color: var(--border) !important; }
 
@@ -405,7 +411,7 @@ body {
   background-color: color-mix(in srgb, var(--warning) 10%, transparent) !important;
 }
 
-[class~="hover:bg-[#1a1a1a]"]:hover { background-color: var(--surface-strong) !important; }
+[class~="hover:bg-[#1a1a1a]"]:hover { background-color: var(--foreground) !important; }
 [class~="hover:bg-[#e8e8e0]"]:hover { background-color: var(--surface-alt) !important; }
 [class~="hover:bg-[#d8d8d0]"]:hover { background-color: var(--surface-muted) !important; }
 [class~="hover:bg-[#3a6a3a]"]:hover { background-color: var(--accent-hover) !important; }
@@ -414,6 +420,7 @@ body {
 }
 
 [class~="hover:text-[#1a1a1a]"]:hover { color: var(--foreground) !important; }
+[class~="hover:text-[#f0f0e8]"]:hover { color: var(--foreground-inverse) !important; }
 [class~="hover:text-[#2d5a2d]"]:hover { color: var(--accent) !important; }
 [class~="group-hover:text-[#1a1a1a]"] {
   transition: color 150ms ease;

@@ -17,6 +17,7 @@ import {
 import { formatDuration, formatTimestamp } from "@/lib/utils";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
+import { DashboardHeader } from "@/components/DashboardHeader";
 import {
   ArrowLeft,
   Edit2,
@@ -26,7 +27,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { Id } from "@convex/_generated/dataModel";
-import { projectPath } from "@/lib/routes";
+import { projectPath, teamHomePath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
 import { useVideoData } from "./-video.data";
@@ -243,97 +244,85 @@ export default function VideoPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
-        <Link
-          to={projectPath(resolvedTeamSlug, resolvedProjectId)}
-          preload="intent"
-          className="inline-flex items-center text-sm text-[#888] hover:text-[#1a1a1a] transition-colors mb-3"
-          {...prewarmProjectIntentHandlers}
-        >
-          <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Videos
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {isEditingTitle ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editedTitle}
-                  onChange={(e) => setEditedTitle(e.target.value)}
-                  className="w-64"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleSaveTitle();
-                    if (e.key === "Escape") setIsEditingTitle(false);
-                  }}
-                />
-                <Button size="icon" variant="ghost" onClick={handleSaveTitle}>
-                  <Check className="h-4 w-4" />
-                </Button>
+      <DashboardHeader paths={[
+        { label: resolvedTeamSlug, href: teamHomePath(resolvedTeamSlug) },
+        { label: context?.project?.name ?? "project", href: projectPath(resolvedTeamSlug, resolvedProjectId) },
+        { 
+          label: isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                className="w-64 h-8 text-base font-black tracking-tighter uppercase font-mono"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveTitle();
+                  if (e.key === "Escape") setIsEditingTitle(false);
+                }}
+              />
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveTitle}>
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={() => setIsEditingTitle(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="truncate max-w-[200px] sm:max-w-[300px]">{video.title}</span>
+              {canEdit && (
                 <Button
                   size="icon"
                   variant="ghost"
-                  onClick={() => setIsEditingTitle(false)}
+                  className="h-6 w-6"
+                  onClick={startEditingTitle}
                 >
-                  <X className="h-4 w-4" />
+                  <Edit2 className="h-3 w-3" />
                 </Button>
-              </div>
-            ) : (
-              <>
-                <h1 className="text-xl font-black text-[#1a1a1a]">{video.title}</h1>
-                {canEdit && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={startEditingTitle}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </>
-            )}
-            {video.status !== "ready" && (
-              <Badge
-                variant={video.status === "failed" ? "destructive" : "secondary"}
-              >
-                {video.status === "uploading" && "Uploading"}
-                {video.status === "processing" && "Processing"}
-                {video.status === "failed" && "Failed"}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-4 flex-wrap justify-end">
-            <VideoWorkflowStatusControl
-              status={video.workflowStatus}
-              size="lg"
-              onChange={(workflowStatus) => {
-                void handleUpdateWorkflowStatus(workflowStatus);
-              }}
-            />
-            <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
-              <LinkIcon className="mr-1.5 h-4 w-4" />
-              Share
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 mt-2 text-sm text-[#888]">
-          <span>{video.uploaderName}</span>
+              )}
+              {video.status !== "ready" && (
+                <Badge
+                  variant={video.status === "failed" ? "destructive" : "secondary"}
+                >
+                  {video.status === "uploading" && "Uploading"}
+                  {video.status === "processing" && "Processing"}
+                  {video.status === "failed" && "Failed"}
+                </Badge>
+              )}
+            </div>
+          )
+        }
+      ]}>
+        <div className="flex items-center gap-3 text-xs text-[#888]">
+          <span className="truncate max-w-[100px]">{video.uploaderName}</span>
           {video.duration && (
             <>
               <span className="text-[#ccc]">·</span>
-              <span className="font-mono text-xs">{formatDuration(video.duration)}</span>
+              <span className="font-mono">{formatDuration(video.duration)}</span>
             </>
           )}
-          {comments && comments.length > 0 && (
-            <>
-              <span className="text-[#ccc]">·</span>
-              <span>{comments.length} comments</span>
-            </>
-          )}
-          <VideoWatchers watchers={watchers} className="ml-auto" />
+          <VideoWatchers watchers={watchers} />
         </div>
-      </header>
+        
+        <div className="flex items-center gap-3 flex-shrink-0 border-l-2 border-[#1a1a1a]/20 pl-3 ml-1">
+          <VideoWorkflowStatusControl
+            status={video.workflowStatus}
+            size="lg"
+            onChange={(workflowStatus) => {
+              void handleUpdateWorkflowStatus(workflowStatus);
+            }}
+          />
+          <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
+            <LinkIcon className="mr-1.5 h-4 w-4" />
+            Share
+          </Button>
+        </div>
+      </DashboardHeader>
 
       {/* Main content - horizontal split */}
       <div className="flex-1 flex overflow-hidden">

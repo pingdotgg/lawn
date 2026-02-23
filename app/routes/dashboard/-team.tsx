@@ -34,6 +34,7 @@ import { Id } from "@convex/_generated/dataModel";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
 import { useTeamData } from "./-team.data";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 type TeamProjectCardProps = {
   teamSlug: string;
@@ -187,34 +188,23 @@ export default function TeamPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className={cn(
-          "flex items-center justify-between transition-opacity duration-300",
-          isLoadingData ? "opacity-0" : "opacity-100"
-        )}>
-          <div>
-            <h1 className="text-xl font-black text-[#1a1a1a]">{team?.name ?? "\u00A0"}</h1>
-            <p className="text-[#888] text-sm mt-0.5">Projects</p>
-          </div>
-          <div className="flex gap-2">
-            {canManageMembers && (
-              <Button
-                variant="outline"
-                onClick={() => setMemberDialogOpen(true)}
-              >
-                <Users className="mr-1.5 h-4 w-4" />
-                Members
-              </Button>
-            )}
-            {canCreateProject && (
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                New project
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+      <DashboardHeader paths={[{ label: team?.slug ?? "team" }]}>
+        {canManageMembers && (
+          <Button
+            variant="outline"
+            onClick={() => setMemberDialogOpen(true)}
+          >
+            <Users className="mr-1.5 h-4 w-4" />
+            Members
+          </Button>
+        )}
+        {canCreateProject && (
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            New project
+          </Button>
+        )}
+      </DashboardHeader>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">

@@ -6,11 +6,11 @@ import {
 } from "@/lib/convexRouteData";
 
 export function getDashboardIndexEssentialSpecs() {
-  return [makeRouteQuerySpec(api.teams.list, {})];
+  return [makeRouteQuerySpec(api.teams.listWithProjects, {})];
 }
 
 export function useDashboardIndexData() {
-  const teams = useQuery(api.teams.list);
+  const teams = useQuery(api.teams.listWithProjects);
   return { teams };
 }
 

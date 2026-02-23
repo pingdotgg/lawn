@@ -39,6 +39,7 @@ import { useProjectData } from "./-project.data";
 import { prewarmTeam } from "./-team.data";
 import { prewarmVideo } from "./-video.data";
 import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 type ViewMode = "grid" | "list";
 
@@ -102,7 +103,7 @@ export default function ProjectPage({
     api.videoPresence.listProjectOnlineCounts,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
   );
-  const { requestUpload, uploads, cancelUpload } =
+  const { requestUpload, uploads } =
     useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
@@ -135,9 +136,6 @@ export default function ProjectPage({
     },
     [requestUpload, resolvedProjectId],
   );
-  const projectUploads = resolvedProjectId
-    ? uploads.filter((upload) => upload.projectId === resolvedProjectId)
-    : [];
 
   const handleDeleteVideo = async (videoId: Id<"videos">) => {
     if (!confirm("Are you sure you want to delete this video?")) return;
@@ -187,87 +185,48 @@ export default function ProjectPage({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              to={teamHomePath(resolvedTeamSlug)}
-              preload="intent"
-              className="p-2 -ml-2 text-[#888] hover:text-[#1a1a1a] transition-colors hover:bg-[#e8e8e0]"
-              {...prewarmTeamIntentHandlers}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <div className={cn(
-              "transition-opacity duration-300",
-              isLoadingData ? "opacity-0" : "opacity-100"
-            )}>
-              <h1 className="text-lg font-black text-[#1a1a1a]">
-                {project?.name ?? "\u00A0"}
-              </h1>
-              {project?.description && (
-                <p className="text-[#888] text-sm">{project.description}</p>
+      <DashboardHeader paths={[
+        { label: resolvedTeamSlug, href: teamHomePath(resolvedTeamSlug) },
+        { label: project?.name ?? "\u00A0" }
+      ]}>
+        <div className={cn(
+          "flex items-center gap-2 transition-opacity duration-300 flex-shrink-0",
+          isLoadingData ? "opacity-0" : "opacity-100"
+        )}>
+          {/* View toggle */}
+          <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === "grid"
+                  ? "bg-[#1a1a1a] text-[#f0f0e8]"
+                  : "text-[#888] hover:text-[#1a1a1a]",
               )}
-            </div>
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === "list"
+                  ? "bg-[#1a1a1a] text-[#f0f0e8]"
+                  : "text-[#888] hover:text-[#1a1a1a]",
+              )}
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
           </div>
-          <div className={cn(
-            "flex items-center gap-2 transition-opacity duration-300",
-            isLoadingData ? "opacity-0" : "opacity-100"
-          )}>
-            {/* View toggle */}
-            <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={cn(
-                  "p-1.5 transition-colors",
-                  viewMode === "grid"
-                    ? "bg-[#1a1a1a] text-[#f0f0e8]"
-                    : "text-[#888] hover:text-[#1a1a1a]",
-                )}
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={cn(
-                  "p-1.5 transition-colors",
-                  viewMode === "list"
-                    ? "bg-[#1a1a1a] text-[#f0f0e8]"
-                    : "text-[#888] hover:text-[#1a1a1a]",
-                )}
-              >
-                <LayoutList className="h-4 w-4" />
-              </button>
-            </div>
-            {canUpload && (
-              <UploadButton onFilesSelected={handleFilesSelected} />
-            )}
-          </div>
+          {canUpload && (
+            <UploadButton onFilesSelected={handleFilesSelected} />
+          )}
         </div>
-      </header>
-
-      {/* Upload progress */}
-      {projectUploads.length > 0 && (
-        <div className="flex-shrink-0 border-b-2 border-[#1a1a1a] px-6 py-4 space-y-3">
-          {projectUploads.map((upload) => (
-            <UploadProgress
-              key={upload.id}
-              fileName={upload.file.name}
-              fileSize={upload.file.size}
-              progress={upload.progress}
-              status={upload.status}
-              error={upload.error}
-              bytesPerSecond={upload.bytesPerSecond}
-              estimatedSecondsRemaining={upload.estimatedSecondsRemaining}
-              onCancel={() => cancelUpload(upload.id)}
-            />
-          ))}
-        </div>
-      )}
+      </DashboardHeader>
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {!isLoadingData && videos.length === 0 && projectUploads.length === 0 ? (
+        {!isLoadingData && videos.length === 0 ? (
           <div className="h-full flex items-center justify-center p-6 animate-in fade-in duration-300">
             <DropZone
               onFilesSelected={handleFilesSelected}
@@ -293,7 +252,7 @@ export default function ProjectPage({
                 return (
                   <VideoIntentTarget
                     key={video._id}
-                    className="group cursor-pointer"
+                    className="group cursor-pointer flex flex-col"
                     teamSlug={resolvedTeamSlug}
                     projectId={project._id}
                     videoId={video._id}
@@ -304,7 +263,7 @@ export default function ProjectPage({
                       })
                     }
                   >
-                    <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] transition-colors">
+                    <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:translate-y-[2px] group-hover:translate-x-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)] transition-all">
                       {thumbnailSrc ? (
                         <img
                           src={thumbnailSrc}
@@ -446,7 +405,7 @@ export default function ProjectPage({
                   }
                 >
                   {/* Thumbnail */}
-                  <div className="relative w-44 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0">
+                  <div className="relative w-44 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0 shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:translate-y-[2px] group-hover:translate-x-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)] transition-all">
                     {thumbnailSrc ? (
                       <img
                         src={thumbnailSrc}

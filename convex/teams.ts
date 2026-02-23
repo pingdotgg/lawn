@@ -87,7 +87,50 @@ export const list = query({
       })
     );
 
-    return teams.filter(Boolean);
+    return teams.filter((t): t is NonNullable<typeof t> => Boolean(t));
+  },
+});
+
+export const listWithProjects = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getUser(ctx);
+    if (!user) return [];
+
+    const memberships = await ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
+      .collect();
+
+    const teams = await Promise.all(
+      memberships.map(async (membership) => {
+        const team = await ctx.db.get(membership.teamId);
+        if (!team) return null;
+        
+        const projects = await ctx.db
+          .query("projects")
+          .withIndex("by_team", (q) => q.eq("teamId", team._id))
+          .collect();
+
+        // Get video counts for each project
+        const projectsWithCounts = await Promise.all(
+          projects.map(async (project) => {
+            const videos = await ctx.db
+              .query("videos")
+              .withIndex("by_project", (q) => q.eq("projectId", project._id))
+              .collect();
+            return {
+              ...project,
+              videoCount: videos.length,
+            };
+          })
+        );
+          
+        return { ...team, role: membership.role, projects: projectsWithCounts };
+      })
+    );
+
+    return teams.filter((t): t is NonNullable<typeof t> => Boolean(t));
   },
 });
 
