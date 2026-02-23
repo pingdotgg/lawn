@@ -13,6 +13,9 @@ import {
   RotateCcw,
   RotateCw,
   Timer,
+  Settings2,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 import { cn, formatDuration, formatTimestamp } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
@@ -40,6 +43,13 @@ interface VideoPlayerProps {
   downloadUrl?: string;
   downloadFilename?: string;
   onRequestDownload?: () => Promise<DownloadResult | null | undefined> | DownloadResult | null | undefined;
+  qualityOptionsConfig?: Array<{
+    id: string;
+    label: string;
+    disabled?: boolean;
+  }>;
+  selectedQualityId?: string;
+  onSelectQuality?: (id: string) => void;
 }
 
 export interface VideoPlayerHandle {
@@ -47,6 +57,12 @@ export interface VideoPlayerHandle {
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+const AUTO_QUALITY_LEVEL = -1 as const;
+
+type QualityLevelOption = {
+  level: number;
+  label: string;
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -69,6 +85,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     downloadUrl,
     downloadFilename,
     onRequestDownload,
+    qualityOptionsConfig,
+    selectedQualityId,
+    onSelectQuality,
   },
   ref
 ) {
@@ -93,6 +112,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [isDownloading, setIsDownloading] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const [qualityOptions, setQualityOptions] = useState<QualityLevelOption[]>([]);
+  const [selectedQualityLevel, setSelectedQualityLevel] = useState<number>(AUTO_QUALITY_LEVEL);
 
   const hideControlsTimeoutRef = useRef<number | null>(null);
   const wasPlayingBeforeScrubRef = useRef(false);
@@ -100,6 +122,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const volumeBeforeMuteRef = useRef(1);
   const isPlayingRef = useRef(false);
   const isScrubbingRef = useRef(false);
+  const resumeTimeOnSourceChangeRef = useRef<number | null>(null);
 
   const groupedMarkers = useMemo(() => {
     if (!duration || comments.length === 0) return [] as { position: number; comment: Comment }[];
@@ -299,6 +322,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     showControls();
   }, [loopEnabled, showControls]);
 
+  const applyQualityLevel = useCallback(
+    (level: number) => {
+      const hls = hlsRef.current;
+      if (!hls) return;
+      hls.currentLevel = level;
+      setSelectedQualityLevel(level);
+      setQualityMenuOpen(false);
+      showControls();
+    },
+    [showControls]
+  );
+
   const getTimeFromClientX = useCallback(
     (clientX: number) => {
       const track = trackRef.current;
@@ -387,9 +422,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setDuration(video.duration || 0);
       updateBuffered();
-      if (initialTime && initialTime > 0) {
-        video.currentTime = clamp(initialTime, 0, video.duration || initialTime);
+      const resumeTime = initialTime ?? resumeTimeOnSourceChangeRef.current ?? undefined;
+      if (resumeTime && resumeTime > 0) {
+        video.currentTime = clamp(resumeTime, 0, video.duration || resumeTime);
       }
+      resumeTimeOnSourceChangeRef.current = null;
     };
 
     const handleLoadedData = () => {
@@ -469,6 +506,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     };
 
     const attachSource = async () => {
+      const currentSourceTime = video.currentTime;
+      resumeTimeOnSourceChangeRef.current =
+        currentSourceTime > 0 ? currentSourceTime : resumeTimeOnSourceChangeRef.current;
+
       // Clean up any previous HLS instance.
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -480,6 +521,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setBufferedPercent(0);
       setIsMediaReady(false);
       setIsBuffering(false);
+      setQualityMenuOpen(false);
+      setQualityOptions([]);
+      setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
 
       // Reset the element source before attaching a new one.
       video.removeAttribute("src");
@@ -495,7 +539,31 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           hls.loadSource(src);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            // Metadata events still drive readiness; nothing else needed here.
+            // Populate available manual quality levels and default to auto.
+            const dedupedByHeight = new Map<number, { level: number; bitrate: number }>();
+            hls.levels.forEach((levelInfo, levelIndex) => {
+              const height = levelInfo.height;
+              if (!height) return;
+              const bitrate = levelInfo.bitrate ?? 0;
+              const existing = dedupedByHeight.get(height);
+              if (!existing || bitrate >= existing.bitrate) {
+                dedupedByHeight.set(height, { level: levelIndex, bitrate });
+              }
+            });
+
+            const nextOptions = Array.from(dedupedByHeight.entries())
+              .sort((a, b) => b[0] - a[0])
+              .map(([height, data]) => ({
+                level: data.level,
+                label: `${height}p`,
+              }));
+            setQualityOptions(nextOptions);
+            setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
+          });
+          hls.on(Hls.Events.LEVEL_SWITCHED, () => {
+            if (hls.autoLevelEnabled) {
+              setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
+            }
           });
         } else {
           video.src = src;
@@ -527,6 +595,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     return () => {
       cancelled = true;
+
+      // Save current time before teardown so a source change can resume.
+      const ct = video.currentTime;
+      if (ct > 0) {
+        resumeTimeOnSourceChangeRef.current = ct;
+      }
 
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("loadeddata", handleLoadedData);
@@ -593,9 +667,33 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     };
   }, [contextMenu]);
 
+  useEffect(() => {
+    if (!qualityMenuOpen) return;
+
+    const handleClose = () => setQualityMenuOpen(false);
+    window.addEventListener("click", handleClose);
+    window.addEventListener("blur", handleClose);
+
+    return () => {
+      window.removeEventListener("click", handleClose);
+      window.removeEventListener("blur", handleClose);
+    };
+  }, [qualityMenuOpen]);
+
   const displayTime = isScrubbing ? scrubTime : currentTime;
   const playedPercent = duration > 0 ? clamp(displayTime / duration, 0, 1) : 0;
   const canDownload = allowDownload && (Boolean(downloadUrl) || Boolean(onRequestDownload));
+  const isHls = isHlsSource(src);
+  const hasExternalQualityOptions = Boolean(qualityOptionsConfig && qualityOptionsConfig.length > 0);
+  const qualityLabel = useMemo(() => {
+    if (hasExternalQualityOptions) {
+      return qualityOptionsConfig?.find((option) => option.id === selectedQualityId)?.label ?? "Quality";
+    }
+    if (!isHls) return "Original";
+    if (selectedQualityLevel === AUTO_QUALITY_LEVEL) return "Auto";
+    return qualityOptions.find((option) => option.level === selectedQualityLevel)?.label ?? "Auto";
+  }, [hasExternalQualityOptions, isHls, qualityOptions, qualityOptionsConfig, selectedQualityId, selectedQualityLevel]);
+  const hasManualQualityOptions = isHls && qualityOptions.length > 0;
 
   return (
     <div className={cn("relative", className)}>
@@ -642,6 +740,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         onContextMenu={(e) => {
           e.preventDefault();
           showControls();
+          setQualityMenuOpen(false);
           const rect = e.currentTarget.getBoundingClientRect();
           const menuWidth = 180;
           const menuHeight = 120;
@@ -863,6 +962,80 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                 >
                   {playbackRate}x
                 </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showControls();
+                      setQualityMenuOpen((current) => !current);
+                    }}
+                    className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
+                    aria-label={`Quality ${qualityLabel}`}
+                    title="Quality settings"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    {qualityLabel}
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+
+                  {qualityMenuOpen && (
+                    <div
+                      className="absolute right-0 bottom-11 z-30 min-w-[170px] rounded-lg border border-white/10 bg-black/90 p-1.5 text-sm text-white shadow-2xl backdrop-blur"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {hasExternalQualityOptions ? (
+                        <>
+                          {qualityOptionsConfig?.map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              onClick={() => {
+                                if (option.disabled) return;
+                                onSelectQuality?.(option.id);
+                                setQualityMenuOpen(false);
+                                showControls();
+                              }}
+                              disabled={option.disabled}
+                              className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <span>{option.label}</span>
+                              {selectedQualityId === option.id && <Check className="h-4 w-4" />}
+                            </button>
+                          ))}
+                        </>
+                      ) : hasManualQualityOptions ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => applyQualityLevel(AUTO_QUALITY_LEVEL)}
+                            className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
+                          >
+                            <span>Auto</span>
+                            {selectedQualityLevel === AUTO_QUALITY_LEVEL && <Check className="h-4 w-4" />}
+                          </button>
+                          {qualityOptions.map((option) => (
+                            <button
+                              key={option.level}
+                              type="button"
+                              onClick={() => applyQualityLevel(option.level)}
+                              className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
+                            >
+                              <span>{option.label}</span>
+                              {selectedQualityLevel === option.level && <Check className="h-4 w-4" />}
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/85">
+                          <span>{isHls ? "Auto (browser)" : "Original source"}</span>
+                          <Check className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {canDownload && (
                   <button

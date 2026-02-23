@@ -60,8 +60,8 @@ export default defineSchema({
     uploaderName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
-    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
-    publicId: v.optional(v.string()),
+    visibility: v.union(v.literal("public"), v.literal("private")),
+    publicId: v.string(),
     // Mux video references
     muxUploadId: v.optional(v.string()),
     muxAssetId: v.optional(v.string()),
@@ -86,19 +86,10 @@ export default defineSchema({
       v.literal("ready"),
       v.literal("failed")
     ),
-    workflowStatus: v.optional(
-      v.union(
-        // Current workflow states
-        v.literal("review"),
-        v.literal("rework"),
-        v.literal("done"),
-        // Legacy states kept for backwards compatibility with existing docs
-        v.literal("needs_review"),
-        v.literal("needs_feedback_addressed"),
-        v.literal("todo"),
-        v.literal("in_review"),
-        v.literal("approved")
-      )
+    workflowStatus: v.union(
+      v.literal("review"),
+      v.literal("rework"),
+      v.literal("done"),
     ),
   })
     .index("by_project", ["projectId"])

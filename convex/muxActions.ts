@@ -178,28 +178,27 @@ export const processWebhook = internalAction({
             break;
           }
 
-          const asset = await getMuxAsset(assetId);
-          const resolvedPassthrough =
-            asString(asset.passthrough) ?? asString(data.passthrough);
-          const assetPlaybackIds = asset.playback_ids as MuxData["playback_ids"];
-          const playbackId =
-            getPreferredPlaybackId(assetPlaybackIds) ??
-            getPreferredPlaybackId(data.playback_ids);
+          let resolvedPassthrough = asString(data.passthrough);
+          let playbackId = getPreferredPlaybackId(data.playback_ids);
+          let duration =
+            typeof data.duration === "number" ? data.duration : undefined;
 
-          console.log("Mux asset details fetched", {
-            eventType,
-            assetId,
-            passthrough: resolvedPassthrough,
-            duration: typeof asset.duration === "number" ? asset.duration : undefined,
-            playbackIds: summarizePlaybackIds(assetPlaybackIds),
-          });
+          if (!resolvedPassthrough || !playbackId || duration === undefined) {
+            const asset = await getMuxAsset(assetId);
+            const assetPlaybackIds = asset.playback_ids as MuxData["playback_ids"];
+
+            resolvedPassthrough = resolvedPassthrough ?? asString(asset.passthrough);
+            playbackId = playbackId ?? getPreferredPlaybackId(assetPlaybackIds);
+            duration =
+              duration ??
+              (typeof asset.duration === "number" ? asset.duration : undefined);
+          }
 
           if (!playbackId) {
             console.error("Mux asset.ready missing playback id", {
               eventType,
               assetId,
               dataPlaybackIds: summarizePlaybackIds(data.playback_ids),
-              assetPlaybackIds: summarizePlaybackIds(assetPlaybackIds),
             });
             break;
           }
@@ -226,12 +225,7 @@ export const processWebhook = internalAction({
             videoId,
             muxAssetId: assetId,
             muxPlaybackId: playbackId,
-            duration:
-              typeof asset.duration === "number"
-                ? asset.duration
-                : typeof data.duration === "number"
-                  ? data.duration
-                  : undefined,
+            duration,
             thumbnailUrl: buildMuxThumbnailUrl(playbackId),
           });
           console.log("Marked video ready from Mux webhook", {

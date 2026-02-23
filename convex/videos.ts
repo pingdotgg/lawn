@@ -17,25 +17,9 @@ type WorkflowStatus =
   | "review"
   | "rework"
   | "done";
-type StoredWorkflowStatus =
-  | WorkflowStatus
-  | "needs_review"
-  | "needs_feedback_addressed"
-  | "todo"
-  | "in_review"
-  | "approved"
-  | undefined;
 
-function normalizeWorkflowStatus(status: StoredWorkflowStatus): WorkflowStatus {
-  if (status === "done" || status === "approved") return "done";
-  if (
-    status === "rework" ||
-    status === "needs_feedback_addressed" ||
-    status === "in_review"
-  ) {
-    return "rework";
-  }
-  return "review";
+function normalizeWorkflowStatus(status: WorkflowStatus | undefined): WorkflowStatus {
+  return status ?? "review";
 }
 
 async function generatePublicId(ctx: MutationCtx) {
@@ -356,18 +340,6 @@ export const markAsFailed = internalMutation({
   },
 });
 
-export const setOriginalBucketKey = internalMutation({
-  args: {
-    videoId: v.id("videos"),
-    s3Key: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.videoId, {
-      s3Key: args.s3Key,
-    });
-  },
-});
-
 export const setMuxAssetReference = internalMutation({
   args: {
     videoId: v.id("videos"),
@@ -438,42 +410,6 @@ export const getVideoByMuxAssetId = internalQuery({
   },
 });
 
-export const listVideosForPlaybackMigration = internalQuery({
-  args: {
-    cursor: v.optional(v.string()),
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.object({
-    cursor: v.string(),
-    done: v.boolean(),
-    videos: v.array(
-      v.object({
-        videoId: v.id("videos"),
-        muxAssetId: v.union(v.string(), v.null()),
-        muxPlaybackId: v.union(v.string(), v.null()),
-        status: v.string(),
-      }),
-    ),
-  }),
-  handler: async (ctx, args) => {
-    const page = await ctx.db.query("videos").paginate({
-      cursor: args.cursor ?? null,
-      numItems: Math.max(1, Math.min(args.batchSize ?? 50, 200)),
-    });
-
-    return {
-      cursor: page.continueCursor,
-      done: page.isDone,
-      videos: page.page.map((video) => ({
-        videoId: video._id,
-        muxAssetId: video.muxAssetId ?? null,
-        muxPlaybackId: video.muxPlaybackId ?? null,
-        status: video.status,
-      })),
-    };
-  },
-});
-
 export const getVideoForPlayback = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
@@ -506,49 +442,5 @@ export const updateDuration = mutation({
   handler: async (ctx, args) => {
     await requireVideoAccess(ctx, args.videoId, "member");
     await ctx.db.patch(args.videoId, { duration: args.duration });
-  },
-});
-
-export const backfillVisibilityAndPublicIds = internalMutation({
-  args: {
-    cursor: v.optional(v.string()),
-    batchSize: v.optional(v.number()),
-  },
-  returns: v.object({
-    cursor: v.string(),
-    done: v.boolean(),
-    scanned: v.number(),
-    updated: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    const page = await ctx.db.query("videos").paginate({
-      cursor: args.cursor ?? null,
-      numItems: Math.max(1, Math.min(args.batchSize ?? 50, 200)),
-    });
-
-    let updated = 0;
-    for (const video of page.page) {
-      const updates: Partial<{ visibility: "public" | "private"; publicId: string }> = {};
-
-      if (!video.visibility) {
-        updates.visibility = "private";
-      }
-
-      if (!video.publicId) {
-        updates.publicId = await generatePublicId(ctx);
-      }
-
-      if (Object.keys(updates).length > 0) {
-        await ctx.db.patch(video._id, updates);
-        updated += 1;
-      }
-    }
-
-    return {
-      cursor: page.continueCursor,
-      done: page.isDone,
-      scanned: page.page.length,
-      updated,
-    };
   },
 });

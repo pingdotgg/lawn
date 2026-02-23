@@ -56,6 +56,7 @@ export default function VideoPage() {
   const updateVideo = useMutation(api.videos.update);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getPlaybackSession = useAction(api.videoActions.getPlaybackSession);
+  const getOriginalPlaybackUrl = useAction(api.videoActions.getOriginalPlaybackUrl);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -70,9 +71,21 @@ export default function VideoPage() {
     posterUrl: string;
   } | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
+  const [originalPlaybackUrl, setOriginalPlaybackUrl] = useState<string | null>(null);
+  const [isLoadingOriginalPlayback, setIsLoadingOriginalPlayback] = useState(false);
+  const [preferredSource, setPreferredSource] = useState<"mux720" | "original">("original");
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const playbackUrl = playbackSession?.url ?? null;
+  const activePlaybackUrl =
+    preferredSource === "mux720"
+      ? playbackUrl ?? originalPlaybackUrl
+      : originalPlaybackUrl ?? playbackUrl;
+  const activeQualityId =
+    activePlaybackUrl && playbackUrl && activePlaybackUrl === playbackUrl
+      ? "mux720"
+      : "original";
+  const isUsingOriginalFallback = Boolean(activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
@@ -121,6 +134,35 @@ export default function VideoPage() {
       cancelled = true;
     };
   }, [getPlaybackSession, isPlayable, resolvedVideoId, video?.muxPlaybackId]);
+
+  useEffect(() => {
+    if (!resolvedVideoId || !video || video.status === "uploading" || video.status === "failed") {
+      setOriginalPlaybackUrl(null);
+      setIsLoadingOriginalPlayback(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingOriginalPlayback(true);
+
+    void getOriginalPlaybackUrl({ videoId: resolvedVideoId })
+      .then((result) => {
+        if (cancelled) return;
+        setOriginalPlaybackUrl(result.url);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOriginalPlaybackUrl(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsLoadingOriginalPlayback(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getOriginalPlaybackUrl, resolvedVideoId, video?.status, video?.s3Key]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -298,13 +340,20 @@ export default function VideoPage() {
         {/* Video player area */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <div className="flex-1 p-6 overflow-auto">
-            {video.status === "ready" && playbackUrl ? (
+            {activePlaybackUrl ? (
               <div className="h-full flex flex-col">
                 <div className="flex-1 flex items-center justify-center">
                   <div className="w-full max-w-6xl">
+                    {video.status === "processing" && isUsingOriginalFallback ? (
+                      <div className="mb-3 flex items-center gap-2 border border-[#1a1a1a] bg-[#e8e8e0] px-3 py-2 text-sm text-[#1a1a1a]">
+                        <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-[#2d5a2d]" />
+                        <span className="font-semibold">Original playback active.</span>
+                        <span className="text-[#666]">720p stream is still encoding.</span>
+                      </div>
+                    ) : null}
                     <VideoPlayer
                       ref={playerRef}
-                      src={playbackUrl}
+                      src={activePlaybackUrl}
                       poster={playbackSession?.posterUrl}
                       comments={comments || []}
                       onTimeUpdate={handleTimeUpdate}
@@ -312,6 +361,24 @@ export default function VideoPage() {
                       allowDownload={video.status === "ready"}
                       downloadFilename={`${video.title}.mp4`}
                       onRequestDownload={requestDownload}
+                      qualityOptionsConfig={[
+                        {
+                          id: "mux720",
+                          label: playbackUrl ? "720p" : "720p (encoding...)",
+                          disabled: !playbackUrl,
+                        },
+                        {
+                          id: "original",
+                          label: "Original",
+                          disabled: !originalPlaybackUrl,
+                        },
+                      ]}
+                      selectedQualityId={activeQualityId}
+                      onSelectQuality={(id) => {
+                        if (id === "mux720" || id === "original") {
+                          setPreferredSource(id);
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -373,7 +440,11 @@ export default function VideoPage() {
                         <p className="text-[#888]">Uploading...</p>
                       )}
                       {video.status === "processing" && (
-                        <p className="text-[#888]">Processing video...</p>
+                        <p className="text-[#888]">
+                          {isLoadingOriginalPlayback
+                            ? "Preparing original playback..."
+                            : "Processing video..."}
+                        </p>
                       )}
                       {video.status === "failed" && (
                         <p className="text-[#dc2626]">Processing failed</p>
