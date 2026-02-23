@@ -22,7 +22,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico" },
+      { rel: "icon", type: "image/svg+xml", href: "/grass-logo.svg?v=3" },
       { rel: "preconnect", href: "https://stream.mux.com", crossOrigin: "anonymous" },
       { rel: "preconnect", href: "https://image.mux.com", crossOrigin: "anonymous" },
       { rel: "dns-prefetch", href: "//stream.mux.com" },
