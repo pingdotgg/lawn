@@ -61,6 +61,21 @@ export async function getIdentity(ctx: ActionCtx) {
   return identity;
 }
 
+export async function requireAllowedUser(ctx: QueryCtx | MutationCtx) {
+  const user = await requireUser(ctx);
+
+  const record = await ctx.db
+    .query("userAllowed")
+    .withIndex("by_user", (q) => q.eq("userId", user.subject))
+    .unique();
+
+  if (!record?.allowed) {
+    throw new Error("Account not yet approved");
+  }
+
+  return user;
+}
+
 const ROLE_HIERARCHY = {
   owner: 4,
   admin: 3,

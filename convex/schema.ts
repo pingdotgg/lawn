@@ -142,4 +142,9 @@ export default defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_share_link", ["shareLinkId"]),
+
+  userAllowed: defineTable({
+    userId: v.string(),
+    allowed: v.boolean(),
+  }).index("by_user", ["userId"]),
 });

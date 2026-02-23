@@ -1,6 +1,6 @@
 
 import { UserButton, useAuth } from "@clerk/tanstack-react-start";
-import { useConvex, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -113,6 +113,9 @@ function ThemeToggleButton() {
 
 export default function DashboardLayout() {
   const { isLoaded, userId } = useAuth();
+  const isAllowed = useQuery(api.userAllowed.check);
+  const ensureUserAllowed = useMutation(api.userAllowed.ensure);
+  const hasEnsuredRef = useRef(false);
   const location = useLocation();
   const { pathname, searchStr } = location;
   const params = useParams({ strict: false });
@@ -283,6 +286,12 @@ export default function DashboardLayout() {
     window.location.replace(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
   }, [isLoaded, userId, pathname, searchStr, routeVideoId, publicPlaybackId]);
 
+  useEffect(() => {
+    if (!userId || hasEnsuredRef.current) return;
+    hasEnsuredRef.current = true;
+    void ensureUserAllowed();
+  }, [userId, ensureUserAllowed]);
+
   if (!isLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
@@ -298,6 +307,45 @@ export default function DashboardLayout() {
           {isResolvingPublicPlaybackExemption
             ? "Checking public playback access..."
             : "Redirecting to sign in..."}
+        </div>
+      </div>
+    );
+  }
+
+  if (isAllowed === null) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
+        <div className="text-[#888]">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAllowed) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
+        <div className="max-w-md w-full text-center px-6">
+          <h1 className="text-4xl font-black text-[#1a1a1a] tracking-tight">
+            You&apos;re on the list
+          </h1>
+          <p className="mt-4 text-[#888] text-sm leading-relaxed">
+            Your account is pending approval. You&apos;ll get access once
+            we&apos;ve reviewed your request.
+          </p>
+          <div className="mt-8 border-t-2 border-[#1a1a1a] pt-6">
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-9 h-9 rounded-none mx-auto",
+                  userButtonPopoverCard:
+                    "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-none",
+                  userButtonPopoverActionButton:
+                    "text-[#1a1a1a] hover:bg-[#e8e8e0] rounded-none",
+                  userButtonPopoverActionButtonText: "text-[#1a1a1a]",
+                  userButtonPopoverFooter: "hidden",
+                },
+              }}
+            />
+          </div>
         </div>
       </div>
     );
