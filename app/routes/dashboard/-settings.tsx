@@ -76,8 +76,9 @@ export default function TeamSettingsPage() {
   const [billingError, setBillingError] = useState<string | null>(null);
 
   const canonicalSettingsPath = context ? `${context.canonicalPath}/settings` : null;
+  const isSettingsPath = pathname.endsWith("/settings");
   const shouldCanonicalize =
-    !!canonicalSettingsPath && pathname !== canonicalSettingsPath;
+    isSettingsPath && !!canonicalSettingsPath && pathname !== canonicalSettingsPath;
 
   useEffect(() => {
     if (shouldCanonicalize && canonicalSettingsPath) {
