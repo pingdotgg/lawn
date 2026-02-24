@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
+import { assertTeamHasActiveSubscription } from "./billingHelpers";
 
 export const create = mutation({
   args: {
@@ -10,21 +11,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireTeamAccess(ctx, args.teamId, "member");
-
-    const team = await ctx.db.get(args.teamId);
-    if (!team) throw new Error("Team not found");
-
-    // Check plan limits for free tier
-    if (team.plan === "free") {
-      const existingProjects = await ctx.db
-        .query("projects")
-        .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-        .collect();
-
-      if (existingProjects.length >= 1) {
-        throw new Error("Free plan is limited to 1 project. Upgrade to create more.");
-      }
-    }
+    await assertTeamHasActiveSubscription(ctx, args.teamId);
 
     return await ctx.db.insert("projects", {
       teamId: args.teamId,

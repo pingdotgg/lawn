@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { cn } from "@/lib/utils";
-import { projectPath } from "@/lib/routes";
+import { projectPath, teamSettingsPath } from "@/lib/routes";
 import { Id } from "@convex/_generated/dataModel";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
@@ -121,7 +121,7 @@ export default function TeamPage() {
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
-  const { context, team, projects } = useTeamData({ teamSlug });
+  const { context, team, projects, billing } = useTeamData({ teamSlug });
   const createProject = useMutation(api.projects.create);
   const deleteProject = useMutation(api.projects.remove);
 
@@ -141,6 +141,7 @@ export default function TeamPage() {
 
   const isLoadingData =
     context === undefined ||
+    billing === undefined ||
     projects === undefined ||
     shouldCanonicalize;
 
@@ -183,12 +184,23 @@ export default function TeamPage() {
   };
 
   const canManageMembers = team?.role === "owner" || team?.role === "admin";
-  const canCreateProject = team?.role !== "viewer";
+  const hasActiveSubscription = billing?.hasActiveSubscription ?? false;
+  const canCreateProject = team?.role !== "viewer" && hasActiveSubscription;
+  const canAccessBilling = team?.role === "owner";
+  const billingPath = team ? teamSettingsPath(team.slug) : null;
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <DashboardHeader paths={[{ label: team?.slug ?? "team" }]}>
+        {canAccessBilling && team && (
+          <Button
+            variant="outline"
+            onClick={() => navigate({ to: billingPath ?? teamSettingsPath(team.slug) })}
+          >
+            Billing
+          </Button>
+        )}
         {canManageMembers && (
           <Button
             variant="outline"
@@ -208,6 +220,28 @@ export default function TeamPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
+        {!isLoadingData && !hasActiveSubscription && canAccessBilling && (
+          <Card className="mb-6 border-[#1a1a1a]">
+            <CardHeader>
+              <CardTitle>Set up billing to create projects</CardTitle>
+              <CardDescription>
+                This team has no active subscription. Go to Billing to start Basic or Pro before
+                creating projects.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (!billingPath) return;
+                  navigate({ to: billingPath });
+                }}
+              >
+                Go to Billing
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {!isLoadingData && projects.length === 0 ? (
           <div className="h-full flex items-center justify-center animate-in fade-in duration-300">
             <Card className="max-w-sm text-center">
@@ -217,7 +251,9 @@ export default function TeamPage() {
                 </div>
                 <CardTitle className="text-lg">No projects yet</CardTitle>
                 <CardDescription>
-                  Create your first project to start uploading videos.
+                  {hasActiveSubscription
+                    ? "Create your first project to start uploading videos."
+                    : "Activate billing first, then create your first project."}
                 </CardDescription>
               </CardHeader>
               {canCreateProject && (
@@ -228,6 +264,20 @@ export default function TeamPage() {
                   >
                     <Plus className="mr-1.5 h-4 w-4" />
                     Create project
+                  </Button>
+                </CardContent>
+              )}
+              {!canCreateProject && canAccessBilling && (
+                <CardContent>
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    onClick={() => {
+                      if (!billingPath) return;
+                      navigate({ to: billingPath });
+                    }}
+                  >
+                    Go to Billing
                   </Button>
                 </CardContent>
               )}

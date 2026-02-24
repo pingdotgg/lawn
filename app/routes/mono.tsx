@@ -27,7 +27,7 @@ export default function HomepageMono() {
         </div>
         <div className="flex gap-4 text-sm">
           <Link to="/sign-in" className="hover:underline">Sign In</Link>
-          <Link to="/sign-up" className="font-bold underline underline-offset-4">Start Free</Link>
+          <Link to="/sign-up" className="font-bold underline underline-offset-4">Start</Link>
         </div>
       </nav>
 
@@ -57,7 +57,7 @@ export default function HomepageMono() {
             <Link to="/sign-up"
               className="border-2 border-[#1a1a1a] px-6 py-4 font-bold hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors"
             >
-              Start Free Trial →
+              Get Started →
             </Link>
           </div>
         </div>
@@ -171,17 +171,17 @@ export default function HomepageMono() {
       <section className="px-6 py-24">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-5xl sm:text-6xl font-black">
-            Try lawn free
+            Pick your plan
           </h2>
           <p className="text-xl text-[#888] mt-4 mb-8">
-            14 days. No credit card. See if it's right for you.
+            Basic is $5/month. Pro is $25/month.
           </p>
           <Link to="/sign-up"
             className="inline-block bg-[#2d5a2d] text-[#f0f0e8] px-12 py-5 text-xl font-black hover:bg-[#3a6a3a] transition-colors"
           >
-            Start Free Trial
+            Start with Basic
           </Link>
-          <p className="mt-4 text-sm text-[#888]">$5/month after trial</p>
+          <p className="mt-4 text-sm text-[#888]">Upgrade to Pro anytime</p>
         </div>
       </section>
 

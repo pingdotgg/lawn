@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { getUser, identityAvatarUrl, identityEmail, identityName, requireUser, requireAllowedUser, requireTeamAccess } from "./auth";
 
 function normalizedEmail(value: string) {
@@ -50,7 +50,8 @@ export const create = mutation({
       name: args.name,
       slug,
       ownerClerkId: user.subject,
-      plan: "free",
+      plan: "basic",
+      billingStatus: "not_subscribed",
     });
 
     await ctx.db.insert("teamMembers", {
@@ -131,6 +132,16 @@ export const listWithProjects = query({
     );
 
     return teams.filter((t): t is NonNullable<typeof t> => Boolean(t));
+  },
+});
+
+export const get = query({
+  args: { teamId: v.id("teams") },
+  handler: async (ctx, args) => {
+    const { membership } = await requireTeamAccess(ctx, args.teamId);
+    const team = await ctx.db.get(args.teamId);
+    if (!team) return null;
+    return { ...team, role: membership.role };
   },
 });
 
@@ -441,5 +452,19 @@ export const deleteTeam = mutation({
     }
 
     await ctx.db.delete(args.teamId);
+  },
+});
+
+export const linkStripeCustomer = internalMutation({
+  args: {
+    teamId: v.id("teams"),
+    stripeCustomerId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.teamId, {
+      stripeCustomerId: args.stripeCustomerId,
+    });
+    return null;
   },
 });

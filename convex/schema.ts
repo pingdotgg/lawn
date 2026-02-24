@@ -6,12 +6,21 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     ownerClerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("team")),
+    plan: v.union(
+      v.literal("basic"),
+      v.literal("pro"),
+      v.literal("free"),
+      v.literal("team")
+    ),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
+    stripePriceId: v.optional(v.string()),
+    billingStatus: v.optional(v.string()),
   })
     .index("by_slug", ["slug"])
-    .index("by_owner", ["ownerClerkId"]),
+    .index("by_owner", ["ownerClerkId"])
+    .index("by_stripe_customer_id", ["stripeCustomerId"])
+    .index("by_stripe_subscription_id", ["stripeSubscriptionId"]),
 
   teamMembers: defineTable({
     teamId: v.id("teams"),

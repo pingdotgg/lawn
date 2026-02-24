@@ -63,7 +63,15 @@ bun run lint
 - `MUX_TOKEN_ID`
 - `MUX_TOKEN_SECRET`
 - `MUX_WEBHOOK_SECRET`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_BASIC_MONTHLY`
+- `STRIPE_PRICE_PRO_MONTHLY`
 - Convex deployment vars as needed (`CONVEX_DEPLOYMENT`, etc.)
+
+Stripe webhook endpoint (for the Convex Stripe component):
+
+- `https://<your-deployment>.convex.site/stripe/webhook`
 
 ## Design Language
 

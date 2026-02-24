@@ -45,7 +45,7 @@ export default function Homepage() {
         </div>
         <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
           <Link to="/sign-in" className="hover:underline underline-offset-4">Log in</Link>
-          <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start Free</Link>
+          <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start</Link>
         </div>
       </nav>
 
@@ -234,15 +234,15 @@ export default function Homepage() {
       <section className="px-6 py-32 bg-[#f0f0e8]">
         <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
           <h2 className="text-7xl md:text-9xl font-black uppercase tracking-tighter leading-[0.8] mb-8">
-            TRY IT<br/>FREE.
+            START<br/>NOW.
           </h2>
           <p className="text-2xl text-[#888] font-medium mb-12">
-            14 days. No credit card. Zero risk.
+            Basic is $5/month. Pro is $25/month.
           </p>
           <Link to="/sign-up"
             className="bg-[#1a1a1a] text-[#f0f0e8] px-12 py-6 border-2 border-[#1a1a1a] text-2xl font-black uppercase tracking-wider hover:bg-[#2d5a2d] hover:border-[#2d5a2d] transition-colors shadow-[12px_12px_0px_0px_var(--shadow-accent)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[8px_8px_0px_0px_var(--shadow-accent)]"
           >
-            START YOUR TRIAL
+            CREATE YOUR TEAM
           </Link>
         </div>
       </section>
