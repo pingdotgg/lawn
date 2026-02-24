@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getUser, identityAvatarUrl, identityEmail, identityName, requireUser, requireAllowedUser, requireTeamAccess } from "./auth";
+import { getTeamSubscriptionState } from "./billingHelpers";
 
 function normalizedEmail(value: string) {
   return value.trim().toLowerCase();
@@ -388,6 +389,12 @@ export const deleteTeam = mutation({
   args: { teamId: v.id("teams") },
   handler: async (ctx, args) => {
     await requireTeamAccess(ctx, args.teamId, "owner");
+    const subscriptionState = await getTeamSubscriptionState(ctx, args.teamId);
+    if (subscriptionState.hasActiveSubscription) {
+      throw new Error(
+        "Cannot delete a team with an active subscription. Cancel billing first in team settings.",
+      );
+    }
 
     // Delete all team members
     const members = await ctx.db

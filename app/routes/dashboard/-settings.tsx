@@ -110,6 +110,7 @@ export default function TeamSettingsPage() {
   const subscriptionStatus = billing?.subscriptionStatus ?? "not_subscribed";
   const hasPortalAccess = isOwner && Boolean(billing?.stripeCustomerId);
   const currentPlanLabel = hasActiveSubscription ? planConfig.label : "Unpaid";
+  const canDeleteTeam = isOwner && !hasActiveSubscription;
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
@@ -122,6 +123,13 @@ export default function TeamSettingsPage() {
   };
 
   const handleDeleteTeam = async () => {
+    if (hasActiveSubscription) {
+      setBillingError(
+        "Cancel the team's active subscription in billing before deleting this team.",
+      );
+      return;
+    }
+
     if (
       !confirm(
         "Are you sure you want to delete this team? This action cannot be undone and will delete all projects and videos.",
@@ -405,10 +413,19 @@ export default function TeamSettingsPage() {
                 <CardDescription>Irreversible and destructive actions</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="destructive" onClick={handleDeleteTeam}>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteTeam}
+                  disabled={!canDeleteTeam}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete team
                 </Button>
+                {!canDeleteTeam && (
+                  <p className="text-sm text-[#888] mt-3">
+                    Team deletion is blocked while billing is active. Cancel the subscription first.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}
