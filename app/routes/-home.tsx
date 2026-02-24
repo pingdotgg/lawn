@@ -29,6 +29,8 @@ export default function Homepage() {
     '--accent': '#2d5a2d',
     '--accent-hover': '#3a6a3a',
     '--accent-light': '#7cb87c',
+    '--shadow-color': '#1a1a1a',
+    '--shadow-accent': 'rgba(45,90,45,1)',
   } as React.CSSProperties;
 
   return (
@@ -71,7 +73,7 @@ export default function Homepage() {
             {/* Highly Creative Contrast Subheadline Blocks (Stickers) */}
             <div className="flex flex-col items-start gap-4">
               <div className="bg-[#f0f0e8] text-[#1a1a1a] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] -rotate-2 origin-bottom-left">
-                <p className="text-2xl md:text-4xl font-black tracking-tight uppercase">Video review for creative teams.</p>
+                <p className="text-2xl md:text-4xl font-black tracking-tight uppercase whitespace-nowrap">Video review for creative teams.</p>
               </div>
               <div className="bg-[#2d5a2d] text-[#f0f0e8] px-6 py-3 md:px-8 md:py-4 border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] rotate-1 origin-top-left ml-4 md:ml-8">
                 <p className="text-xl md:text-3xl font-black tracking-tight uppercase">Less features. No bull$#!t.</p>
