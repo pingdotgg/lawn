@@ -321,6 +321,7 @@ export default function VideoPage() {
           <VideoWorkflowStatusControl
             status={video.workflowStatus}
             size="lg"
+            disabled={!canEdit}
             onChange={(workflowStatus) => {
               void handleUpdateWorkflowStatus(workflowStatus);
             }}

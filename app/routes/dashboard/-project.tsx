@@ -354,6 +354,7 @@ export default function ProjectPage({
                       <VideoWorkflowStatusControl
                         status={video.workflowStatus}
                         stopPropagation
+                        disabled={!canUpload}
                         onChange={(workflowStatus) =>
                           void handleUpdateWorkflowStatus(video._id, workflowStatus)
                         }
@@ -446,6 +447,7 @@ export default function ProjectPage({
                     <VideoWorkflowStatusControl
                       status={video.workflowStatus}
                       stopPropagation
+                      disabled={!canUpload}
                       onChange={(workflowStatus) =>
                         void handleUpdateWorkflowStatus(video._id, workflowStatus)
                       }

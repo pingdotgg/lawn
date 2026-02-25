@@ -281,7 +281,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                         <Eye className="h-3 w-3" />
                         {link.viewCount} views
                       </span>
-                      {link.password ? (
+                      {link.hasPassword ? (
                         <span className="flex items-center gap-1">
                           <Lock className="h-3 w-3" />
                           Protected

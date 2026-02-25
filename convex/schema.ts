@@ -129,6 +129,9 @@ export default defineSchema({
     expiresAt: v.optional(v.number()),
     allowDownload: v.boolean(),
     password: v.optional(v.string()),
+    passwordHash: v.optional(v.string()),
+    failedAccessAttempts: v.optional(v.number()),
+    lockedUntil: v.optional(v.number()),
     viewCount: v.number(),
   })
     .index("by_token", ["token"])

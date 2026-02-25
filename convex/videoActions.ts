@@ -1,6 +1,11 @@
 "use node";
 
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v } from "convex/values";
 import { action, ActionCtx } from "./_generated/server";
@@ -14,6 +19,15 @@ import {
   getMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
+
+const GIBIBYTE = 1024 ** 3;
+const MAX_PRESIGNED_PUT_FILE_SIZE_BYTES = 5 * GIBIBYTE;
+const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-matroska",
+]);
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
   let source = key;
@@ -89,6 +103,48 @@ function getValueString(value: unknown, field: string): string | null {
   return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
 
+function normalizeContentType(contentType: string | null | undefined): string {
+  if (!contentType) return "";
+  return contentType
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+}
+
+function isAllowedUploadContentType(contentType: string): boolean {
+  return ALLOWED_UPLOAD_CONTENT_TYPES.has(contentType);
+}
+
+function validateUploadRequestOrThrow(args: { fileSize: number; contentType: string }) {
+  if (!Number.isFinite(args.fileSize) || args.fileSize <= 0) {
+    throw new Error("Video file size must be greater than zero.");
+  }
+
+  if (args.fileSize > MAX_PRESIGNED_PUT_FILE_SIZE_BYTES) {
+    throw new Error("Video file is too large for direct upload.");
+  }
+
+  const normalizedContentType = normalizeContentType(args.contentType);
+  if (!isAllowedUploadContentType(normalizedContentType)) {
+    throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+  }
+
+  return normalizedContentType;
+}
+
+function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("Unsupported video format") ||
+    error.message.includes("Video file is too large") ||
+    error.message.includes("Uploaded video file not found") ||
+    error.message.includes("Storage limit reached")
+  );
+}
+
 async function requireVideoMemberAccess(
   ctx: ActionCtx,
   videoId: Id<"videos">
@@ -158,6 +214,10 @@ export const getUploadUrl = action({
   }),
   handler: async (ctx, args) => {
     await requireVideoMemberAccess(ctx, args.videoId);
+    const normalizedContentType = validateUploadRequestOrThrow({
+      fileSize: args.fileSize,
+      contentType: args.contentType,
+    });
 
     const s3 = getS3Client();
     const ext = getExtensionFromKey(args.filename);
@@ -165,7 +225,7 @@ export const getUploadUrl = action({
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
-      ContentType: args.contentType,
+      ContentType: normalizedContentType,
     });
     const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
 
@@ -173,7 +233,7 @@ export const getUploadUrl = action({
       videoId: args.videoId,
       s3Key: key,
       fileSize: args.fileSize,
-      contentType: args.contentType,
+      contentType: normalizedContentType,
     });
 
     return { url, uploadId: key };
@@ -198,11 +258,44 @@ export const markUploadComplete = action({
       throw new Error("Original bucket file not found for this video");
     }
 
-    await ctx.runMutation(internal.videos.markAsProcessing, {
-      videoId: args.videoId,
-    });
-
     try {
+      const s3 = getS3Client();
+      const head = await s3.send(
+        new HeadObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: video.s3Key,
+        }),
+      );
+      const contentLengthRaw = head.ContentLength;
+      if (
+        typeof contentLengthRaw !== "number" ||
+        !Number.isFinite(contentLengthRaw) ||
+        contentLengthRaw <= 0
+      ) {
+        throw new Error("Uploaded video file not found or empty.");
+      }
+      const contentLength = contentLengthRaw;
+      if (contentLength > MAX_PRESIGNED_PUT_FILE_SIZE_BYTES) {
+        throw new Error("Video file is too large for direct upload.");
+      }
+
+      const normalizedContentType = normalizeContentType(
+        head.ContentType ?? video.contentType,
+      );
+      if (!isAllowedUploadContentType(normalizedContentType)) {
+        throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+      }
+
+      await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
+        videoId: args.videoId,
+        fileSize: contentLength,
+        contentType: normalizedContentType,
+      });
+
+      await ctx.runMutation(internal.videos.markAsProcessing, {
+        videoId: args.videoId,
+      });
+
       const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
         expiresIn: 60 * 60 * 24,
       });
@@ -214,9 +307,28 @@ export const markUploadComplete = action({
         });
       }
     } catch (error) {
+      const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
+      if (shouldDeleteObject) {
+        const s3 = getS3Client();
+        try {
+          await s3.send(
+            new DeleteObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: video.s3Key,
+            }),
+          );
+        } catch {
+          // No-op: preserve original processing failure.
+        }
+      }
+
+      const uploadError =
+        shouldDeleteObject && error instanceof Error
+          ? error.message
+          : "Mux ingest failed after upload.";
       await ctx.runMutation(internal.videos.markAsFailed, {
         videoId: args.videoId,
-        uploadError: "Mux ingest failed after upload.",
+        uploadError,
       });
       throw error;
     }

@@ -39,6 +39,7 @@ export type VideoWorkflowStatusControlProps = {
   onChange: (status: VideoWorkflowStatus) => void;
   size?: "sm" | "lg";
   stopPropagation?: boolean;
+  disabled?: boolean;
   className?: string;
 };
 
@@ -47,6 +48,7 @@ export function VideoWorkflowStatusControl({
   onChange,
   size = "sm",
   stopPropagation = false,
+  disabled = false,
   className,
 }: VideoWorkflowStatusControlProps) {
   const handleClick = (event: MouseEvent) => {
@@ -62,8 +64,12 @@ export function VideoWorkflowStatusControl({
       <DropdownMenuTrigger asChild onClick={handleClick}>
         <button
           type="button"
+          disabled={disabled}
           className={cn(
-            "inline-flex items-center gap-1.5 font-bold uppercase tracking-wider transition-colors hover:text-[#1a1a1a]",
+            "inline-flex items-center gap-1.5 font-bold uppercase tracking-wider transition-colors",
+            disabled
+              ? "cursor-not-allowed opacity-50"
+              : "cursor-pointer hover:text-[#1a1a1a]",
             isLg ? "text-xs text-[#1a1a1a]" : "text-[10px] text-[#888]",
             className,
           )}
@@ -85,7 +91,10 @@ export function VideoWorkflowStatusControl({
       <DropdownMenuContent align="start" onClick={handleClick}>
         <DropdownMenuRadioGroup
           value={status}
-          onValueChange={(nextStatus) => onChange(nextStatus as VideoWorkflowStatus)}
+          onValueChange={(nextStatus) => {
+            if (disabled) return;
+            onChange(nextStatus as VideoWorkflowStatus);
+          }}
         >
           {VIDEO_WORKFLOW_STATUS_OPTIONS.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value} className="gap-2">

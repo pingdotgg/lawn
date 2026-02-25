@@ -236,7 +236,7 @@ export const updateWorkflowStatus = mutation({
     workflowStatus: workflowStatusValidator,
   },
   handler: async (ctx, args) => {
-    await requireVideoAccess(ctx, args.videoId, "viewer");
+    await requireVideoAccess(ctx, args.videoId, "member");
 
     await ctx.db.patch(args.videoId, {
       workflowStatus: args.workflowStatus,
@@ -290,6 +290,41 @@ export const setUploadInfo = internalMutation({
       fileSize: args.fileSize,
       contentType: args.contentType,
       status: "uploading",
+    });
+  },
+});
+
+export const reconcileUploadedObjectMetadata = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    fileSize: v.number(),
+    contentType: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    if (!video) {
+      throw new Error("Video not found");
+    }
+
+    const project = await ctx.db.get(video.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    const declaredSize =
+      typeof video.fileSize === "number" && Number.isFinite(video.fileSize)
+        ? Math.max(0, video.fileSize)
+        : 0;
+    const actualSize = Number.isFinite(args.fileSize) ? Math.max(0, args.fileSize) : 0;
+    const sizeDelta = actualSize - declaredSize;
+
+    if (sizeDelta > 0) {
+      await assertTeamCanStoreBytes(ctx, project.teamId, sizeDelta);
+    }
+
+    await ctx.db.patch(args.videoId, {
+      fileSize: actualSize,
+      contentType: args.contentType,
     });
   },
 });

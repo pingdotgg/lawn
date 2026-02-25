@@ -1,5 +1,10 @@
 const BASE62_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const PASSWORD_HASH_VERSION = "pbkdf2_sha256_v1";
+const PASSWORD_SALT_BYTES = 16;
+const PASSWORD_KEY_BYTES = 32;
+const PASSWORD_ITERATIONS = 210_000;
+const textEncoder = new TextEncoder();
 
 function randomIndex(limit: number): number {
   if (limit <= 0 || limit > 256) {
@@ -42,4 +47,98 @@ export async function generateUniqueToken(
   }
 
   throw new Error("Could not generate a unique token");
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) {
+    throw new Error("Invalid hex input");
+  }
+
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) {
+    const offset = i * 2;
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16);
+    if (!Number.isFinite(value)) {
+      throw new Error("Invalid hex input");
+    }
+    bytes[i] = value;
+  }
+  return bytes;
+}
+
+function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let diff = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    diff |= left[i] ^ right[i];
+  }
+  return diff === 0;
+}
+
+async function derivePasswordHashBytes(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    textEncoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt: Uint8Array.from(salt),
+      iterations,
+    },
+    key,
+    PASSWORD_KEY_BYTES * 8,
+  );
+  return new Uint8Array(bits);
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  if (password.length === 0) {
+    throw new Error("Password cannot be empty");
+  }
+
+  const salt = crypto.getRandomValues(new Uint8Array(PASSWORD_SALT_BYTES));
+  const hash = await derivePasswordHashBytes(password, salt, PASSWORD_ITERATIONS);
+  return `${PASSWORD_HASH_VERSION}$${PASSWORD_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
+}
+
+export async function verifyPassword(
+  password: string,
+  encodedHash: string,
+): Promise<boolean> {
+  try {
+    const [version, iterationsRaw, saltHex, hashHex] = encodedHash.split("$");
+    if (version !== PASSWORD_HASH_VERSION) {
+      return false;
+    }
+
+    const iterations = Number.parseInt(iterationsRaw, 10);
+    if (!Number.isInteger(iterations) || iterations <= 0) {
+      return false;
+    }
+
+    const salt = hexToBytes(saltHex);
+    const storedHash = hexToBytes(hashHex);
+    const derivedHash = await derivePasswordHashBytes(password, salt, iterations);
+    return constantTimeEqual(derivedHash, storedHash);
+  } catch {
+    return false;
+  }
 }
