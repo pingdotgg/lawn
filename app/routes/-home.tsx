@@ -103,7 +103,7 @@ export default function Homepage() {
             { id: "01", title: "OPEN SOURCE", desc: "Fully open source. Read the code, fork it, make it yours." },
             { id: "02", title: "ACTUALLY FAST", desc: "Instant playback. Built for speed, not loading spinners." },
             { id: "03", title: "FLAT PRICING", desc: "$5 covers the whole agency. Stop counting seats." },
-            { id: "04", title: "TOOL AGNOSTIC", desc: "Premiere, Final Cut, Resolve. We don't care. Bring whatever." },
+            { id: "04", title: "SIMPLE SHARING", desc: "Just copy the link and send it to your client." },
           ].map((item, i) => (
             <div key={i} className="p-8 lg:p-12 group hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors flex flex-col">
               <div className="text-sm font-black text-[#888] group-hover:text-[#7cb87c] mb-8">/{item.id}</div>
