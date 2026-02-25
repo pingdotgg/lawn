@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Trash2, Users, Check, Pencil } from "lucide-react";
+import { CreditCard, Trash2, Check, Pencil } from "lucide-react";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { dashboardHomePath, teamHomePath } from "@/lib/routes";
 import { useSettingsData } from "./-settings.data";
@@ -15,6 +15,7 @@ type BillingPlan = "basic" | "pro";
 
 const GIBIBYTE = 1024 ** 3;
 const TEBIBYTE = 1024 ** 4;
+const TEAM_TRIAL_DAYS = 7;
 
 const BILLING_PLANS: Record<
   BillingPlan,
@@ -46,6 +47,10 @@ function normalizeTeamPlan(plan: string): BillingPlan {
 function formatBytes(bytes: number): string {
   if (bytes >= TEBIBYTE) return `${(bytes / TEBIBYTE).toFixed(1)} TB`;
   return `${(bytes / GIBIBYTE).toFixed(1)} GB`;
+}
+
+function formatUtcDateFromUnixSeconds(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
 
 export default function TeamSettingsPage() {
@@ -106,6 +111,7 @@ export default function TeamSettingsPage() {
   const planConfig = BILLING_PLANS[plan];
   const hasActiveSubscription = billing?.hasActiveSubscription ?? false;
   const subscriptionStatus = billing?.subscriptionStatus ?? "not_subscribed";
+  const isTrialing = subscriptionStatus === "trialing";
   const hasPortalAccess = isOwner && Boolean(billing?.stripeCustomerId);
   const currentPlanLabel = hasActiveSubscription ? planConfig.label : "Unpaid";
   const canDeleteTeam = isOwner && !hasActiveSubscription;
@@ -278,11 +284,18 @@ export default function TeamSettingsPage() {
                   {currentPlanLabel}
                 </span>
                 {hasActiveSubscription ? (
-                  <Badge variant="success">Active</Badge>
+                  <Badge variant={isTrialing ? "warning" : "success"}>
+                    {isTrialing ? "Trialing" : "Active"}
+                  </Badge>
                 ) : (
                   <Badge variant="warning">{subscriptionStatus}</Badge>
                 )}
               </div>
+              {isTrialing && typeof billing?.currentPeriodEnd === "number" && (
+                <p className="text-xs text-[#888] mt-2">
+                  Trial ends {formatUtcDateFromUnixSeconds(billing.currentPeriodEnd)} UTC
+                </p>
+              )}
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">
@@ -369,7 +382,7 @@ export default function TeamSettingsPage() {
                           <CreditCard className="mr-2 h-4 w-4" />
                           {isCheckingOutPlan === planId
                             ? "Redirecting..."
-                            : `Start ${config.label}`}
+                            : `Start ${config.label} Trial`}
                         </Button>
                       )}
                     </div>
@@ -399,8 +412,9 @@ export default function TeamSettingsPage() {
 
               {!hasActiveSubscription && (
                 <p className="text-sm text-[#888] mt-3">
-                  An active subscription is required to create projects and
-                  upload videos.
+                  An active subscription is required to create projects and upload
+                  videos. Eligible teams receive a {TEAM_TRIAL_DAYS}-day trial before
+                  billing starts.
                 </p>
               )}
             </div>

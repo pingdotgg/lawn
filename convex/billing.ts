@@ -1,5 +1,6 @@
 import { StripeSubscriptions } from "@convex-dev/stripe";
 import { v } from "convex/values";
+import Stripe from "stripe";
 import { api, components, internal } from "./_generated/api";
 import { action, internalMutation, query } from "./_generated/server";
 import { getIdentity, requireTeamAccess } from "./auth";
@@ -15,6 +16,8 @@ import {
 } from "./billingHelpers";
 
 const stripeClient = new StripeSubscriptions(components.stripe, {});
+const stripe = new Stripe(stripeClient.apiKey);
+const TEAM_TRIAL_DAYS = 7;
 
 const teamPlanValidator = v.union(v.literal("basic"), v.literal("pro"));
 const teamRoleValidator = v.union(
@@ -86,24 +89,38 @@ export const createSubscriptionCheckout = action({
 
     const stripePriceId = getStripePriceIdForPlan(args.plan);
 
-    return await stripeClient.createCheckoutSession(ctx, {
-      priceId: stripePriceId,
-      customerId: stripeCustomerId,
+    const shouldStartTrial =
+      !existingSubscription && !team.stripeSubscriptionId;
+
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: "subscription",
-      successUrl: args.successUrl,
-      cancelUrl: args.cancelUrl,
-      quantity: 1,
+      line_items: [{ price: stripePriceId, quantity: 1 }],
+      success_url: args.successUrl,
+      cancel_url: args.cancelUrl,
       metadata: {
         orgId: team._id,
         plan: args.plan,
       },
-      subscriptionMetadata: {
-        orgId: team._id,
-        userId: identity.subject,
-        plan: args.plan,
-        teamSlug: team.slug,
+      subscription_data: {
+        metadata: {
+          orgId: team._id,
+          userId: identity.subject,
+          plan: args.plan,
+          teamSlug: team.slug,
+        },
+        ...(shouldStartTrial ? { trial_period_days: TEAM_TRIAL_DAYS } : {}),
       },
-    });
+    };
+
+    if (stripeCustomerId) {
+      sessionParams.customer = stripeCustomerId;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+    return {
+      sessionId: session.id,
+      url: session.url,
+    };
   },
 });
 

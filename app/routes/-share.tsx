@@ -24,6 +24,7 @@ export default function SharePage() {
   const getPlaybackSession = useAction(api.videoActions.getSharedPlaybackSession);
 
   const [grantToken, setGrantToken] = useState<string | null>(null);
+  const [hasAttemptedAutoGrant, setHasAttemptedAutoGrant] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [isRequestingGrant, setIsRequestingGrant] = useState(false);
@@ -46,6 +47,11 @@ export default function SharePage() {
     enabled: canTrackPresence,
     shareToken: token,
   });
+
+  useEffect(() => {
+    setGrantToken(null);
+    setHasAttemptedAutoGrant(false);
+  }, [token]);
 
   const acquireGrant = useCallback(
     async (password?: string) => {
@@ -74,10 +80,11 @@ export default function SharePage() {
 
   useEffect(() => {
     if (!shareInfo || grantToken) return;
-    if (shareInfo.status !== "ok") return;
+    if (shareInfo.status !== "ok" || hasAttemptedAutoGrant) return;
 
+    setHasAttemptedAutoGrant(true);
     void acquireGrant();
-  }, [acquireGrant, grantToken, shareInfo]);
+  }, [acquireGrant, grantToken, hasAttemptedAutoGrant, shareInfo]);
 
   useEffect(() => {
     if (!grantToken) {
@@ -150,10 +157,16 @@ export default function SharePage() {
     }
   };
 
-  if (shareInfo === undefined) {
+  const isBootstrappingShare =
+    shareInfo === undefined ||
+    (shareInfo?.status === "ok" &&
+      ((!grantToken && (!hasAttemptedAutoGrant || isRequestingGrant)) ||
+        (Boolean(grantToken) && videoData === undefined)));
+
+  if (isBootstrappingShare) {
     return (
       <div className="min-h-screen bg-[#f0f0e8] flex items-center justify-center">
-        <div className="text-[#888]">Loading...</div>
+        <div className="text-[#888]">Opening shared video...</div>
       </div>
     );
   }
