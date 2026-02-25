@@ -28,6 +28,7 @@ import { Id } from "@convex/_generated/dataModel";
 import { projectPath, teamHomePath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
+import { prewarmTeam } from "./-team.data";
 import { useVideoData } from "./-video.data";
 
 export default function VideoPage() {
@@ -85,7 +86,10 @@ export default function VideoPage() {
   const isUsingOriginalFallback = Boolean(activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
-  useRoutePrewarmIntent(() => {
+  const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() =>
+    prewarmTeam(convex, { teamSlug: resolvedTeamSlug }),
+  );
+  const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
     if (!resolvedProjectId) return;
     return prewarmProject(convex, {
       teamSlug: resolvedTeamSlug,
@@ -241,8 +245,16 @@ export default function VideoPage() {
     <div className="h-full flex flex-col">
       {/* Header */}
       <DashboardHeader paths={[
-        { label: resolvedTeamSlug, href: teamHomePath(resolvedTeamSlug) },
-        { label: context?.project?.name ?? "project", href: projectPath(resolvedTeamSlug, resolvedProjectId) },
+        {
+          label: resolvedTeamSlug,
+          href: teamHomePath(resolvedTeamSlug),
+          prewarmIntentHandlers: prewarmTeamIntentHandlers,
+        },
+        {
+          label: context?.project?.name ?? "project",
+          href: projectPath(resolvedTeamSlug, resolvedProjectId),
+          prewarmIntentHandlers: prewarmProjectIntentHandlers,
+        },
         { 
           label: isEditingTitle ? (
             <div className="flex items-center gap-2">

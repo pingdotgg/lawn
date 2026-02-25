@@ -31,6 +31,7 @@ function ThemeToggleButton() {
 export type PathSegment = {
   label: React.ReactNode;
   href?: string;
+  prewarmIntentHandlers?: ReturnType<typeof useRoutePrewarmIntent>;
 };
 
 export function DashboardHeader({ 
@@ -60,7 +61,12 @@ export function DashboardHeader({
           <div key={index} className="flex items-center min-w-0 flex-shrink">
             <span className="text-[#888] mr-2 flex-shrink-0">/</span>
             {path.href ? (
-              <Link to={path.href} className="hover:text-[#2d5a2d] transition-colors truncate mr-2">
+              <Link
+                to={path.href}
+                preload="intent"
+                className="hover:text-[#2d5a2d] transition-colors truncate mr-2"
+                {...path.prewarmIntentHandlers}
+              >
                 {path.label}
               </Link>
             ) : (

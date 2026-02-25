@@ -186,7 +186,11 @@ export default function ProjectPage({
     <div className="h-full flex flex-col">
       {/* Header */}
       <DashboardHeader paths={[
-        { label: resolvedTeamSlug, href: teamHomePath(resolvedTeamSlug) },
+        {
+          label: resolvedTeamSlug,
+          href: teamHomePath(resolvedTeamSlug),
+          prewarmIntentHandlers: prewarmTeamIntentHandlers,
+        },
         { label: project?.name ?? "\u00A0" }
       ]}>
         <div className={cn(

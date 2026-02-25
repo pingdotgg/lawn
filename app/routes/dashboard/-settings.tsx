@@ -1,4 +1,4 @@
-import { useAction, useMutation } from "convex/react";
+import { useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { CreditCard, Trash2, Check, Pencil } from "lucide-react";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { dashboardHomePath, teamHomePath } from "@/lib/routes";
+import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { useSettingsData } from "./-settings.data";
+import { prewarmTeam } from "./-team.data";
 import { DashboardHeader } from "@/components/DashboardHeader";
 
 type BillingPlan = "basic" | "pro";
@@ -57,6 +59,7 @@ export default function TeamSettingsPage() {
   const params = useParams({ strict: false });
   const navigate = useNavigate({});
   const pathname = useLocation().pathname;
+  const convex = useConvex();
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
   const { context, team, members, billing } = useSettingsData({ teamSlug });
@@ -77,6 +80,10 @@ export default function TeamSettingsPage() {
   );
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
+  const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() => {
+    if (!team?.slug) return;
+    return prewarmTeam(convex, { teamSlug: team.slug });
+  });
 
   const canonicalSettingsPath = context ? `${context.canonicalPath}/settings` : null;
   const isSettingsPath = pathname.endsWith("/settings");
@@ -216,7 +223,11 @@ export default function TeamSettingsPage() {
     <div className="h-full flex flex-col">
       <DashboardHeader
         paths={[
-          { label: team.slug, href: teamHomePath(team.slug) },
+          {
+            label: team.slug,
+            href: teamHomePath(team.slug),
+            prewarmIntentHandlers: prewarmTeamIntentHandlers,
+          },
           { label: "settings" },
         ]}
       />
