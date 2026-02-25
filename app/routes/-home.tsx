@@ -44,6 +44,7 @@ export default function Homepage() {
           <span className={`text-xl font-black tracking-tighter transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn.</span>
         </div>
         <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
+          <a href="https://github.com/pingdotgg/lawn" target="_blank" rel="noopener noreferrer" className="hover:underline underline-offset-4">GitHub</a>
           <Link to="/sign-in" className="hover:underline underline-offset-4">Log in</Link>
           <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start</Link>
         </div>
@@ -99,8 +100,8 @@ export default function Homepage() {
       <section className="border-b-2 border-[#1a1a1a] bg-[#f0f0e8]">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#1a1a1a]">
           {[
-            { id: "01", title: "FRAME EXACT", desc: "Drop a marker on the exact frame. No 'at 1:23ish' nonsense." },
-            { id: "02", title: "ZERO LATENCY", desc: "Instant playback. Built for speed, not loading spinners." },
+            { id: "01", title: "OPEN SOURCE", desc: "Fully open source. Read the code, fork it, make it yours." },
+            { id: "02", title: "ACTUALLY FAST", desc: "Instant playback. Built for speed, not loading spinners." },
             { id: "03", title: "FLAT PRICING", desc: "$5 covers the whole agency. Stop counting seats." },
             { id: "04", title: "TOOL AGNOSTIC", desc: "Premiere, Final Cut, Resolve. We don't care. Bring whatever." },
           ].map((item, i) => (
@@ -179,6 +180,10 @@ export default function Homepage() {
                       <span className="text-[#dc2626] font-black">×</span>
                       Bloated ecosystem
                     </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-[#dc2626] font-black">×</span>
+                      Closed source
+                    </li>
                   </ul>
                 </div>
 
@@ -204,6 +209,10 @@ export default function Homepage() {
                     <li className="flex items-start gap-3">
                       <span className="text-[#7cb87c] font-black">✓</span>
                       Just what you need
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-[#7cb87c] font-black">✓</span>
+                      Fully open source
                     </li>
                   </ul>
                   
@@ -252,7 +261,7 @@ export default function Homepage() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <span className="font-black text-3xl tracking-tighter">lawn.</span>
           <div className="flex gap-8 text-sm font-bold uppercase tracking-wider">
-            <a href="/github" className="hover:text-[#2d5a2d] transition-colors">GitHub</a>
+            <a href="https://github.com/pingdotgg/lawn" target="_blank" rel="noopener noreferrer" className="hover:text-[#2d5a2d] transition-colors">GitHub</a>
             <a href="/docs" className="hover:text-[#2d5a2d] transition-colors">Docs</a>
           </div>
         </div>
