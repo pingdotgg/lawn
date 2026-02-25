@@ -1,6 +1,6 @@
 
-import { UserButton, useAuth } from "@clerk/tanstack-react-start";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useAuth } from "@clerk/tanstack-react-start";
+import { useConvex, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -49,9 +49,6 @@ function dragEventHasFiles(event: DragEvent) {
 
 export default function DashboardLayout() {
   const { isLoaded, userId } = useAuth();
-  const isAllowed = useQuery(api.userAllowed.check);
-  const ensureUserAllowed = useMutation(api.userAllowed.ensure);
-  const hasEnsuredRef = useRef(false);
   const location = useLocation();
   const { pathname, searchStr } = location;
   const params = useParams({ strict: false });
@@ -218,12 +215,6 @@ export default function DashboardLayout() {
     window.location.replace(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
   }, [isLoaded, userId, pathname, searchStr, routeVideoId, publicPlaybackId]);
 
-  useEffect(() => {
-    if (!userId || hasEnsuredRef.current) return;
-    hasEnsuredRef.current = true;
-    void ensureUserAllowed();
-  }, [userId, ensureUserAllowed]);
-
   if (!isLoaded) {
     return (
       <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
@@ -244,49 +235,8 @@ export default function DashboardLayout() {
     );
   }
 
-  if (isAllowed === false) {
-    return (
-      <div className="h-full flex items-center justify-center bg-[#f0f0e8]">
-        <div className="max-w-md w-full text-center px-6">
-          <h1 className="text-4xl font-black text-[#1a1a1a] tracking-tight">
-            You&apos;re on the list
-          </h1>
-          <p className="mt-4 text-[#888] text-sm leading-relaxed">
-            Your account is pending approval. You&apos;ll get access once
-            we&apos;ve reviewed your request.
-          </p>
-          <div className="mt-8 border-t-2 border-[#1a1a1a] pt-6">
-            <UserButton
-              appearance={{
-                variables: {
-                  colorText: "#1a1a1a",
-                  colorTextSecondary: "#888",
-                  colorBackground: "#f0f0e8",
-                },
-                elements: {
-                  avatarBox: "w-9 h-9 rounded-none mx-auto border-2 border-[#1a1a1a]",
-                  userButtonPopoverCard:
-                    "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
-                  userButtonPopoverActionButton:
-                    "!text-[#1a1a1a] hover:!bg-[#e8e8e0] rounded-none",
-                  userButtonPopoverActionButtonText: "!text-[#1a1a1a] hover:!text-[#1a1a1a] font-mono font-bold",
-                  userButtonPopoverActionButtonIcon: "!text-[#1a1a1a] hover:!text-[#1a1a1a]",
-                  userButtonPopoverFooter: "hidden",
-                },
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // While isAllowed is loading (undefined/null), render the layout invisible
-  // so child components mount and start fetching route data immediately.
-  const ready = isAllowed === true;
-
   return (
-    <div className={cn("relative h-full flex flex-col bg-[#f0f0e8]", !ready && "invisible")}>
+    <div className={cn("relative h-full flex flex-col bg-[#f0f0e8]")}>
       {/* Main content */}
       <main className="flex-1 overflow-auto flex flex-col">
         <DashboardUploadProvider value={uploadContext}>

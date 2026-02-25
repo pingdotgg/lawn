@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { getUser, identityAvatarUrl, identityEmail, identityName, requireUser, requireAllowedUser, requireTeamAccess } from "./auth";
+import { getUser, identityAvatarUrl, identityEmail, identityName, requireUser, requireTeamAccess } from "./auth";
 import { getTeamSubscriptionState } from "./billingHelpers";
 
 function normalizedEmail(value: string) {
@@ -29,7 +29,7 @@ export const create = mutation({
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await requireAllowedUser(ctx);
+    const user = await requireUser(ctx);
 
     let slug = generateSlug(args.name);
     let existingWithSlug = await ctx.db
