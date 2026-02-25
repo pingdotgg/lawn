@@ -1,5 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { NotFound } from "@/components/ui/NotFound";
 
 function DefaultPending() {
   return (
@@ -10,12 +11,7 @@ function DefaultPending() {
 }
 
 function DefaultNotFound() {
-  return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>404</h1>
-      <p>The requested page could not be found.</p>
-    </main>
-  );
+  return <NotFound />;
 }
 
 export function getRouter() {

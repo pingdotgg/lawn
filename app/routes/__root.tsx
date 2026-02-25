@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { ConvexClientProvider } from "@/lib/convex";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme/ThemeToggle";
+import { NotFound } from "@/components/ui/NotFound";
 import appCss from "../app.css?url";
 
 export const Route = createRootRoute({
@@ -43,12 +44,7 @@ export const Route = createRootRoute({
       </main>
     );
   },
-  notFoundComponent: () => (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>404</h1>
-      <p>The requested page could not be found.</p>
-    </main>
-  ),
+  notFoundComponent: () => <NotFound />,
 });
 
 function RootComponent() {
