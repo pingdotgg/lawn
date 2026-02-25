@@ -191,7 +191,6 @@ export default function HomepageMono() {
           <span className="font-black text-xl">lawn</span>
           <div className="flex gap-6 text-[#888]">
             <a href="/github" className="hover:text-[#1a1a1a]">GitHub</a>
-            <a href="/docs" className="hover:text-[#1a1a1a]">Docs</a>
           </div>
         </div>
       </footer>

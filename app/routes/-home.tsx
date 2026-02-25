@@ -262,7 +262,6 @@ export default function Homepage() {
           <span className="font-black text-3xl tracking-tighter">lawn.</span>
           <div className="flex gap-8 text-sm font-bold uppercase tracking-wider">
             <a href="https://github.com/pingdotgg/lawn" target="_blank" rel="noopener noreferrer" className="hover:text-[#2d5a2d] transition-colors">GitHub</a>
-            <a href="/docs" className="hover:text-[#2d5a2d] transition-colors">Docs</a>
           </div>
         </div>
       </footer>

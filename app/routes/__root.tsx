@@ -32,26 +32,22 @@ export const Route = createRootRoute({
   component: RootComponent,
   errorComponent: ({ error }) => {
     return (
-      <AppShell>
-        <main className="pt-16 p-4 container mx-auto">
-          <h1>Error</h1>
-          <p>{error instanceof Error ? error.message : "An unexpected error occurred."}</p>
-          {import.meta.env.DEV && error instanceof Error && error.stack ? (
-            <pre className="w-full p-4 overflow-x-auto">
-              <code>{error.stack}</code>
-            </pre>
-          ) : null}
-        </main>
-      </AppShell>
+      <main className="pt-16 p-4 container mx-auto">
+        <h1>Error</h1>
+        <p>{error instanceof Error ? error.message : "An unexpected error occurred."}</p>
+        {import.meta.env.DEV && error instanceof Error && error.stack ? (
+          <pre className="w-full p-4 overflow-x-auto">
+            <code>{error.stack}</code>
+          </pre>
+        ) : null}
+      </main>
     );
   },
   notFoundComponent: () => (
-    <AppShell>
-      <main className="pt-16 p-4 container mx-auto">
-        <h1>404</h1>
-        <p>The requested page could not be found.</p>
-      </main>
-    </AppShell>
+    <main className="pt-16 p-4 container mx-auto">
+      <h1>404</h1>
+      <p>The requested page could not be found.</p>
+    </main>
   ),
 });
 
