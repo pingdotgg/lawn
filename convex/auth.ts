@@ -33,7 +33,7 @@ export function identityEmail(identity: ClerkIdentity): string {
 }
 
 export function identityAvatarUrl(identity: ClerkIdentity): string | undefined {
-  return getOptionalString(identity, "imageUrl") ?? getOptionalString(identity, "avatarUrl");
+  return getOptionalString(identity, "pictureUrl");
 }
 
 export async function getUser(ctx: QueryCtx | MutationCtx) {

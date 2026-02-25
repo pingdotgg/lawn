@@ -68,15 +68,16 @@ export function CommentItem({
   return (
     <div
       className={cn(
-        "p-3 transition-all border-2",
+        "transition-all relative group",
+        isReply ? "py-2" : "p-4",
         isHighlighted
-          ? "bg-[#2d5a2d]/10 border-[#2d5a2d]"
-          : "bg-[#e8e8e0] border-[#1a1a1a] hover:bg-[#f0f0e8]",
+          ? "bg-[#2d5a2d]/10"
+          : "hover:bg-[#1a1a1a]/5",
         comment.resolved && "opacity-50"
       )}
     >
       <div className="flex items-start gap-3">
-        <Avatar className="h-7 w-7">
+        <Avatar className="h-9 w-9 shadow-sm">
           <AvatarImage src={comment.userAvatarUrl} />
           <AvatarFallback className="text-[10px]">
             {getInitials(comment.userName)}

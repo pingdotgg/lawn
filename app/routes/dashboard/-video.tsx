@@ -1,7 +1,7 @@
 
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,17 +14,15 @@ import {
   VideoWorkflowStatusControl,
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
-import { formatDuration, formatTimestamp } from "@/lib/utils";
+import { formatDuration } from "@/lib/utils";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import {
-  ArrowLeft,
   Edit2,
   Check,
   X,
   Link as LinkIcon,
-  MessageSquare,
 } from "lucide-react";
 import { Id } from "@convex/_generated/dataModel";
 import { projectPath, teamHomePath } from "@/lib/routes";
@@ -64,8 +62,6 @@ export default function VideoPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
-  const [showCommentInput, setShowCommentInput] = useState(false);
-  const [commentTimestamp, setCommentTimestamp] = useState(0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
@@ -89,7 +85,7 @@ export default function VideoPage() {
   const isUsingOriginalFallback = Boolean(activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl);
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
-  const prewarmProjectIntentHandlers = useRoutePrewarmIntent(() => {
+  useRoutePrewarmIntent(() => {
     if (!resolvedProjectId) return;
     return prewarmProject(convex, {
       teamSlug: resolvedTeamSlug,
@@ -372,34 +368,7 @@ export default function VideoPage() {
                   </div>
                 </div>
 
-                {/* Comment controls */}
-                <div className="flex-shrink-0 pt-4">
-                  {showCommentInput && canComment ? (
-                    <div className="max-w-6xl mx-auto p-4 bg-[#e8e8e0] border-2 border-[#1a1a1a]">
-                      <CommentInput
-                        videoId={resolvedVideoId}
-                        timestampSeconds={commentTimestamp}
-                        showTimestamp
-                        autoFocus
-                        onSubmit={() => setShowCommentInput(false)}
-                        onCancel={() => setShowCommentInput(false)}
-                      />
-                    </div>
-                  ) : canComment ? (
-                    <div className="max-w-6xl mx-auto">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setCommentTimestamp(currentTime);
-                          setShowCommentInput(true);
-                        }}
-                      >
-                        <MessageSquare className="mr-1.5 h-4 w-4" />
-                        Comment at {formatTimestamp(currentTime)}
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
+                {/* Comment controls removed */}
               </div>
             ) : (
               <div className="h-full flex items-center justify-center">
@@ -448,16 +417,15 @@ export default function VideoPage() {
 
         {/* Comments sidebar */}
         <aside className="w-80 xl:w-96 border-l-2 border-[#1a1a1a] flex flex-col bg-[#f0f0e8]">
-          <div className="flex-shrink-0 px-4 py-3 border-b-2 border-[#1a1a1a]">
-            <h2 className="font-bold text-[#1a1a1a] flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-[#888]" />
-              Comments
-              {comments && comments.length > 0 && (
-                <Badge variant="secondary" className="ml-1">
-                  {comments.length}
-                </Badge>
-              )}
+          <div className="flex-shrink-0 px-5 py-4 border-b border-[#1a1a1a]/10 dark:border-white/10 flex items-center justify-between">
+            <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a] dark:text-[#f0f0e8]">
+              Discussion
             </h2>
+            {comments && comments.length > 0 && (
+              <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
+                {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+              </span>
+            )}
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
@@ -468,6 +436,16 @@ export default function VideoPage() {
               canResolve={canEdit}
             />
           </div>
+          {canComment && (
+            <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8]">
+              <CommentInput
+                videoId={resolvedVideoId}
+                timestampSeconds={currentTime}
+                showTimestamp
+                variant="seamless"
+              />
+            </div>
+          )}
         </aside>
       </div>
 

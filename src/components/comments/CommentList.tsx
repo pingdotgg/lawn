@@ -46,9 +46,9 @@ export function CommentList({
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-4 space-y-3">
+      <div className="flex flex-col divide-y divide-[#1a1a1a]/10 dark:divide-white/10">
         {comments.map((comment) => (
-          <div key={comment._id}>
+          <div key={comment._id} className="relative">
             <CommentItem
               comment={comment}
               onTimestampClick={onTimestampClick}
@@ -56,7 +56,8 @@ export function CommentList({
               canResolve={canResolve}
             />
             {comment.replies.length > 0 && (
-              <div className="ml-6 mt-2 space-y-2 border-l-2 border-[#1a1a1a] pl-4">
+              <div className="pl-14 pr-4 pb-4 space-y-4 relative">
+                <div className="absolute left-[1.35rem] top-0 bottom-6 w-px bg-[#1a1a1a]/10 dark:bg-white/10" />
                 {comment.replies.map((reply) => (
                   <CommentItem
                     key={reply._id}
