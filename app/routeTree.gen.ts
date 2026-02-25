@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as MonoRouteImport } from './routes/mono'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -35,6 +36,11 @@ const SignUpRoute = SignUpRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MonoRoute = MonoRouteImport.update({
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/mono': typeof MonoRoute
+  '/pricing': typeof PricingRoute
   '/sign-in': typeof SignInRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
   '/dashboard/$teamSlug': typeof DashboardTeamSlugRouteWithChildren
@@ -139,6 +146,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mono': typeof MonoRoute
+  '/pricing': typeof PricingRoute
   '/sign-in': typeof SignInRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/mono': typeof MonoRoute
+  '/pricing': typeof PricingRoute
   '/sign-in': typeof SignInRouteWithChildren
   '/sign-up': typeof SignUpRouteWithChildren
   '/dashboard/$teamSlug': typeof DashboardTeamSlugRouteWithChildren
@@ -178,6 +187,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/mono'
+    | '/pricing'
     | '/sign-in'
     | '/sign-up'
     | '/dashboard/$teamSlug'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/mono'
+    | '/pricing'
     | '/sign-in'
     | '/sign-up'
     | '/invite/$token'
@@ -213,6 +224,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/mono'
+    | '/pricing'
     | '/sign-in'
     | '/sign-up'
     | '/dashboard/$teamSlug'
@@ -233,6 +245,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   MonoRoute: typeof MonoRoute
+  PricingRoute: typeof PricingRoute
   SignInRoute: typeof SignInRouteWithChildren
   SignUpRoute: typeof SignUpRouteWithChildren
   InviteTokenRoute: typeof InviteTokenRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mono': {
@@ -436,6 +456,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   MonoRoute: MonoRoute,
+  PricingRoute: PricingRoute,
   SignInRoute: SignInRouteWithChildren,
   SignUpRoute: SignUpRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
