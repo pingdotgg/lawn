@@ -7,7 +7,7 @@
     "dev": "concurrently -n web,convex -c blue,magenta \"vite dev --port 5296\" \"npx convex dev\"",
     "dev:web": "vite dev --port 5296",
     "build": "vite build",
-    "build:vercel": "npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name VITE_CONVEX_URL",
+
     "start": "vite preview --port 5296",
     "lint": "eslint app src convex --ignore-pattern 'convex/_generated/**'",
     "typecheck": "tsc --noEmit",
