@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run build:vercel",
+  "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist/client",
   "routes": [
     { "handle": "filesystem" },

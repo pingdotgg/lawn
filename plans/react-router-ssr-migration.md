@@ -81,9 +81,9 @@ Also completed:
 
 Automated checks completed:
 
-- [x] `bun run typecheck`
-- [x] `bun run lint`
-- [x] `bun run build` (includes SSR build + prerender for `/`)
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm run build` (includes SSR build + prerender for `/`)
 
 Manual checks still recommended before production cutover:
 
