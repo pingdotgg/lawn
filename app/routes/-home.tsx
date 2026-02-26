@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
+import { MarketingFooter } from "@/components/MarketingFooter";
 
 export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
@@ -45,6 +46,7 @@ export default function Homepage() {
         </div>
         <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
           <a href="#pricing" className="hover:underline underline-offset-4">Pricing</a>
+          <Link to="/compare/frameio" className={`hover:underline underline-offset-4 hidden sm:block`}>Compare</Link>
           <Link to="/sign-in" className="hover:underline underline-offset-4">Log in</Link>
           <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start</Link>
         </div>
@@ -302,15 +304,47 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t-2 border-[#1a1a1a] px-6 py-12 bg-[#e8e8e0]">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <span className="font-black text-3xl tracking-tighter">lawn.</span>
-          <div className="flex gap-8 text-sm font-bold uppercase tracking-wider">
-            <a href="https://github.com/pingdotgg/lawn" target="_blank" rel="noopener noreferrer" className="hover:text-[#2d5a2d] transition-colors">GitHub</a>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
+
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "lawn",
+            description:
+              "Video review and collaboration for creative teams. Frame-accurate comments, unlimited seats, flat pricing.",
+            url: "https://lawn.video",
+            applicationCategory: "MultimediaApplication",
+            operatingSystem: "Web",
+            offers: [
+              {
+                "@type": "Offer",
+                name: "Basic",
+                price: "5.00",
+                priceCurrency: "USD",
+                description:
+                  "Unlimited seats, unlimited projects, unlimited clients, 100GB storage",
+              },
+              {
+                "@type": "Offer",
+                name: "Pro",
+                price: "25.00",
+                priceCurrency: "USD",
+                description:
+                  "Unlimited seats, unlimited projects, unlimited clients, 1TB storage",
+              },
+            ],
+            creator: {
+              "@type": "Person",
+              name: "Theo",
+              url: "https://x.com/theo",
+            },
+          }),
+        }}
+      />
     </div>
   );
 }

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /sign-in
+Disallow: /watch/
+Disallow: /share/
+Disallow: /invite/
+Disallow: /mono
+Disallow: /_shell
+
+Sitemap: https://lawn.video/sitemap.xml
