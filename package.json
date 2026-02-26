@@ -4,14 +4,14 @@
   "private": true,
   "packageManager": "bun@1.3.6",
   "scripts": {
-    "dev": "concurrently -n web,convex -c blue,magenta \"vite dev --port 5296\" \"bunx convex dev\"",
+    "dev": "concurrently -n web,convex -c blue,magenta \"vite dev --port 5296\" \"npx convex dev\"",
     "dev:web": "vite dev --port 5296",
     "build": "vite build",
-    "build:vercel": "bunx convex deploy --cmd 'bun run build' --cmd-url-env-var-name VITE_CONVEX_URL",
+    "build:vercel": "npx convex deploy --cmd 'npm run build' --cmd-url-env-var-name VITE_CONVEX_URL",
     "start": "vite preview --port 5296",
     "lint": "eslint app src convex --ignore-pattern 'convex/_generated/**'",
     "typecheck": "tsc --noEmit",
-    "typecheck:convex": "bunx convex typecheck"
+    "typecheck:convex": "npx convex typecheck"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.991.0",
