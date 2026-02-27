@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
-import { AlertCircle, MessageSquare, Clock } from "lucide-react";
+import { AlertCircle, MessageSquare, Clock, X } from "lucide-react";
 import { useWatchData } from "./-watch.data";
 
 export default function WatchPage() {
@@ -30,6 +30,7 @@ export default function WatchPage() {
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
 
   useEffect(() => {
@@ -136,9 +137,10 @@ export default function WatchPage() {
   const video = videoData.video;
 
   return (
-    <div className="min-h-screen bg-[#f0f0e8]">
-      <header className="bg-[#f0f0e8] border-b-2 border-[#1a1a1a] px-6 py-4">
-        <div className="max-w-6xl mx-auto">
+    <div className="h-[100dvh] flex flex-col bg-[#f0f0e8]">
+      {/* Header */}
+      <header className="flex-shrink-0 bg-[#f0f0e8] border-b-2 border-[#1a1a1a] px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
           <Link
             preload="intent"
             to="/"
@@ -146,20 +148,34 @@ export default function WatchPage() {
           >
             lawn
           </Link>
+          <div className="h-4 w-[2px] bg-[#1a1a1a]/20" />
+          <h1 className="text-base font-black truncate max-w-[150px] sm:max-w-[300px]">{video.title}</h1>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-[#888]">
+          {video.duration && (
+            <>
+              <span className="hidden sm:inline text-[#ccc]">·</span>
+              <span className="hidden sm:inline font-mono">{formatDuration(video.duration)}</span>
+            </>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="lg:hidden h-8"
+            onClick={() => setMobileCommentsOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {comments && comments.length > 0 && (
+              <span className="ml-1.5 text-xs">{comments.length}</span>
+            )}
+          </Button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-black text-[#1a1a1a]">{video.title}</h1>
-          {video.description && <p className="text-[#888] mt-1">{video.description}</p>}
-          <div className="flex items-center gap-4 mt-2 text-sm text-[#888]">
-            {video.duration && <span className="font-mono">{formatDuration(video.duration)}</span>}
-            {comments && <span>{comments.length} threads</span>}
-          </div>
-        </div>
-
-        <div className="border-2 border-[#1a1a1a] overflow-hidden">
+      {/* Main content - horizontal split */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Video player area */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-black">
           {playbackSession?.url ? (
             <VideoPlayer
               ref={playerRef}
@@ -168,109 +184,222 @@ export default function WatchPage() {
               comments={flattenedComments}
               onTimeUpdate={setCurrentTime}
               allowDownload={false}
+              controlsBelow
             />
           ) : (
-            <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-              {(playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http")) ? (
-                <img
-                  src={playbackSession?.posterUrl ?? video.thumbnailUrl}
-                  alt={`${video.title} thumbnail`}
-                  className="h-full w-full object-cover blur-[4px]"
-                />
-              ) : null}
-              <div className="absolute inset-0 bg-black/45" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                <p className="text-sm font-medium text-white/85">
-                  {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
-                </p>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 text-white">
+                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                 <p className="text-sm font-medium text-white/85">
+                   {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
+                 </p>
               </div>
             </div>
           )}
         </div>
 
-        <section className="border-2 border-[#1a1a1a] bg-[#e8e8e0] p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-black text-[#1a1a1a]">Comments</h2>
-            <span className="text-xs text-[#888] font-mono">{formatTimestamp(currentTime)}</span>
+        {/* Comments sidebar — desktop */}
+        <aside className="hidden lg:flex w-80 xl:w-96 border-l-2 border-[#1a1a1a] flex-col bg-[#f0f0e8]">
+          <div className="flex-shrink-0 px-5 py-4 border-b border-[#1a1a1a]/10 flex items-center justify-between">
+            <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a]">
+              Discussion
+            </h2>
+            {comments && comments.length > 0 && (
+              <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 px-2 py-0.5 rounded-full">
+                {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+              </span>
+            )}
           </div>
-
-          {isUserLoaded && user ? (
-            <form onSubmit={handleSubmitComment} className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-[#666]">
-                <Clock className="h-3.5 w-3.5" />
-                Comment at {formatTimestamp(currentTime)}
-              </div>
-              <Textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder="Leave a comment..."
-                className="min-h-[90px]"
-              />
-              {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-              <Button type="submit" disabled={!commentText.trim() || isSubmittingComment}>
-                <MessageSquare className="mr-1.5 h-4 w-4" />
-                {isSubmittingComment ? "Posting..." : "Post comment"}
-              </Button>
-            </form>
-          ) : (
-            <a
-              href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
-              className="inline-flex"
-            >
-              <Button>
-                <MessageSquare className="mr-1.5 h-4 w-4" />
-                Sign in to comment
-              </Button>
-            </a>
-          )}
-
-          {comments === undefined ? (
-            <p className="text-sm text-[#888]">Loading comments...</p>
-          ) : comments.length === 0 ? (
-            <p className="text-sm text-[#888]">No comments yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {comments.map((comment) => (
-                <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
-                    <button
-                      type="button"
-                      className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                      onClick={() => playerRef.current?.seekTo(comment.timestampSeconds, { play: true })}
-                    >
-                      {formatTimestamp(comment.timestampSeconds)}
-                    </button>
-                  </div>
-                  <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
-                  <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
-
-                  {comment.replies.length > 0 ? (
-                    <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
-                      {comment.replies.map((reply) => (
-                        <div key={reply._id} className="text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
-                            <button
-                              type="button"
-                              className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                              onClick={() => playerRef.current?.seekTo(reply.timestampSeconds, { play: true })}
-                            >
-                              {formatTimestamp(reply.timestampSeconds)}
-                            </button>
-                          </div>
-                          <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
-                        </div>
-                      ))}
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {comments === undefined ? (
+              <p className="text-sm text-[#888]">Loading comments...</p>
+            ) : comments.length === 0 ? (
+              <p className="text-sm text-[#888]">No comments yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {comments.map((comment) => (
+                  <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
+                      <button
+                        type="button"
+                        className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
+                        onClick={() => playerRef.current?.seekTo(comment.timestampSeconds, { play: true })}
+                      >
+                        {formatTimestamp(comment.timestampSeconds)}
+                      </button>
                     </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                    <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
+
+                    {comment.replies.length > 0 ? (
+                      <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
+                        {comment.replies.map((reply) => (
+                          <div key={reply._id} className="text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
+                              <button
+                                type="button"
+                                className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
+                                onClick={() => playerRef.current?.seekTo(reply.timestampSeconds, { play: true })}
+                              >
+                                {formatTimestamp(reply.timestampSeconds)}
+                              </button>
+                            </div>
+                            <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4">
+            {isUserLoaded && user ? (
+              <form onSubmit={handleSubmitComment} className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-[#666]">
+                  <Clock className="h-3.5 w-3.5" />
+                  Comment at {formatTimestamp(currentTime)}
+                </div>
+                <Textarea
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  placeholder="Leave a comment..."
+                  className="min-h-[90px] text-sm"
+                />
+                {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
+                <Button type="submit" size="sm" disabled={!commentText.trim() || isSubmittingComment} className="w-full">
+                  <MessageSquare className="mr-1.5 h-4 w-4" />
+                  {isSubmittingComment ? "Posting..." : "Post comment"}
+                </Button>
+              </form>
+            ) : (
+              <a
+                href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
+                className="block"
+              >
+                <Button className="w-full">
+                  <MessageSquare className="mr-1.5 h-4 w-4" />
+                  Sign in to comment
+                </Button>
+              </a>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {/* Comments overlay — mobile */}
+      {mobileCommentsOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col bg-[#f0f0e8]">
+          <div className="flex-shrink-0 px-5 py-4 border-b-2 border-[#1a1a1a] flex items-center justify-between">
+            <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a]">
+              Discussion
+              {comments && comments.length > 0 && (
+                <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 px-2 py-0.5 rounded-full">
+                  {comments.length}
+                </span>
+              )}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setMobileCommentsOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {comments === undefined ? (
+              <p className="text-sm text-[#888]">Loading comments...</p>
+            ) : comments.length === 0 ? (
+              <p className="text-sm text-[#888]">No comments yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {comments.map((comment) => (
+                  <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
+                      <button
+                        type="button"
+                        className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
+                        onClick={() => {
+                          playerRef.current?.seekTo(comment.timestampSeconds, { play: true });
+                          setMobileCommentsOpen(false);
+                        }}
+                      >
+                        {formatTimestamp(comment.timestampSeconds)}
+                      </button>
+                    </div>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                    <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
+
+                    {comment.replies.length > 0 ? (
+                      <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
+                        {comment.replies.map((reply) => (
+                          <div key={reply._id} className="text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
+                              <button
+                                type="button"
+                                className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
+                                onClick={() => {
+                                  playerRef.current?.seekTo(reply.timestampSeconds, { play: true });
+                                  setMobileCommentsOpen(false);
+                                }}
+                              >
+                                {formatTimestamp(reply.timestampSeconds)}
+                              </button>
+                            </div>
+                            <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4 pb-safe">
+            {isUserLoaded && user ? (
+              <form onSubmit={handleSubmitComment} className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-[#666]">
+                  <Clock className="h-3.5 w-3.5" />
+                  Comment at {formatTimestamp(currentTime)}
+                </div>
+                <Textarea
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  placeholder="Leave a comment..."
+                  className="min-h-[90px] text-sm"
+                />
+                {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
+                <Button type="submit" size="sm" disabled={!commentText.trim() || isSubmittingComment} className="w-full">
+                  <MessageSquare className="mr-1.5 h-4 w-4" />
+                  {isSubmittingComment ? "Posting..." : "Post comment"}
+                </Button>
+              </form>
+            ) : (
+              <a
+                href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
+                className="block"
+              >
+                <Button className="w-full">
+                  <MessageSquare className="mr-1.5 h-4 w-4" />
+                  Sign in to comment
+                </Button>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
