@@ -285,7 +285,7 @@ export default function TeamSettingsPage() {
           </div>
 
           {/* ── Stats strip ── */}
-          <div className="border-t-2 border-b-2 border-[#1a1a1a] py-5 mb-8 grid grid-cols-3 gap-6 lg:gap-12">
+          <div className="border-t-2 border-b-2 border-[#1a1a1a] py-5 mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 lg:gap-12">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">
                 Plan
@@ -344,7 +344,7 @@ export default function TeamSettingsPage() {
                 Plans
               </h2>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {(Object.keys(BILLING_PLANS) as BillingPlan[]).map((planId) => {
                   const config = BILLING_PLANS[planId];
                   const isCurrentPlan = planId === plan && hasActiveSubscription;

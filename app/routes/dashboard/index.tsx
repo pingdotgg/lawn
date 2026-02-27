@@ -145,7 +145,7 @@ export default function DashboardPage() {
             if (!team) return null;
             return (
               <div key={team._id} className="mb-12 last:mb-0">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
                   <div className="flex items-center gap-3">
                     <h2 className="text-xl font-black text-[#1a1a1a]">{team.name}</h2>
                     <Badge variant="secondary">

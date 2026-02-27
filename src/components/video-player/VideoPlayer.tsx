@@ -50,6 +50,8 @@ interface VideoPlayerProps {
   }>;
   selectedQualityId?: string;
   onSelectQuality?: (id: string) => void;
+  /** Render controls below the video frame instead of overlaid. Ideal for mobile. */
+  controlsBelow?: boolean;
 }
 
 export interface VideoPlayerHandle {
@@ -88,9 +90,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     qualityOptionsConfig,
     selectedQualityId,
     onSelectQuality,
+    controlsBelow = false,
   },
   ref
 ) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -260,8 +264,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }, [showControls]);
 
   const toggleFullscreen = useCallback(async () => {
-    const container = containerRef.current;
-    if (!container) return;
+    const target = controlsBelow ? wrapperRef.current : containerRef.current;
+    if (!target) return;
 
     showControls();
 
@@ -269,12 +273,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else {
-        await container.requestFullscreen();
+        await target.requestFullscreen();
       }
     } catch {
       // Fullscreen can fail in some embedded contexts; ignore gracefully.
     }
-  }, [showControls]);
+  }, [controlsBelow, showControls]);
 
   const handleDownload = useCallback(async () => {
     if (!allowDownload || isDownloading) return;
@@ -694,14 +698,246 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     return qualityOptions.find((option) => option.level === selectedQualityLevel)?.label ?? "Auto";
   }, [hasExternalQualityOptions, isHls, qualityOptions, qualityOptionsConfig, selectedQualityId, selectedQualityLevel]);
   const hasManualQualityOptions = isHls && qualityOptions.length > 0;
+  const isExternalControls = controlsBelow && !isFullscreen;
+
+  // ── Controls content (timeline + buttons) ─────────────────────────
+  // Rendered either as an overlay inside the video frame or below it.
+  const controlsContent = (
+    <>
+      {/* Timeline */}
+      <div
+        ref={trackRef}
+        className="relative mb-3 h-3 w-full cursor-pointer rounded-full border border-white/10 bg-white/10"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          showControls();
+          startScrub(e.clientX);
+        }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-white/20"
+          style={{ width: `${bufferedPercent * 100}%` }}
+        />
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--accent)]"
+          style={{ width: `${playedPercent * 100}%` }}
+        />
+
+        {/* Comment markers */}
+        {groupedMarkers.map((marker) => {
+          const isResolved = marker.comment.resolved;
+          const isActive = Math.abs(displayTime - marker.comment.timestampSeconds) < 1.5;
+          return (
+            <button
+              key={marker.comment._id}
+              type="button"
+              className={cn(
+                "absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 shadow",
+                isResolved ? "bg-green-400" : "bg-orange-400",
+                isActive && "ring-2 ring-white/60"
+              )}
+              style={{ left: `${marker.position}%` }}
+              onPointerDown={(e) => { e.stopPropagation(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                applyTime(marker.comment.timestampSeconds);
+                onMarkerClick?.(marker.comment);
+                showControls();
+              }}
+              aria-label={`Jump to comment at ${formatTimestamp(marker.comment.timestampSeconds)}`}
+              title={`Comment at ${formatTimestamp(marker.comment.timestampSeconds)}`}
+            />
+          );
+        })}
+
+        {/* Scrubber */}
+        <div
+          className="absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-white shadow"
+          style={{ left: `${playedPercent * 100}%` }}
+        />
+      </div>
+
+      {/* Control row */}
+      <div className="flex flex-wrap items-center gap-2 text-white">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
+          aria-label={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+        </button>
+
+        <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10"
+            aria-label={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <input
+            aria-label="Volume"
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={isMuted ? 0 : volume}
+            onChange={(e) => { e.stopPropagation(); setVideoVolume(Number(e.target.value)); }}
+            className="h-1 w-24 cursor-pointer accent-[color:var(--accent)]"
+          />
+        </div>
+
+        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/90">
+          <span className="font-mono">
+            {formatDuration(displayTime)} / {formatDuration(duration || 0)}
+          </span>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleSeekBy(-10); }}
+            className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
+            aria-label="Rewind 10 seconds"
+            title="Rewind 10 seconds"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleSeekBy(10); }}
+            className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
+            aria-label="Forward 10 seconds"
+            title="Forward 10 seconds"
+          >
+            <RotateCw className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); cyclePlaybackRate(); }}
+            className="inline-flex h-9 min-w-[56px] items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
+            aria-label={`Playback speed ${playbackRate}x`}
+            title="Change playback speed"
+          >
+            {playbackRate}x
+          </button>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); showControls(); setQualityMenuOpen((c) => !c); }}
+              className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
+              aria-label={`Quality ${qualityLabel}`}
+              title="Quality settings"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              {qualityLabel}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+
+            {qualityMenuOpen && (
+              <div
+                className="absolute right-0 bottom-11 z-30 min-w-[170px] rounded-lg border border-white/10 bg-black/90 p-1.5 text-sm text-white shadow-2xl backdrop-blur"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {hasExternalQualityOptions ? (
+                  <>
+                    {qualityOptionsConfig?.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => { if (option.disabled) return; onSelectQuality?.(option.id); setQualityMenuOpen(false); showControls(); }}
+                        disabled={option.disabled}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span>{option.label}</span>
+                        {selectedQualityId === option.id && <Check className="h-4 w-4" />}
+                      </button>
+                    ))}
+                  </>
+                ) : hasManualQualityOptions ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => applyQualityLevel(AUTO_QUALITY_LEVEL)}
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
+                    >
+                      <span>Auto</span>
+                      {selectedQualityLevel === AUTO_QUALITY_LEVEL && <Check className="h-4 w-4" />}
+                    </button>
+                    {qualityOptions.map((option) => (
+                      <button
+                        key={option.level}
+                        type="button"
+                        onClick={() => applyQualityLevel(option.level)}
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
+                      >
+                        <span>{option.label}</span>
+                        {selectedQualityLevel === option.level && <Check className="h-4 w-4" />}
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <div className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/85">
+                    <span>{isHls ? "Auto (browser)" : "Original source"}</span>
+                    <Check className="h-4 w-4" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {canDownload && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); void handleDownload(); }}
+              disabled={isDownloading}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 sm:px-3 text-xs font-medium text-white transition hover:border-white/25 hover:bg-white/20 disabled:opacity-60"
+              aria-label="Download video"
+              title="Download video"
+            >
+              <Download className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">{isDownloading ? "Preparing..." : "Download"}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <div className={cn("relative", className)}>
+    <div
+      ref={wrapperRef}
+      className={cn(
+        "relative",
+        controlsBelow ? "flex flex-col h-full bg-black" : "",
+        className,
+      )}
+    >
       <div
         ref={containerRef}
         className={cn(
-          "relative aspect-video w-full overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]",
-          isFullscreen && "rounded-none border-none"
+          "relative w-full overflow-hidden bg-black",
+          controlsBelow
+            ? "flex-1 min-h-0"
+            : cn(
+                "aspect-video rounded-xl border border-zinc-800/80 shadow-[0_10px_40px_rgba(0,0,0,0.45)]",
+                isFullscreen && "rounded-none border-none shadow-none"
+              ),
         )}
         tabIndex={0}
         onMouseMove={showControls}
@@ -807,273 +1043,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           </div>
         )}
 
-        {/* Bottom controls */}
-        <div
-          className={cn(
-            "absolute inset-x-0 bottom-0 z-20 transition-opacity",
-            controlsVisible ? "opacity-100" : "opacity-0"
-          )}
-        >
-          <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">
-            {/* Timeline */}
-            <div
-              ref={trackRef}
-              className="relative mb-3 h-3 w-full cursor-pointer rounded-full border border-white/10 bg-white/10"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                showControls();
-                startScrub(e.clientX);
-              }}
-            >
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-white/20"
-                style={{ width: `${bufferedPercent * 100}%` }}
-              />
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-[color:var(--accent)]"
-                style={{ width: `${playedPercent * 100}%` }}
-              />
-
-              {/* Comment markers on main timeline */}
-              {groupedMarkers.map((marker) => {
-                const isResolved = marker.comment.resolved;
-                const isActive = Math.abs(displayTime - marker.comment.timestampSeconds) < 1.5;
-                return (
-                  <button
-                    key={marker.comment._id}
-                    type="button"
-                    className={cn(
-                      "absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 shadow",
-                      isResolved ? "bg-green-400" : "bg-orange-400",
-                      isActive && "ring-2 ring-white/60"
-                    )}
-                    style={{ left: `${marker.position}%` }}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const time = marker.comment.timestampSeconds;
-                      applyTime(time);
-                      onMarkerClick?.(marker.comment);
-                      showControls();
-                    }}
-                    aria-label={`Jump to comment at ${formatTimestamp(marker.comment.timestampSeconds)}`}
-                    title={`Comment at ${formatTimestamp(marker.comment.timestampSeconds)}`}
-                  />
-                );
-              })}
-
-              {/* Scrubber */}
-              <div
-                className="absolute top-1/2 z-20 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-white shadow"
-                style={{ left: `${playedPercent * 100}%` }}
-              />
-            </div>
-
-            {/* Control row */}
-            <div className="flex flex-wrap items-center gap-2 text-white">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
-              </button>
-
-              <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleMute();
-                  }}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10"
-                  aria-label={isMuted ? "Unmute" : "Mute"}
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="h-4 w-4" />
-                  ) : (
-                    <Volume2 className="h-4 w-4" />
-                  )}
-                </button>
-                <input
-                  aria-label="Volume"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    const next = Number(e.target.value);
-                    setVideoVolume(next);
-                  }}
-                  className="h-1 w-24 cursor-pointer accent-[color:var(--accent)]"
-                />
-              </div>
-
-              <div className="min-w-[110px] rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/90">
-                <span className="font-mono">
-                  {formatDuration(displayTime)} / {formatDuration(duration || 0)}
-                </span>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSeekBy(-10);
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
-                  aria-label="Rewind 10 seconds"
-                  title="Rewind 10 seconds"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSeekBy(10);
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
-                  aria-label="Forward 10 seconds"
-                  title="Forward 10 seconds"
-                >
-                  <RotateCw className="h-4 w-4" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    cyclePlaybackRate();
-                  }}
-                  className="inline-flex h-9 min-w-[56px] items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
-                  aria-label={`Playback speed ${playbackRate}x`}
-                  title="Change playback speed"
-                >
-                  {playbackRate}x
-                </button>
-
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showControls();
-                      setQualityMenuOpen((current) => !current);
-                    }}
-                    className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
-                    aria-label={`Quality ${qualityLabel}`}
-                    title="Quality settings"
-                  >
-                    <Settings2 className="h-3.5 w-3.5" />
-                    {qualityLabel}
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-
-                  {qualityMenuOpen && (
-                    <div
-                      className="absolute right-0 bottom-11 z-30 min-w-[170px] rounded-lg border border-white/10 bg-black/90 p-1.5 text-sm text-white shadow-2xl backdrop-blur"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {hasExternalQualityOptions ? (
-                        <>
-                          {qualityOptionsConfig?.map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              onClick={() => {
-                                if (option.disabled) return;
-                                onSelectQuality?.(option.id);
-                                setQualityMenuOpen(false);
-                                showControls();
-                              }}
-                              disabled={option.disabled}
-                              className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <span>{option.label}</span>
-                              {selectedQualityId === option.id && <Check className="h-4 w-4" />}
-                            </button>
-                          ))}
-                        </>
-                      ) : hasManualQualityOptions ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => applyQualityLevel(AUTO_QUALITY_LEVEL)}
-                            className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
-                          >
-                            <span>Auto</span>
-                            {selectedQualityLevel === AUTO_QUALITY_LEVEL && <Check className="h-4 w-4" />}
-                          </button>
-                          {qualityOptions.map((option) => (
-                            <button
-                              key={option.level}
-                              type="button"
-                              onClick={() => applyQualityLevel(option.level)}
-                              className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10"
-                            >
-                              <span>{option.label}</span>
-                              {selectedQualityLevel === option.level && <Check className="h-4 w-4" />}
-                            </button>
-                          ))}
-                        </>
-                      ) : (
-                        <div className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/85">
-                          <span>{isHls ? "Auto (browser)" : "Original source"}</span>
-                          <Check className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {canDownload && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleDownload();
-                    }}
-                    disabled={isDownloading}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 text-xs font-medium text-white transition hover:border-white/25 hover:bg-white/20 disabled:opacity-60"
-                    aria-label="Download video"
-                    title="Download video"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {isDownloading ? "Preparing..." : "Download"}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleFullscreen();
-                  }}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
-                  aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                  title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Maximize2 className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
+        {/* Overlay controls — inside video frame (default or fullscreen) */}
+        {!isExternalControls && (
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 z-20 transition-opacity",
+              controlsVisible ? "opacity-100" : "opacity-0"
+            )}
+          >
+            <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">
+              {controlsContent}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Custom context menu */}
         {contextMenu && (
@@ -1112,6 +1094,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         )}
       </div>
 
+      {/* External controls — pinned to bottom */}
+      {isExternalControls && (
+        <div
+          className="flex-shrink-0 bg-black px-4 pb-3 pt-2"
+          onMouseMove={showControls}
+          onMouseEnter={showControls}
+        >
+          {controlsContent}
+        </div>
+      )}
     </div>
   );
 });

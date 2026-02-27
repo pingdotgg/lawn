@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Folder, Plus, MoreVertical, Trash2, Users, ArrowRight } from "lucide-react";
+import { Folder, Plus, MoreVertical, Trash2, Users, ArrowRight, CreditCard } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -198,7 +198,8 @@ export default function TeamPage() {
             variant="outline"
             onClick={() => navigate({ to: billingPath ?? teamSettingsPath(team.slug) })}
           >
-            Billing
+            <CreditCard className="sm:mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">Billing</span>
           </Button>
         )}
         {canManageMembers && (
@@ -206,14 +207,14 @@ export default function TeamPage() {
             variant="outline"
             onClick={() => setMemberDialogOpen(true)}
           >
-            <Users className="mr-1.5 h-4 w-4" />
-            Members
+            <Users className="sm:mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">Members</span>
           </Button>
         )}
         {canCreateProject && (
           <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            New project
+            <Plus className="sm:mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">New project</span>
           </Button>
         )}
       </DashboardHeader>

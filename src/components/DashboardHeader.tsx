@@ -34,10 +34,10 @@ export type PathSegment = {
   prewarmIntentHandlers?: ReturnType<typeof useRoutePrewarmIntent>;
 };
 
-export function DashboardHeader({ 
+export function DashboardHeader({
   children,
   paths = [],
-}: { 
+}: {
   children?: React.ReactNode;
   paths?: PathSegment[];
 }) {
@@ -47,18 +47,21 @@ export function DashboardHeader({
   );
 
   return (
-    <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] bg-[#f0f0e8] flex items-center px-6 h-14 w-full">
-      <div className="flex items-center text-xl font-black tracking-tighter text-[#1a1a1a] min-w-0 flex-shrink">
-        <Link 
-          to="/dashboard" 
+    <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] bg-[#f0f0e8] grid grid-cols-[1fr_auto] sm:grid-cols-[auto_1fr_auto] items-center px-4 sm:px-6">
+      {/* Breadcrumb */}
+      <div className="flex items-center text-xl font-black tracking-tighter text-[#1a1a1a] min-w-0 h-11 sm:h-14">
+        <Link
+          to="/dashboard"
           preload="intent"
-          className="hover:text-[#2d5a2d] transition-colors mr-2"
+          className="hover:text-[#2d5a2d] transition-colors mr-2 flex-shrink-0"
           {...prewarmHomeIntentHandlers}
         >
           lawn.
         </Link>
-        {paths.map((path, index) => (
-          <div key={index} className="flex items-center min-w-0 flex-shrink">
+        {paths.map((path, index) => {
+          const isIntermediate = paths.length >= 2 && index < paths.length - 1;
+          return (
+          <div key={index} className={`${isIntermediate ? 'hidden sm:flex' : 'flex'} items-center min-w-0 flex-shrink`}>
             <span className="text-[#888] mr-2 flex-shrink-0">/</span>
             {path.href ? (
               <Link
@@ -75,14 +78,12 @@ export function DashboardHeader({
               </div>
             )}
           </div>
-        ))}
-      </div>
-      
-      <div className="flex-1 min-w-0 flex items-center justify-end gap-3 pl-4">
-        {children}
+        );
+        })}
       </div>
 
-      <div className="flex items-center gap-4 flex-shrink-0 ml-4 pl-4 border-l-2 border-[#1a1a1a]/10 h-8">
+      {/* User controls — pinned top-right */}
+      <div className="row-start-1 col-start-2 sm:col-start-3 flex items-center gap-4 pl-4 border-l-2 border-[#1a1a1a]/10 h-8">
         <ThemeToggleButton />
         <UserButton
           appearance={{
@@ -102,6 +103,13 @@ export function DashboardHeader({
           }}
         />
       </div>
+
+      {/* Children — second row on mobile, middle column on desktop */}
+      {children && (
+        <div className="col-span-full pb-2 sm:pb-0 sm:col-span-1 sm:col-start-2 sm:row-start-1 flex items-center gap-2 sm:gap-3 sm:justify-end sm:h-14 sm:pl-4 min-w-0">
+          {children}
+        </div>
+      )}
     </header>
   );
 }

@@ -23,7 +23,15 @@ import {
   Check,
   X,
   Link as LinkIcon,
+  MessageSquare,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Id } from "@convex/_generated/dataModel";
 import { projectPath, teamHomePath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
@@ -64,6 +72,7 @@ export default function VideoPage() {
   const [editedTitle, setEditedTitle] = useState("");
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
     posterUrl: string;
@@ -261,7 +270,7 @@ export default function VideoPage() {
               <Input
                 value={editedTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
-                className="w-64 h-8 text-base font-black tracking-tighter uppercase font-mono"
+                className="w-40 sm:w-64 h-8 text-base font-black tracking-tighter uppercase font-mono"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSaveTitle();
@@ -282,7 +291,7 @@ export default function VideoPage() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="truncate max-w-[200px] sm:max-w-[300px]">{video.title}</span>
+              <span className="truncate max-w-[150px] sm:max-w-[300px]">{video.title}</span>
               {canEdit && (
                 <Button
                   size="icon"
@@ -306,7 +315,8 @@ export default function VideoPage() {
           )
         }
       ]}>
-        <div className="flex items-center gap-3 text-xs text-[#888]">
+        {/* Desktop: inline actions */}
+        <div className="hidden sm:flex items-center gap-3 text-xs text-[#888]">
           <span className="truncate max-w-[100px]">{video.uploaderName}</span>
           {video.duration && (
             <>
@@ -316,8 +326,7 @@ export default function VideoPage() {
           )}
           <VideoWatchers watchers={watchers} />
         </div>
-        
-        <div className="flex items-center gap-3 flex-shrink-0 border-l-2 border-[#1a1a1a]/20 pl-3 ml-1">
+        <div className="hidden sm:flex items-center gap-3 flex-shrink-0 border-l-2 border-[#1a1a1a]/20 pl-3 ml-1">
           <VideoWorkflowStatusControl
             status={video.workflowStatus}
             size="lg"
@@ -330,106 +339,123 @@ export default function VideoPage() {
             <LinkIcon className="mr-1.5 h-4 w-4" />
             Share
           </Button>
+          <Button
+            variant="outline"
+            className="lg:hidden"
+            onClick={() => setMobileCommentsOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4" />
+            {comments && comments.length > 0 && (
+              <span className="ml-1 text-xs">{comments.length}</span>
+            )}
+          </Button>
+        </div>
+
+        {/* Mobile: workflow status + menu button */}
+        <div className="flex sm:hidden items-center gap-2">
+          <VideoWorkflowStatusControl
+            status={video.workflowStatus}
+            size="lg"
+            disabled={!canEdit}
+            onChange={(workflowStatus) => {
+              void handleUpdateWorkflowStatus(workflowStatus);
+            }}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setShareDialogOpen(true)}>
+              <LinkIcon className="mr-2 h-4 w-4" />
+              Share
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setMobileCommentsOpen(true)}>
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </DashboardHeader>
 
       {/* Main content - horizontal split */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Video player area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="flex-1 p-6 overflow-auto">
-            {activePlaybackUrl ? (
-              <div className="h-full flex flex-col">
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="w-full max-w-6xl">
-                    {video.status === "processing" && isUsingOriginalFallback ? (
-                      <div className="mb-3 flex items-center gap-2 border border-[#1a1a1a] bg-[#e8e8e0] px-3 py-2 text-sm text-[#1a1a1a]">
-                        <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-[#2d5a2d]" />
-                        <span className="font-semibold">Original playback active.</span>
-                        <span className="text-[#666]">720p stream is still encoding.</span>
-                      </div>
-                    ) : null}
-                    <VideoPlayer
-                      ref={playerRef}
-                      src={activePlaybackUrl}
-                      poster={playbackSession?.posterUrl}
-                      comments={comments || []}
-                      onTimeUpdate={handleTimeUpdate}
-                      onMarkerClick={handleMarkerClick}
-                      allowDownload={video.status === "ready"}
-                      downloadFilename={`${video.title}.mp4`}
-                      onRequestDownload={requestDownload}
-                      qualityOptionsConfig={[
-                        {
-                          id: "mux720",
-                          label: playbackUrl ? "720p" : "720p (encoding...)",
-                          disabled: !playbackUrl,
-                        },
-                        {
-                          id: "original",
-                          label: "Original",
-                          disabled: !originalPlaybackUrl,
-                        },
-                      ]}
-                      selectedQualityId={activeQualityId}
-                      onSelectQuality={(id) => {
-                        if (id === "mux720" || id === "original") {
-                          setPreferredSource(id);
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
+        {/* Video player area — full black, Frame.io style */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-black">
+          {video.status === "processing" && isUsingOriginalFallback && activePlaybackUrl ? (
+            <div className="flex-shrink-0 flex items-center gap-2 bg-[#1a1a1a] px-4 py-2 text-sm text-white">
+              <span className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-[#2d5a2d]" />
+              <span className="font-semibold">Original playback active.</span>
+              <span className="text-white/60">720p stream is still encoding.</span>
+            </div>
+          ) : null}
 
-                {/* Comment controls removed */}
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                {video.status === "ready" && !playbackUrl ? (
-                  <div className="w-full max-w-6xl">
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-                      {playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http") ? (
-                        <img
-                          src={playbackSession?.posterUrl ?? video.thumbnailUrl}
-                          alt={`${video.title} thumbnail`}
-                          className="h-full w-full object-cover blur-[4px]"
-                        />
-                      ) : null}
-                      <div className="absolute inset-0 bg-black/45" />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                        <p className="text-sm font-medium text-white/85">
-                          {isLoadingPlayback ? "Loading stream..." : "Preparing stream..."}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="max-w-2xl w-full aspect-video bg-[#e8e8e0] flex items-center justify-center border-2 border-[#1a1a1a]">
-                    <div className="text-center">
-                      {video.status === "uploading" && (
-                        <p className="text-[#888]">Uploading...</p>
-                      )}
-                      {video.status === "processing" && (
-                        <p className="text-[#888]">
-                          {isLoadingOriginalPlayback
-                            ? "Preparing original playback..."
-                            : "Processing video..."}
-                        </p>
-                      )}
-                      {video.status === "failed" && (
-                        <p className="text-[#dc2626]">Processing failed</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {activePlaybackUrl ? (
+            <VideoPlayer
+              ref={playerRef}
+              src={activePlaybackUrl}
+              poster={playbackSession?.posterUrl}
+              comments={comments || []}
+              onTimeUpdate={handleTimeUpdate}
+              onMarkerClick={handleMarkerClick}
+              allowDownload={video.status === "ready"}
+              downloadFilename={`${video.title}.mp4`}
+              onRequestDownload={requestDownload}
+              controlsBelow
+              qualityOptionsConfig={[
+                {
+                  id: "mux720",
+                  label: playbackUrl ? "720p" : "720p (encoding...)",
+                  disabled: !playbackUrl,
+                },
+                {
+                  id: "original",
+                  label: "Original",
+                  disabled: !originalPlaybackUrl,
+                },
+              ]}
+              selectedQualityId={activeQualityId}
+              onSelectQuality={(id) => {
+                if (id === "mux720" || id === "original") {
+                  setPreferredSource(id);
+                }
+              }}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              {video.status === "ready" && !playbackUrl ? (
+                <div className="flex flex-col items-center gap-3 text-white">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                  <p className="text-sm font-medium text-white/85">
+                    {isLoadingPlayback ? "Loading stream..." : "Preparing stream..."}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  {video.status === "uploading" && (
+                    <p className="text-white/60">Uploading...</p>
+                  )}
+                  {video.status === "processing" && (
+                    <p className="text-white/60">
+                      {isLoadingOriginalPlayback
+                        ? "Preparing original playback..."
+                        : "Processing video..."}
+                    </p>
+                  )}
+                  {video.status === "failed" && (
+                    <p className="text-[#dc2626]">Processing failed</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Comments sidebar */}
-        <aside className="w-80 xl:w-96 border-l-2 border-[#1a1a1a] flex flex-col bg-[#f0f0e8]">
+        {/* Comments sidebar — desktop */}
+        <aside className="hidden lg:flex w-80 xl:w-96 border-l-2 border-[#1a1a1a] flex-col bg-[#f0f0e8]">
           <div className="flex-shrink-0 px-5 py-4 border-b border-[#1a1a1a]/10 dark:border-white/10 flex items-center justify-between">
             <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a] dark:text-[#f0f0e8]">
               Discussion
@@ -461,6 +487,52 @@ export default function VideoPage() {
           )}
         </aside>
       </div>
+
+      {/* Comments overlay — mobile */}
+      {mobileCommentsOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col bg-[#f0f0e8]">
+          <div className="flex-shrink-0 px-5 py-4 border-b-2 border-[#1a1a1a] flex items-center justify-between">
+            <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a]">
+              Discussion
+              {comments && comments.length > 0 && (
+                <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 px-2 py-0.5 rounded-full">
+                  {comments.length}
+                </span>
+              )}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setMobileCommentsOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <CommentList
+              videoId={resolvedVideoId}
+              comments={commentsThreaded}
+              onTimestampClick={(time) => {
+                handleTimestampClick(time);
+                setMobileCommentsOpen(false);
+              }}
+              highlightedCommentId={highlightedCommentId}
+              canResolve={canEdit}
+            />
+          </div>
+          {canComment && (
+            <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8]">
+              <CommentInput
+                videoId={resolvedVideoId}
+                timestampSeconds={currentTime}
+                showTimestamp
+                variant="seamless"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <ShareDialog
         videoId={resolvedVideoId}
