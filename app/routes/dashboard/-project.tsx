@@ -2,7 +2,7 @@
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadProgress } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
@@ -42,6 +42,39 @@ import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
 import { DashboardHeader } from "@/components/DashboardHeader";
 
 type ViewMode = "grid" | "list";
+type ShareToastState = {
+  tone: "success" | "error";
+  message: string;
+};
+
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  if (typeof document === "undefined") {
+    return false;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
+
+  return copied;
+}
 
 type VideoIntentTargetProps = {
   className: string;
@@ -110,6 +143,8 @@ export default function ProjectPage({
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [shareToast, setShareToast] = useState<ShareToastState | null>(null);
+  const shareToastTimeoutRef = useRef<number | null>(null);
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -122,6 +157,15 @@ export default function ProjectPage({
       navigate({ to: context.canonicalPath, replace: true });
     }
   }, [shouldCanonicalize, context, navigate]);
+
+  useEffect(
+    () => () => {
+      if (shareToastTimeoutRef.current !== null) {
+        window.clearTimeout(shareToastTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const isLoadingData =
     context === undefined ||
@@ -169,6 +213,53 @@ export default function ProjectPage({
       }
     },
     [updateVideoWorkflowStatus],
+  );
+
+  const showShareToast = useCallback((tone: ShareToastState["tone"], message: string) => {
+    setShareToast({ tone, message });
+    if (shareToastTimeoutRef.current !== null) {
+      window.clearTimeout(shareToastTimeoutRef.current);
+    }
+    shareToastTimeoutRef.current = window.setTimeout(() => {
+      setShareToast(null);
+      shareToastTimeoutRef.current = null;
+    }, 2400);
+  }, []);
+
+  const handleShareVideo = useCallback(
+    async (video: {
+      _id: Id<"videos">;
+      publicId?: string;
+      status: string;
+      visibility: "public" | "private";
+    }) => {
+      const canSharePublicly =
+        Boolean(video.publicId) &&
+        video.status === "ready" &&
+        video.visibility === "public";
+      const path = canSharePublicly
+        ? `/watch/${video.publicId}`
+        : videoPath(resolvedTeamSlug, projectId, video._id);
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const url = `${origin}${path}`;
+
+      try {
+        const copied = await copyTextToClipboard(url);
+        if (!copied) {
+          showShareToast("error", "Could not copy link");
+          return;
+        }
+        showShareToast(
+          "success",
+          canSharePublicly
+            ? "Share link copied"
+            : "Video link copied (public watch link not available yet)",
+        );
+      } catch {
+        showShareToast("error", "Could not copy link");
+      }
+    },
+    [projectId, resolvedTeamSlug, showShareToast],
   );
 
   // Not found state
@@ -325,6 +416,7 @@ export default function ProjectPage({
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
+                              void handleShareVideo(video);
                             }}
                           >
                             <LinkIcon className="mr-2 h-4 w-4" />
@@ -504,6 +596,7 @@ export default function ProjectPage({
                       <DropdownMenuItem
                         onClick={(e) => {
                           e.stopPropagation();
+                          void handleShareVideo(video);
                         }}
                       >
                         <LinkIcon className="mr-2 h-4 w-4" />
@@ -530,6 +623,21 @@ export default function ProjectPage({
           </div>
         )}
       </div>
+
+      {shareToast ? (
+        <div className="fixed right-4 top-4 z-50" aria-live="polite">
+          <div
+            className={cn(
+              "border-2 px-3 py-2 text-sm font-bold shadow-[4px_4px_0px_0px_var(--shadow-color)]",
+              shareToast.tone === "success"
+                ? "border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a]"
+                : "border-[#dc2626] bg-[#fef2f2] text-[#dc2626]",
+            )}
+          >
+            {shareToast.message}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
