@@ -256,7 +256,7 @@ export default function DashboardLayout() {
       )}
 
       {uploads.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-50 w-full max-w-sm space-y-2 px-4 sm:px-0">
+        <div className="fixed left-4 right-4 top-16 z-50 space-y-2 sm:bottom-4 sm:top-auto sm:right-auto sm:w-full sm:max-w-sm">
           {uploads.map((upload) => (
             <UploadProgress
               key={upload.id}
