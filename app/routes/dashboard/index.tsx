@@ -96,27 +96,32 @@ export default function DashboardPage() {
   // Empty state - no teams
   if (teams && teams.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full p-8 animate-in fade-in duration-300">
-        <Card className="max-w-sm w-full text-center">
-          <CardHeader>
-            <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
-              <Users className="h-6 w-6 text-[#888]" />
-            </div>
-            <CardTitle className="text-lg">Create your first team</CardTitle>
-            <CardDescription>
-              Teams help you organize projects and collaborate on video reviews.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              className="w-full"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus className="mr-1.5 h-4 w-4" />
-              Create a team
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="h-full flex flex-col">
+        <DashboardHeader paths={[{ label: "dashboard" }]} />
+
+        <div className="flex-1 flex items-center justify-center p-8 animate-in fade-in duration-300">
+          <Card className="max-w-sm w-full text-center">
+            <CardHeader>
+              <div className="mx-auto w-12 h-12 bg-[#e8e8e0] flex items-center justify-center mb-2">
+                <Users className="h-6 w-6 text-[#888]" />
+              </div>
+              <CardTitle className="text-lg">Create your first team</CardTitle>
+              <CardDescription>
+                Teams help you organize projects and collaborate on video reviews.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create a team
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
         <CreateTeamDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
