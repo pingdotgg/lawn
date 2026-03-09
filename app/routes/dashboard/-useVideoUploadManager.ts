@@ -57,7 +57,7 @@ export function useVideoUploadManager() {
             projectId,
             title,
             fileSize: file.size,
-            contentType: file.type || "video/mp4",
+            contentType: file.type || "application/octet-stream",
           });
 
           setUploads((prev) =>
@@ -72,7 +72,7 @@ export function useVideoUploadManager() {
             videoId: createdVideoId,
             filename: file.name,
             fileSize: file.size,
-            contentType: file.type || "video/mp4",
+            contentType: file.type || "application/octet-stream",
           });
 
           await new Promise<void>((resolve, reject) => {
@@ -100,7 +100,7 @@ export function useVideoUploadManager() {
               const avgSpeed =
                 recentSpeeds.length > 0
                   ? recentSpeeds.reduce((sum, speed) => sum + speed, 0) /
-                    recentSpeeds.length
+                  recentSpeeds.length
                   : 0;
               const remaining = event.total - event.loaded;
               const eta = avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
@@ -109,11 +109,11 @@ export function useVideoUploadManager() {
                 prev.map((upload) =>
                   upload.id === uploadId
                     ? {
-                        ...upload,
-                        progress: percentage,
-                        bytesPerSecond: avgSpeed,
-                        estimatedSecondsRemaining: eta,
-                      }
+                      ...upload,
+                      progress: percentage,
+                      bytesPerSecond: avgSpeed,
+                      estimatedSecondsRemaining: eta,
+                    }
                     : upload,
                 ),
               );
@@ -140,7 +140,7 @@ export function useVideoUploadManager() {
             });
 
             xhr.open("PUT", url);
-            xhr.setRequestHeader("Content-Type", file.type || "video/mp4");
+            xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
             xhr.send(file);
           });
 
