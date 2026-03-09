@@ -488,7 +488,7 @@ export const getSharedPlaybackSession = action({
 });
 
 export const getProjectSharePlaybackSession = action({
-  args: { shareToken: v.string(), videoId: v.id("videos") },
+  args: { shareToken: v.string(), videoId: v.string() },
   returns: v.object({
     url: v.string(),
     posterUrl: v.string(),
@@ -507,7 +507,7 @@ export const getProjectSharePlaybackSession = action({
     }
 
     const playbackId = await ensurePublicPlaybackId(ctx, {
-      videoId: args.videoId,
+      videoId: result._id,
       muxAssetId: result.muxAssetId,
       muxPlaybackId: result.muxPlaybackId,
     });

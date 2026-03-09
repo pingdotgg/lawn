@@ -39,8 +39,9 @@ export const list = query({
           .query("videos")
           .withIndex("by_project", (q) => q.eq("projectId", project._id))
           .collect();
+        const { shareToken: _shareToken, ...projectWithoutToken } = project;
         return {
-          ...project,
+          ...projectWithoutToken,
           videoCount: videos.length,
         };
       })
@@ -102,7 +103,16 @@ export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { project, membership } = await requireProjectAccess(ctx, args.projectId);
-    return { ...project, role: membership.role };
+    const { shareToken: _shareToken, ...projectWithoutToken } = project;
+    return { ...projectWithoutToken, role: membership.role };
+  },
+});
+
+export const getShareToken = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const { project } = await requireProjectAccess(ctx, args.projectId, "member");
+    return { shareToken: project.shareToken ?? null };
   },
 });
 

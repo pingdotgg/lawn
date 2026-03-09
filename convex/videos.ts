@@ -501,7 +501,7 @@ export const listForProjectShare = query({
 });
 
 export const getForProjectShare = query({
-  args: { shareToken: v.string(), videoId: v.id("videos") },
+  args: { shareToken: v.string(), videoId: v.string() },
   handler: async (ctx, args) => {
     const project = await ctx.db
       .query("projects")
@@ -510,7 +510,10 @@ export const getForProjectShare = query({
 
     if (!project) return null;
 
-    const video = await ctx.db.get(args.videoId);
+    const normalizedVideoId = ctx.db.normalizeId("videos", args.videoId);
+    if (!normalizedVideoId) return null;
+
+    const video = await ctx.db.get(normalizedVideoId);
     if (!video || video.projectId !== project._id || video.status !== "ready") {
       return null;
     }

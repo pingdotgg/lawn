@@ -145,6 +145,11 @@ export default function ProjectPage({
 
   const generateProjectShare = useMutation(api.projects.generateShareToken);
   const revokeProjectShare = useMutation(api.projects.revokeShareToken);
+  const shareTokenData = useQuery(
+    api.projects.getShareToken,
+    resolvedProjectId && project?.role !== "viewer" ? { projectId: resolvedProjectId } : "skip",
+  );
+  const shareToken = shareTokenData?.shareToken ?? null;
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [shareToast, setShareToast] = useState<ShareToastState | null>(null);
@@ -235,7 +240,7 @@ export default function ProjectPage({
 
   const handleShareProject = useCallback(async () => {
     if (!resolvedProjectId) return;
-    if (project?.shareToken) {
+    if (shareToken) {
       setShowSharePanel(true);
       return;
     }
@@ -245,10 +250,12 @@ export default function ProjectPage({
       setShowSharePanel(true);
     } catch (error) {
       console.error("Failed to generate share token:", error);
+      showShareToast("error", "Could not generate share link");
     } finally {
       setIsGeneratingToken(false);
     }
-  }, [project?.shareToken, resolvedProjectId, generateProjectShare]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shareToken, resolvedProjectId, generateProjectShare]);
 
   const showShareToast = useCallback((tone: ShareToastState["tone"], message: string) => {
     setShareToast({ tone, message });
@@ -359,21 +366,21 @@ export default function ProjectPage({
                 <Share className="h-4 w-4" />
                 {isGeneratingToken ? "Sharing..." : "Share"}
               </button>
-              {showSharePanel && project?.shareToken && (
+              {showSharePanel && shareToken && (
                 <div className="absolute right-0 top-full mt-2 z-50 w-80 border-2 border-[#1a1a1a] bg-[#f0f0e8] shadow-[4px_4px_0px_0px_var(--shadow-color)] p-3 space-y-2">
                   <p className="text-xs font-bold text-[#888] uppercase tracking-wide">Project share link</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(project.shareToken)}`}
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(shareToken)}`}
                       className="flex-1 border-2 border-[#1a1a1a] bg-white px-2 py-1 text-xs font-mono truncate"
                     />
                     <button
                       type="button"
                       className="border-2 border-[#1a1a1a] px-2.5 py-1 text-xs font-bold hover:bg-[#e8e8e0] transition-colors shrink-0"
                       onClick={() => {
-                        const url = `${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(project.shareToken!)}`;
+                        const url = `${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(shareToken)}`;
                         void copyTextToClipboard(url).then((copied) => {
                           if (copied) showShareToast("success", "Project link copied");
                           else showShareToast("error", "Could not copy link");
@@ -388,8 +395,14 @@ export default function ProjectPage({
                     className="w-full border-2 border-[#dc2626] text-[#dc2626] px-2.5 py-1 text-xs font-bold hover:bg-[#fef2f2] transition-colors"
                     onClick={async () => {
                       if (!resolvedProjectId) return;
-                      await revokeProjectShare({ projectId: resolvedProjectId });
-                      setShowSharePanel(false);
+                      try {
+                        await revokeProjectShare({ projectId: resolvedProjectId });
+                        setShowSharePanel(false);
+                        showShareToast("success", "Share link revoked");
+                      } catch (error) {
+                        console.error("Failed to revoke share token:", error);
+                        showShareToast("error", "Could not revoke link");
+                      }
                     }}
                   >
                     Revoke link

@@ -6,12 +6,10 @@ import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/V
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import { AlertCircle, ArrowLeft } from "lucide-react";
-import { Id } from "@convex/_generated/dataModel";
-
 export default function ProjectShareVideoPage() {
   const params = useParams({ strict: false });
   const token = params.token as string;
-  const videoId = params.videoId as Id<"videos">;
+  const videoId = params.videoId as string;
 
   const getPlaybackSession = useAction(api.videoActions.getProjectSharePlaybackSession);
 
