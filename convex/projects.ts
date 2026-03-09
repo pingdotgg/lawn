@@ -4,6 +4,14 @@ import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
 import { generateUniqueToken } from "./security";
 
+function omitShareToken<T extends { shareToken?: string }>(
+  project: T,
+): Omit<T, "shareToken"> {
+  const copy = { ...project } as Record<string, unknown>;
+  delete copy.shareToken;
+  return copy as Omit<T, "shareToken">;
+}
+
 export const create = mutation({
   args: {
     teamId: v.id("teams"),
@@ -39,7 +47,7 @@ export const list = query({
           .query("videos")
           .withIndex("by_project", (q) => q.eq("projectId", project._id))
           .collect();
-        const { shareToken: _shareToken, ...projectWithoutToken } = project;
+        const projectWithoutToken = omitShareToken(project);
         return {
           ...projectWithoutToken,
           videoCount: videos.length,
@@ -103,7 +111,7 @@ export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { project, membership } = await requireProjectAccess(ctx, args.projectId);
-    const { shareToken: _shareToken, ...projectWithoutToken } = project;
+    const projectWithoutToken = omitShareToken(project);
     return { ...projectWithoutToken, role: membership.role };
   },
 });
