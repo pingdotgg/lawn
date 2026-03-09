@@ -160,7 +160,9 @@ export default function ProjectShareVideoPage() {
               ) : null}
               <div className="absolute inset-0 bg-black/45" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                {!playbackError && isLoadingPlayback && (
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                )}
                 <p className="text-sm font-medium text-white/85">
                   {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
                 </p>
