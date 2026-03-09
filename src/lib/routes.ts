@@ -17,3 +17,11 @@ export function projectPath(teamSlug: string, projectId: string) {
 export function videoPath(teamSlug: string, projectId: string, videoId: string) {
   return `/dashboard/${teamSlug}/${projectId}/${videoId}`;
 }
+
+export function projectSharePath(token: string) {
+  return `/project-share/${token}`;
+}
+
+export function projectShareVideoPath(token: string, videoId: string) {
+  return `/project-share/${token}/${videoId}`;
+}

@@ -19,6 +19,7 @@ import {
   Download,
   MessageSquare,
   Eye,
+  Share,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { teamHomePath, videoPath } from "@/lib/routes";
+import { teamHomePath, videoPath, projectSharePath } from "@/lib/routes";
 import { prefetchHlsRuntime, prefetchMuxPlaybackManifest } from "@/lib/muxPlayback";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import {
@@ -142,9 +143,15 @@ export default function ProjectPage({
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
+  const generateProjectShare = useMutation(api.projects.generateShareToken);
+  const revokeProjectShare = useMutation(api.projects.revokeShareToken);
+
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [shareToast, setShareToast] = useState<ShareToastState | null>(null);
   const shareToastTimeoutRef = useRef<number | null>(null);
+  const [showSharePanel, setShowSharePanel] = useState(false);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const sharePanelRef = useRef<HTMLDivElement | null>(null);
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -166,6 +173,17 @@ export default function ProjectPage({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!showSharePanel) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sharePanelRef.current && !sharePanelRef.current.contains(event.target as Node)) {
+        setShowSharePanel(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showSharePanel]);
 
   const isLoadingData =
     context === undefined ||
@@ -214,6 +232,23 @@ export default function ProjectPage({
     },
     [updateVideoWorkflowStatus],
   );
+
+  const handleShareProject = useCallback(async () => {
+    if (!resolvedProjectId) return;
+    if (project?.shareToken) {
+      setShowSharePanel(true);
+      return;
+    }
+    setIsGeneratingToken(true);
+    try {
+      await generateProjectShare({ projectId: resolvedProjectId });
+      setShowSharePanel(true);
+    } catch (error) {
+      console.error("Failed to generate share token:", error);
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  }, [project?.shareToken, resolvedProjectId, generateProjectShare]);
 
   const showShareToast = useCallback((tone: ShareToastState["tone"], message: string) => {
     setShareToast({ tone, message });
@@ -313,6 +348,56 @@ export default function ProjectPage({
               <LayoutList className="h-4 w-4" />
             </button>
           </div>
+          {canUpload && (
+            <div className="relative" ref={sharePanelRef}>
+              <button
+                type="button"
+                onClick={() => void handleShareProject()}
+                disabled={isGeneratingToken}
+                className="inline-flex items-center gap-1.5 border-2 border-[#1a1a1a] px-2.5 py-1.5 text-sm font-bold hover:bg-[#e8e8e0] transition-colors disabled:opacity-50"
+              >
+                <Share className="h-4 w-4" />
+                {isGeneratingToken ? "Sharing..." : "Share"}
+              </button>
+              {showSharePanel && project?.shareToken && (
+                <div className="absolute right-0 top-full mt-2 z-50 w-80 border-2 border-[#1a1a1a] bg-[#f0f0e8] shadow-[4px_4px_0px_0px_var(--shadow-color)] p-3 space-y-2">
+                  <p className="text-xs font-bold text-[#888] uppercase tracking-wide">Project share link</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(project.shareToken)}`}
+                      className="flex-1 border-2 border-[#1a1a1a] bg-white px-2 py-1 text-xs font-mono truncate"
+                    />
+                    <button
+                      type="button"
+                      className="border-2 border-[#1a1a1a] px-2.5 py-1 text-xs font-bold hover:bg-[#e8e8e0] transition-colors shrink-0"
+                      onClick={() => {
+                        const url = `${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(project.shareToken!)}`;
+                        void copyTextToClipboard(url).then((copied) => {
+                          if (copied) showShareToast("success", "Project link copied");
+                          else showShareToast("error", "Could not copy link");
+                        });
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="w-full border-2 border-[#dc2626] text-[#dc2626] px-2.5 py-1 text-xs font-bold hover:bg-[#fef2f2] transition-colors"
+                    onClick={async () => {
+                      if (!resolvedProjectId) return;
+                      await revokeProjectShare({ projectId: resolvedProjectId });
+                      setShowSharePanel(false);
+                    }}
+                  >
+                    Revoke link
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {canUpload && (
             <UploadButton onFilesSelected={handleFilesSelected} />
           )}

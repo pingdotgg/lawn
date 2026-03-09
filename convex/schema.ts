@@ -61,7 +61,10 @@ export default defineSchema({
     teamId: v.id("teams"),
     name: v.string(),
     description: v.optional(v.string()),
-  }).index("by_team", ["teamId"]),
+    shareToken: v.optional(v.string()),
+  })
+    .index("by_team", ["teamId"])
+    .index("by_share_token", ["shareToken"]),
 
   videos: defineTable({
     projectId: v.id("projects"),

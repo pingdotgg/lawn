@@ -20,7 +20,10 @@ import { Route as WatchPublicIdRouteImport } from './routes/watch.$publicId'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
+import { Route as ProjectShareTokenRouteImport } from './routes/project-share.$token'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as ProjectShareTokenIndexRouteImport } from './routes/project-share.$token.index'
+import { Route as ProjectShareTokenVideoIdRouteImport } from './routes/project-share.$token.$videoId'
 import { Route as ForVideoEditorsRouteImport } from './routes/for.video-editors'
 import { Route as ForAgenciesRouteImport } from './routes/for.agencies'
 import { Route as DashboardTeamSlugRouteImport } from './routes/dashboard/$teamSlug'
@@ -86,6 +89,21 @@ const ShareTokenRoute = ShareTokenRouteImport.update({
   id: '/share/$token',
   path: '/share/$token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectShareTokenRoute = ProjectShareTokenRouteImport.update({
+  id: '/project-share/$token',
+  path: '/project-share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectShareTokenIndexRoute = ProjectShareTokenIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProjectShareTokenRoute,
+} as any)
+const ProjectShareTokenVideoIdRoute = ProjectShareTokenVideoIdRouteImport.update({
+  id: '/$videoId',
+  path: '/$videoId',
+  getParentRoute: () => ProjectShareTokenRoute,
 } as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
@@ -161,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/for/video-editors': typeof ForVideoEditorsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/share/$token': typeof ShareTokenRoute
+  '/project-share/$token': typeof ProjectShareTokenRouteWithChildren
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/watch/$publicId': typeof WatchPublicIdRoute
@@ -170,6 +189,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/$teamSlug/': typeof DashboardTeamSlugIndexRoute
   '/dashboard/$teamSlug/$projectId/$videoId': typeof DashboardTeamSlugProjectIdVideoIdRoute
   '/dashboard/$teamSlug/$projectId/': typeof DashboardTeamSlugProjectIdIndexRoute
+  '/project-share/$token/': typeof ProjectShareTokenIndexRoute
+  '/project-share/$token/$videoId': typeof ProjectShareTokenVideoIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -191,6 +212,8 @@ export interface FileRoutesByTo {
   '/dashboard/$teamSlug': typeof DashboardTeamSlugIndexRoute
   '/dashboard/$teamSlug/$projectId/$videoId': typeof DashboardTeamSlugProjectIdVideoIdRoute
   '/dashboard/$teamSlug/$projectId': typeof DashboardTeamSlugProjectIdIndexRoute
+  '/project-share/$token': typeof ProjectShareTokenIndexRoute
+  '/project-share/$token/$videoId': typeof ProjectShareTokenVideoIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -207,6 +230,7 @@ export interface FileRoutesById {
   '/for/video-editors': typeof ForVideoEditorsRoute
   '/invite/$token': typeof InviteTokenRoute
   '/share/$token': typeof ShareTokenRoute
+  '/project-share/$token': typeof ProjectShareTokenRouteWithChildren
   '/sign-in/$': typeof SignInSplatRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/watch/$publicId': typeof WatchPublicIdRoute
@@ -216,6 +240,8 @@ export interface FileRoutesById {
   '/dashboard/$teamSlug/': typeof DashboardTeamSlugIndexRoute
   '/dashboard/$teamSlug/$projectId/$videoId': typeof DashboardTeamSlugProjectIdVideoIdRoute
   '/dashboard/$teamSlug/$projectId/': typeof DashboardTeamSlugProjectIdIndexRoute
+  '/project-share/$token/': typeof ProjectShareTokenIndexRoute
+  '/project-share/$token/$videoId': typeof ProjectShareTokenVideoIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -233,6 +259,7 @@ export interface FileRouteTypes {
     | '/for/video-editors'
     | '/invite/$token'
     | '/share/$token'
+    | '/project-share/$token'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/watch/$publicId'
@@ -242,6 +269,8 @@ export interface FileRouteTypes {
     | '/dashboard/$teamSlug/'
     | '/dashboard/$teamSlug/$projectId/$videoId'
     | '/dashboard/$teamSlug/$projectId/'
+    | '/project-share/$token/'
+    | '/project-share/$token/$videoId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -263,6 +292,8 @@ export interface FileRouteTypes {
     | '/dashboard/$teamSlug'
     | '/dashboard/$teamSlug/$projectId/$videoId'
     | '/dashboard/$teamSlug/$projectId'
+    | '/project-share/$token'
+    | '/project-share/$token/$videoId'
   id:
     | '__root__'
     | '/'
@@ -278,6 +309,7 @@ export interface FileRouteTypes {
     | '/for/video-editors'
     | '/invite/$token'
     | '/share/$token'
+    | '/project-share/$token'
     | '/sign-in/$'
     | '/sign-up/$'
     | '/watch/$publicId'
@@ -287,6 +319,8 @@ export interface FileRouteTypes {
     | '/dashboard/$teamSlug/'
     | '/dashboard/$teamSlug/$projectId/$videoId'
     | '/dashboard/$teamSlug/$projectId/'
+    | '/project-share/$token/'
+    | '/project-share/$token/$videoId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -303,6 +337,7 @@ export interface RootRouteChildren {
   InviteTokenRoute: typeof InviteTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   WatchPublicIdRoute: typeof WatchPublicIdRoute
+  ProjectShareTokenRoute: typeof ProjectShareTokenRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -384,6 +419,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/project-share/$token': {
+      id: '/project-share/$token'
+      path: '/project-share/$token'
+      fullPath: '/project-share/$token'
+      preLoaderRoute: typeof ProjectShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/project-share/$token/': {
+      id: '/project-share/$token/'
+      path: '/'
+      fullPath: '/project-share/$token/'
+      preLoaderRoute: typeof ProjectShareTokenIndexRouteImport
+      parentRoute: typeof ProjectShareTokenRoute
+    }
+    '/project-share/$token/$videoId': {
+      id: '/project-share/$token/$videoId'
+      path: '/$videoId'
+      fullPath: '/project-share/$token/$videoId'
+      preLoaderRoute: typeof ProjectShareTokenVideoIdRouteImport
+      parentRoute: typeof ProjectShareTokenRoute
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -463,6 +519,19 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ProjectShareTokenRouteChildren {
+  ProjectShareTokenIndexRoute: typeof ProjectShareTokenIndexRoute
+  ProjectShareTokenVideoIdRoute: typeof ProjectShareTokenVideoIdRoute
+}
+
+const ProjectShareTokenRouteChildren: ProjectShareTokenRouteChildren = {
+  ProjectShareTokenIndexRoute: ProjectShareTokenIndexRoute,
+  ProjectShareTokenVideoIdRoute: ProjectShareTokenVideoIdRoute,
+}
+
+const ProjectShareTokenRouteWithChildren =
+  ProjectShareTokenRoute._addFileChildren(ProjectShareTokenRouteChildren)
 
 interface DashboardTeamSlugProjectIdRouteChildren {
   DashboardTeamSlugProjectIdVideoIdRoute: typeof DashboardTeamSlugProjectIdVideoIdRoute
@@ -546,6 +615,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteTokenRoute: InviteTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   WatchPublicIdRoute: WatchPublicIdRoute,
+  ProjectShareTokenRoute: ProjectShareTokenRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

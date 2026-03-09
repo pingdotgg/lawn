@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
+import { generateUniqueToken } from "./security";
 
 export const create = mutation({
   args: {
@@ -119,6 +120,52 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.projectId, updates);
+  },
+});
+
+export const generateShareToken = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await requireProjectAccess(ctx, args.projectId, "member");
+
+    const token = await generateUniqueToken(
+      32,
+      async (candidate) =>
+        (await ctx.db
+          .query("projects")
+          .withIndex("by_share_token", (q) => q.eq("shareToken", candidate))
+          .unique()) !== null,
+      5,
+    );
+
+    await ctx.db.patch(args.projectId, { shareToken: token });
+    return { token };
+  },
+});
+
+export const revokeShareToken = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await requireProjectAccess(ctx, args.projectId, "member");
+    await ctx.db.patch(args.projectId, { shareToken: undefined });
+  },
+});
+
+export const getByShareToken = query({
+  args: { shareToken: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!project) return null;
+
+    return {
+      _id: project._id,
+      name: project.name,
+      description: project.description,
+    };
   },
 });
 
