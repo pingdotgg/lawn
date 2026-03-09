@@ -149,6 +149,10 @@ export default function ProjectPage({
     api.projects.getShareToken,
     resolvedProjectId && project?.role !== "viewer" ? { projectId: resolvedProjectId } : "skip",
   );
+  const isShareTokenLoading =
+    resolvedProjectId !== undefined &&
+    project?.role !== "viewer" &&
+    shareTokenData === undefined;
   const shareToken = shareTokenData?.shareToken ?? null;
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -238,8 +242,19 @@ export default function ProjectPage({
     [updateVideoWorkflowStatus],
   );
 
+  const showShareToast = useCallback((tone: ShareToastState["tone"], message: string) => {
+    setShareToast({ tone, message });
+    if (shareToastTimeoutRef.current !== null) {
+      window.clearTimeout(shareToastTimeoutRef.current);
+    }
+    shareToastTimeoutRef.current = window.setTimeout(() => {
+      setShareToast(null);
+      shareToastTimeoutRef.current = null;
+    }, 2400);
+  }, []);
+
   const handleShareProject = useCallback(async () => {
-    if (!resolvedProjectId) return;
+    if (!resolvedProjectId || isShareTokenLoading) return;
     if (shareToken) {
       setShowSharePanel(true);
       return;
@@ -254,19 +269,7 @@ export default function ProjectPage({
     } finally {
       setIsGeneratingToken(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareToken, resolvedProjectId, generateProjectShare]);
-
-  const showShareToast = useCallback((tone: ShareToastState["tone"], message: string) => {
-    setShareToast({ tone, message });
-    if (shareToastTimeoutRef.current !== null) {
-      window.clearTimeout(shareToastTimeoutRef.current);
-    }
-    shareToastTimeoutRef.current = window.setTimeout(() => {
-      setShareToast(null);
-      shareToastTimeoutRef.current = null;
-    }, 2400);
-  }, []);
+  }, [shareToken, isShareTokenLoading, resolvedProjectId, generateProjectShare, showShareToast]);
 
   const handleShareVideo = useCallback(
     async (video: {
@@ -360,7 +363,7 @@ export default function ProjectPage({
               <button
                 type="button"
                 onClick={() => void handleShareProject()}
-                disabled={isGeneratingToken}
+                disabled={isGeneratingToken || isShareTokenLoading}
                 className="inline-flex items-center gap-1.5 border-2 border-[#1a1a1a] px-2.5 py-1.5 text-sm font-bold hover:bg-[#e8e8e0] transition-colors disabled:opacity-50"
               >
                 <Share className="h-4 w-4" />
@@ -381,10 +384,14 @@ export default function ProjectPage({
                       className="border-2 border-[#1a1a1a] px-2.5 py-1 text-xs font-bold hover:bg-[#e8e8e0] transition-colors shrink-0"
                       onClick={() => {
                         const url = `${typeof window !== "undefined" ? window.location.origin : ""}${projectSharePath(shareToken)}`;
-                        void copyTextToClipboard(url).then((copied) => {
-                          if (copied) showShareToast("success", "Project link copied");
-                          else showShareToast("error", "Could not copy link");
-                        });
+                        void copyTextToClipboard(url)
+                          .then((copied) => {
+                            if (copied) showShareToast("success", "Project link copied");
+                            else showShareToast("error", "Could not copy link");
+                          })
+                          .catch(() => {
+                            showShareToast("error", "Could not copy link");
+                          });
                       }}
                     >
                       Copy

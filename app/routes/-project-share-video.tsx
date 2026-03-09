@@ -28,10 +28,13 @@ export default function ProjectShareVideoPage() {
   useEffect(() => {
     if (!video?.muxPlaybackId) {
       setPlaybackSession(null);
+      setIsLoadingPlayback(false);
+      setPlaybackError(null);
       return;
     }
 
     let cancelled = false;
+    setPlaybackSession(null);
     setIsLoadingPlayback(true);
     setPlaybackError(null);
 
