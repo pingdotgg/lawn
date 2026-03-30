@@ -12,7 +12,8 @@
     "lint": "eslint app src convex --ignore-pattern 'convex/_generated/**'",
     "typecheck": "tsc --noEmit",
     "typecheck:convex": "bunx convex typecheck",
-    "generate:og": "bun run scripts/generate-og.tsx"
+    "generate:og": "bun run scripts/generate-og.tsx",
+    "env:pull": "infisical export --path /other/lawn/secrets --env dev > .env"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.991.0",
