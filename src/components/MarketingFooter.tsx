@@ -12,14 +12,6 @@ export function MarketingFooter() {
             <ul className="space-y-3 text-sm font-bold">
               <li>
                 <Link
-                  to="/pricing"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link
                   to="/sign-up"
                   className="hover:text-[#7cb87c] transition-colors"
                 >

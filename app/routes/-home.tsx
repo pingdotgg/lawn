@@ -45,7 +45,6 @@ export default function Homepage() {
           <span className={`text-xl font-black tracking-tighter transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn.</span>
         </div>
         <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
-          <a href="#pricing" className="hover:underline underline-offset-4">Pricing</a>
           <Link to="/compare/frameio" className={`hover:underline underline-offset-4 hidden sm:block`}>Compare</Link>
           <Link to="/sign-in" className="hover:underline underline-offset-4">Log in</Link>
           <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start</Link>
@@ -241,61 +240,12 @@ export default function Homepage() {
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="px-6 py-24 md:py-32 border-b-2 border-[#1a1a1a] bg-[#e8e8e0]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-5xl md:text-7xl font-black uppercase tracking-tighter leading-none mb-16 text-center">
-            PRICING.
-          </h2>
-          
-          <div className="flex flex-col md:flex-row gap-8 justify-center items-center">
-            {/* $5 Plan */}
-            <div className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] p-8 w-full max-w-md flex flex-col hover:-translate-y-2 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all">
-              <div className="text-xl font-bold uppercase tracking-widest text-[#888] mb-2">Basic</div>
-              <div className="text-6xl font-black tracking-tighter mb-4">$5<span className="text-2xl text-[#888]">/mo</span></div>
-              <p className="text-lg font-medium text-[#1a1a1a] mb-8">Unlimited everything, except storage.</p>
-              
-              <ul className="space-y-4 text-lg font-bold flex-grow mb-8">
-                <li className="flex items-center gap-3"><span className="text-[#2d5a2d] text-2xl">✓</span> Unlimited seats</li>
-                <li className="flex items-center gap-3"><span className="text-[#2d5a2d] text-2xl">✓</span> Unlimited projects</li>
-                <li className="flex items-center gap-3"><span className="text-[#2d5a2d] text-2xl">✓</span> Unlimited clients</li>
-                <li className="flex items-center gap-3"><span className="text-[#2d5a2d] text-2xl">✓</span> 100GB Storage</li>
-              </ul>
-              
-              <Link to="/sign-up" className="bg-[#1a1a1a] text-[#f0f0e8] text-center py-4 border-2 border-[#1a1a1a] font-black uppercase hover:bg-[#2d5a2d] transition-colors">Get Basic</Link>
-            </div>
-
-            {/* $25 Plan */}
-            <div className="bg-[#1a1a1a] text-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] p-8 w-full max-w-md flex flex-col transform md:-translate-y-4 hover:-translate-y-6 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all">
-              <div className="flex justify-between items-start mb-2">
-                <div className="text-xl font-bold uppercase tracking-widest text-[#7cb87c]">Pro</div>
-                <div className="bg-[#2d5a2d] text-xs font-black px-2 py-1 uppercase tracking-wider -rotate-3">Big files</div>
-              </div>
-              <div className="text-6xl font-black tracking-tighter mb-4">$25<span className="text-2xl text-[#888]">/mo</span></div>
-              <p className="text-lg font-medium mb-8">Literally the exact same thing but more space.</p>
-              
-              <ul className="space-y-4 text-lg font-bold flex-grow mb-8">
-                <li className="flex items-center gap-3"><span className="text-[#7cb87c] text-2xl">✓</span> Unlimited seats</li>
-                <li className="flex items-center gap-3"><span className="text-[#7cb87c] text-2xl">✓</span> Unlimited projects</li>
-                <li className="flex items-center gap-3"><span className="text-[#7cb87c] text-2xl">✓</span> Unlimited clients</li>
-                <li className="flex items-center gap-3"><span className="text-[#7cb87c] text-2xl">✓</span> 1TB Storage (Whoa)</li>
-              </ul>
-              
-              <Link to="/sign-up" className="bg-[#f0f0e8] text-[#1a1a1a] text-center py-4 border-2 border-[#f0f0e8] font-black uppercase hover:bg-[#d8d8d0] transition-colors">Get Pro</Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Massive CTA */}
+      {/* CTA */}
       <section className="px-6 py-32 bg-[#f0f0e8]">
         <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
           <h2 className="text-7xl md:text-9xl font-black uppercase tracking-tighter leading-[0.8] mb-8">
             START<br/>NOW.
           </h2>
-          <p className="text-2xl text-[#888] font-medium mb-12">
-            Basic is $5/month. Pro is $25/month.
-          </p>
           <Link to="/sign-up"
             className="bg-[#1a1a1a] text-[#f0f0e8] px-12 py-6 border-2 border-[#1a1a1a] text-2xl font-black uppercase tracking-wider hover:bg-[#2d5a2d] hover:border-[#2d5a2d] transition-colors shadow-[12px_12px_0px_0px_var(--shadow-accent)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[8px_8px_0px_0px_var(--shadow-accent)]"
           >
@@ -315,28 +265,10 @@ export default function Homepage() {
             "@type": "SoftwareApplication",
             name: "lawn",
             description:
-              "Video review and collaboration for creative teams. Frame-accurate comments, unlimited seats, flat pricing.",
+              "Video review and collaboration for creative teams. Frame-accurate comments, unlimited seats.",
             url: "https://lawn.video",
             applicationCategory: "MultimediaApplication",
             operatingSystem: "Web",
-            offers: [
-              {
-                "@type": "Offer",
-                name: "Basic",
-                price: "5.00",
-                priceCurrency: "USD",
-                description:
-                  "Unlimited seats, unlimited projects, unlimited clients, 100GB storage",
-              },
-              {
-                "@type": "Offer",
-                name: "Pro",
-                price: "25.00",
-                priceCurrency: "USD",
-                description:
-                  "Unlimited seats, unlimited projects, unlimited clients, 1TB storage",
-              },
-            ],
             creator: {
               "@type": "Person",
               name: "Theo",

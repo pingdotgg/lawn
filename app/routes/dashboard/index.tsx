@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Plus, ArrowRight, Folder } from "lucide-react";
 import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { teamHomePath, teamSettingsPath, projectPath } from "@/lib/routes";
+import { teamHomePath, projectPath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
 import { useDashboardIndexData } from "./-index.data";
@@ -27,27 +26,6 @@ type DashboardProjectCardProps = {
   };
   onOpen: () => void;
 };
-
-function formatTeamPlanLabel(
-  plan: string,
-  billingStatus?: string,
-  stripeSubscriptionId?: string,
-) {
-  if (!stripeSubscriptionId && billingStatus !== "active") {
-    return "Unpaid";
-  }
-
-  if (
-    billingStatus &&
-    billingStatus !== "active" &&
-    billingStatus !== "trialing" &&
-    billingStatus !== "past_due"
-  ) {
-    return "Unpaid";
-  }
-  if (plan === "pro" || plan === "team") return "Pro";
-  return "Basic";
-}
 
 function DashboardProjectCard({
   teamSlug,
@@ -151,23 +129,8 @@ export default function DashboardPage() {
             return (
               <div key={team._id} className="mb-12 last:mb-0">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-black text-[#1a1a1a]">{team.name}</h2>
-                    <Badge variant="secondary">
-                      {formatTeamPlanLabel(
-                        team.plan,
-                        team.billingStatus,
-                        team.stripeSubscriptionId,
-                      )}
-                    </Badge>
-                  </div>
+                  <h2 className="text-xl font-black text-[#1a1a1a]">{team.name}</h2>
                   <div className="flex items-center gap-4">
-                    <Link
-                      to={teamSettingsPath(team.slug)}
-                      className="text-[#888] hover:text-[#1a1a1a] text-sm font-bold transition-colors"
-                    >
-                      Billing
-                    </Link>
                     <Link
                       to={teamHomePath(team.slug)}
                       className="text-[#888] hover:text-[#1a1a1a] text-sm font-bold flex items-center gap-1 transition-colors"

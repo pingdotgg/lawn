@@ -19,12 +19,8 @@ export function useTeamData(params: { teamSlug: string }) {
   });
   const team = context?.team;
   const projects = useQuery(api.projects.list, team ? { teamId: team._id } : "skip");
-  const billing = useQuery(
-    api.billing.getTeamBilling,
-    team ? { teamId: team._id } : "skip",
-  );
 
-  return { context, team, projects, billing };
+  return { context, team, projects };
 }
 
 export async function prewarmTeam(
@@ -42,7 +38,6 @@ export async function prewarmTeam(
 
     prewarmSpecs(convex, [
       makeRouteQuerySpec(api.projects.list, { teamId: context.team._id }),
-      makeRouteQuerySpec(api.billing.getTeamBilling, { teamId: context.team._id }),
     ]);
   } catch (error) {
     console.warn("Team dependent prewarm failed", error);

@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
-import { assertTeamHasActiveSubscription } from "./billingHelpers";
 
 export const create = mutation({
   args: {
@@ -11,7 +10,6 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireTeamAccess(ctx, args.teamId, "member");
-    await assertTeamHasActiveSubscription(ctx, args.teamId);
 
     return await ctx.db.insert("projects", {
       teamId: args.teamId,

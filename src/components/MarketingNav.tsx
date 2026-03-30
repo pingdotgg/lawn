@@ -23,12 +23,6 @@ export function MarketingNav() {
       </div>
       <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
         <Link
-          to="/pricing"
-          className="hover:underline underline-offset-4 hidden sm:block"
-        >
-          Pricing
-        </Link>
-        <Link
           to="/compare/frameio"
           className="hover:underline underline-offset-4 hidden sm:block"
         >

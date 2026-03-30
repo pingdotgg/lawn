@@ -22,12 +22,8 @@ export function useSettingsData(params: { teamSlug: string }) {
     api.teams.getMembers,
     team ? { teamId: team._id } : "skip",
   );
-  const billing = useQuery(
-    api.billing.getTeamBilling,
-    team ? { teamId: team._id } : "skip",
-  );
 
-  return { context, team, members, billing };
+  return { context, team, members };
 }
 
 export async function prewarmSettings(
@@ -45,7 +41,6 @@ export async function prewarmSettings(
 
     prewarmSpecs(convex, [
       makeRouteQuerySpec(api.teams.getMembers, { teamId: context.team._id }),
-      makeRouteQuerySpec(api.billing.getTeamBilling, { teamId: context.team._id }),
     ]);
   } catch (error) {
     console.warn("Settings dependent prewarm failed", error);

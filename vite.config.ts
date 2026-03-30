@@ -29,7 +29,6 @@ export default defineConfig({
         { path: "/compare/wipster" },
         { path: "/for/video-editors" },
         { path: "/for/agencies" },
-        { path: "/pricing" },
       ],
     }),
     viteReact(),
