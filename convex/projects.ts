@@ -160,6 +160,15 @@ export const remove = mutation({
       await ctx.db.delete(video._id);
     }
 
+    // Delete all folders in the project
+    const folders = await ctx.db
+      .query("folders")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+    for (const folder of folders) {
+      await ctx.db.delete(folder._id);
+    }
+
     await ctx.db.delete(args.projectId);
   },
 });

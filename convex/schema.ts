@@ -51,8 +51,16 @@ export default defineSchema({
     description: v.optional(v.string()),
   }).index("by_team", ["teamId"]),
 
+  folders: defineTable({
+    projectId: v.id("projects"),
+    name: v.string(),
+    createdByClerkId: v.string(),
+  })
+    .index("by_project", ["projectId"]),
+
   videos: defineTable({
     projectId: v.id("projects"),
+    folderId: v.optional(v.id("folders")),
     uploadedByClerkId: v.string(),
     uploaderName: v.string(),
     title: v.string(),
@@ -90,6 +98,7 @@ export default defineSchema({
     ),
   })
     .index("by_project", ["projectId"])
+    .index("by_project_and_folder", ["projectId", "folderId"])
     .index("by_public_id", ["publicId"])
     .index("by_mux_upload_id", ["muxUploadId"])
     .index("by_mux_asset_id", ["muxAssetId"])

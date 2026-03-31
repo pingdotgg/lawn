@@ -9,6 +9,7 @@ import {
 export function getProjectEssentialSpecs(params: {
   teamSlug: string;
   projectId: Id<"projects">;
+  folderId?: Id<"folders">;
 }) {
   return [
     makeRouteQuerySpec(api.workspace.resolveContext, {
@@ -20,6 +21,10 @@ export function getProjectEssentialSpecs(params: {
     }),
     makeRouteQuerySpec(api.videos.list, {
       projectId: params.projectId,
+      folderId: params.folderId,
+    }),
+    makeRouteQuerySpec(api.folders.list, {
+      projectId: params.projectId,
     }),
   ];
 }
@@ -27,6 +32,7 @@ export function getProjectEssentialSpecs(params: {
 export function useProjectData(params: {
   teamSlug: string;
   projectId: Id<"projects">;
+  folderId?: Id<"folders">;
 }) {
   const context = useQuery(api.workspace.resolveContext, {
     teamSlug: params.teamSlug,
@@ -40,7 +46,17 @@ export function useProjectData(params: {
   );
   const videos = useQuery(
     api.videos.list,
+    resolvedProjectId
+      ? { projectId: resolvedProjectId, folderId: params.folderId }
+      : "skip",
+  );
+  const folders = useQuery(
+    api.folders.list,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+  );
+  const currentFolder = useQuery(
+    api.folders.get,
+    params.folderId ? { folderId: params.folderId } : "skip",
   );
 
   return {
@@ -49,6 +65,8 @@ export function useProjectData(params: {
     resolvedTeamSlug,
     project,
     videos,
+    folders,
+    currentFolder,
   };
 }
 
@@ -57,6 +75,7 @@ export async function prewarmProject(
   params: {
     teamSlug: string;
     projectId: Id<"projects">;
+    folderId?: Id<"folders">;
   },
 ) {
   prewarmSpecs(convex, getProjectEssentialSpecs(params));

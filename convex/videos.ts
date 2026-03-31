@@ -51,6 +51,7 @@ async function deleteShareAccessGrantsForLink(
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
+    folderId: v.optional(v.id("folders")),
     title: v.string(),
     description: v.optional(v.string()),
     fileSize: v.optional(v.number()),
@@ -58,10 +59,20 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireProjectAccess(ctx, args.projectId, "member");
+
+    // Validate folder belongs to the same project if provided
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.projectId !== args.projectId) {
+        throw new Error("Folder not found in this project");
+      }
+    }
+
     const publicId = await generatePublicId(ctx);
 
     const videoId = await ctx.db.insert("videos", {
       projectId: args.projectId,
+      folderId: args.folderId,
       uploadedByClerkId: user.subject,
       uploaderName: identityName(user),
       title: args.title,
@@ -80,13 +91,18 @@ export const create = mutation({
 });
 
 export const list = query({
-  args: { projectId: v.id("projects") },
+  args: {
+    projectId: v.id("projects"),
+    folderId: v.optional(v.id("folders")),
+  },
   handler: async (ctx, args) => {
     await requireProjectAccess(ctx, args.projectId);
 
     const videos = await ctx.db
       .query("videos")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .withIndex("by_project_and_folder", (q) =>
+        q.eq("projectId", args.projectId).eq("folderId", args.folderId)
+      )
       .order("desc")
       .collect();
 
@@ -239,6 +255,26 @@ export const updateWorkflowStatus = mutation({
     await ctx.db.patch(args.videoId, {
       workflowStatus: args.workflowStatus,
     });
+  },
+});
+
+export const move = mutation({
+  args: {
+    videoId: v.id("videos"),
+    folderId: v.optional(v.id("folders")),
+  },
+  handler: async (ctx, args) => {
+    const { video } = await requireVideoAccess(ctx, args.videoId, "member");
+
+    // Validate folder belongs to the same project if provided
+    if (args.folderId) {
+      const folder = await ctx.db.get(args.folderId);
+      if (!folder || folder.projectId !== video.projectId) {
+        throw new Error("Folder not found in this project");
+      }
+    }
+
+    await ctx.db.patch(args.videoId, { folderId: args.folderId });
   },
 });
 

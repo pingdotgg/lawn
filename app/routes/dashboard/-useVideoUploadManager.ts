@@ -7,6 +7,7 @@ import type { UploadStatus } from "@/components/upload/UploadProgress";
 export interface ManagedUploadItem {
   id: string;
   projectId: Id<"projects">;
+  folderId?: Id<"folders">;
   file: File;
   videoId?: Id<"videos">;
   progress: number;
@@ -32,7 +33,7 @@ export function useVideoUploadManager() {
   const [uploads, setUploads] = useState<ManagedUploadItem[]>([]);
 
   const uploadFilesToProject = useCallback(
-    async (projectId: Id<"projects">, files: File[]) => {
+    async (projectId: Id<"projects">, files: File[], folderId?: Id<"folders">) => {
       for (const file of files) {
         const uploadId = createUploadId();
         const title = file.name.replace(/\.[^/.]+$/, "");
@@ -43,6 +44,7 @@ export function useVideoUploadManager() {
           {
             id: uploadId,
             projectId,
+            folderId,
             file,
             progress: 0,
             status: "pending",
@@ -55,6 +57,7 @@ export function useVideoUploadManager() {
         try {
           createdVideoId = await createVideo({
             projectId,
+            folderId,
             title,
             fileSize: file.size,
             contentType: file.type || "video/mp4",

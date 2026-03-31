@@ -89,12 +89,12 @@ export default function DashboardLayout() {
     : false;
 
   const requestUpload = useCallback(
-    (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
+    (inputFiles: File[], preferredProjectId?: Id<"projects">, folderId?: Id<"folders">) => {
       const files = inputFiles.filter(isVideoFile);
       if (files.length === 0) return;
 
       if (preferredProjectId) {
-        void uploadFilesToProject(preferredProjectId, files);
+        void uploadFilesToProject(preferredProjectId, files, folderId);
         return;
       }
 

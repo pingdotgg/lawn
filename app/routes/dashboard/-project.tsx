@@ -19,6 +19,10 @@ import {
   Download,
   MessageSquare,
   Eye,
+  Folder,
+  FolderPlus,
+  Pencil,
+  FolderInput,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { teamHomePath, videoPath } from "@/lib/routes";
+import { teamHomePath, videoPath, folderPath, projectPath } from "@/lib/routes";
 import { prefetchHlsRuntime, prefetchMuxPlaybackManifest } from "@/lib/muxPlayback";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import {
@@ -40,6 +44,9 @@ import { prewarmTeam } from "./-team.data";
 import { prewarmVideo } from "./-video.data";
 import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { CreateFolderDialog } from "@/components/folders/CreateFolderDialog";
+import { RenameFolderDialog } from "@/components/folders/RenameFolderDialog";
+import { MoveToFolderDialog } from "@/components/folders/MoveToFolderDialog";
 
 type ViewMode = "grid" | "list";
 type ShareToastState = {
@@ -122,16 +129,18 @@ function VideoIntentTarget({
 export default function ProjectPage({
   teamSlug,
   projectId,
+  folderId,
 }: {
   teamSlug: string;
   projectId: Id<"projects">;
+  folderId?: Id<"folders">;
 }) {
   const navigate = useNavigate({});
   const pathname = useLocation().pathname;
   const convex = useConvex();
 
-  const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
-    useProjectData({ teamSlug, projectId });
+  const { context, resolvedProjectId, resolvedTeamSlug, project, videos, folders, currentFolder } =
+    useProjectData({ teamSlug, projectId, folderId });
   const projectPresenceCounts = useQuery(
     api.videoPresence.listProjectOnlineCounts,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
@@ -139,12 +148,24 @@ export default function ProjectPage({
   const { requestUpload, uploads } =
     useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
+  const deleteFolder = useMutation(api.folders.remove);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
 
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [shareToast, setShareToast] = useState<ShareToastState | null>(null);
   const shareToastTimeoutRef = useRef<number | null>(null);
+
+  // Folder dialog state
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<{
+    id: Id<"folders">;
+    name: string;
+  } | null>(null);
+  const [moveVideoTarget, setMoveVideoTarget] = useState<{
+    videoId: Id<"videos">;
+    currentFolderId?: Id<"folders">;
+  } | null>(null);
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -171,14 +192,15 @@ export default function ProjectPage({
     context === undefined ||
     project === undefined ||
     videos === undefined ||
+    folders === undefined ||
     shouldCanonicalize;
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {
       if (!resolvedProjectId) return;
-      requestUpload(files, resolvedProjectId);
+      requestUpload(files, resolvedProjectId, folderId);
     },
-    [requestUpload, resolvedProjectId],
+    [requestUpload, resolvedProjectId, folderId],
   );
 
   const handleDeleteVideo = async (videoId: Id<"videos">) => {
@@ -187,6 +209,26 @@ export default function ProjectPage({
       await deleteVideo({ videoId });
     } catch (error) {
       console.error("Failed to delete video:", error);
+    }
+  };
+
+  const handleDeleteFolder = async (fId: Id<"folders">, folderName: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete "${folderName}" and all videos inside it?`,
+      )
+    )
+      return;
+    try {
+      await deleteFolder({ folderId: fId });
+      // If we're currently inside the folder being deleted, navigate back to project root
+      if (folderId === fId) {
+        navigate({
+          to: projectPath(resolvedTeamSlug, projectId),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to delete folder:", error);
     }
   };
 
@@ -271,19 +313,42 @@ export default function ProjectPage({
     );
   }
 
+  // Folder not found
+  if (folderId && currentFolder === null) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-[#888]">Folder not found</div>
+      </div>
+    );
+  }
+
   const canUpload = project?.role !== "viewer";
+  const isInsideFolder = !!folderId;
+  const displayFolders = !isInsideFolder ? (folders ?? []) : [];
+  const hasContent = (videos?.length ?? 0) > 0 || displayFolders.length > 0;
+
+  // Build breadcrumb paths
+  const breadcrumbPaths = [
+    {
+      label: resolvedTeamSlug,
+      href: teamHomePath(resolvedTeamSlug),
+      prewarmIntentHandlers: prewarmTeamIntentHandlers,
+    },
+    ...(isInsideFolder
+      ? [
+          {
+            label: project?.name ?? "\u00A0",
+            href: projectPath(resolvedTeamSlug, projectId),
+          },
+          { label: currentFolder?.name ?? "\u00A0" },
+        ]
+      : [{ label: project?.name ?? "\u00A0" }]),
+  ];
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <DashboardHeader paths={[
-        {
-          label: resolvedTeamSlug,
-          href: teamHomePath(resolvedTeamSlug),
-          prewarmIntentHandlers: prewarmTeamIntentHandlers,
-        },
-        { label: project?.name ?? "\u00A0" }
-      ]}>
+      <DashboardHeader paths={breadcrumbPaths}>
         <div className={cn(
           "flex items-center gap-2 transition-opacity duration-300 flex-shrink-0",
           isLoadingData ? "opacity-0" : "opacity-100"
@@ -313,6 +378,15 @@ export default function ProjectPage({
               <LayoutList className="h-4 w-4" />
             </button>
           </div>
+          {canUpload && !isInsideFolder && (
+            <button
+              onClick={() => setCreateFolderOpen(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-bold uppercase tracking-wider border-2 border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-all shadow-[4px_4px_0px_0px_var(--shadow-color)] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              Folder
+            </button>
+          )}
           {canUpload && (
             <UploadButton onFilesSelected={handleFilesSelected} />
           )}
@@ -321,7 +395,7 @@ export default function ProjectPage({
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {!isLoadingData && videos.length === 0 ? (
+        {!isLoadingData && !hasContent ? (
           <div className="h-full flex items-center justify-center p-6 animate-in fade-in duration-300">
             <DropZone
               onFilesSelected={handleFilesSelected}
@@ -336,6 +410,76 @@ export default function ProjectPage({
             isLoadingData ? "opacity-0" : "opacity-100"
           )}>
             <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {/* Folder cards (only at root level) */}
+              {displayFolders.map((folder) => (
+                <div
+                  key={folder._id}
+                  className="group cursor-pointer flex flex-col"
+                  onClick={() =>
+                    navigate({
+                      to: folderPath(resolvedTeamSlug, projectId, folder._id),
+                    })
+                  }
+                >
+                  <div className="relative aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:translate-y-[2px] group-hover:translate-x-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)] transition-all flex items-center justify-center">
+                    <Folder className="h-12 w-12 text-[#888] group-hover:text-[#2d5a2d] transition-colors" />
+                    {/* Hover menu */}
+                    {canUpload && (
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            asChild
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center bg-black/60 hover:bg-black/80 text-white"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenameFolderTarget({
+                                  id: folder._id,
+                                  name: folder.name,
+                                });
+                              }}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-[#dc2626] focus:text-[#dc2626]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(folder._id, folder.name);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2.5">
+                    <p className="text-[15px] text-[#1a1a1a] font-black truncate leading-tight">
+                      {folder.name}
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-3">
+                      <span className="text-[11px] text-[#888] font-mono">
+                        {folder.videoCount} {folder.videoCount === 1 ? "video" : "videos"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Video cards */}
               {videos?.map((video) => {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                   ? video.thumbnailUrl
@@ -422,6 +566,20 @@ export default function ProjectPage({
                             <LinkIcon className="mr-2 h-4 w-4" />
                             Share
                           </DropdownMenuItem>
+                          {canUpload && (folders?.length ?? 0) > 0 && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMoveVideoTarget({
+                                  videoId: video._id,
+                                  currentFolderId: folderId,
+                                });
+                              }}
+                            >
+                              <FolderInput className="mr-2 h-4 w-4" />
+                              Move to...
+                            </DropdownMenuItem>
+                          )}
                           {canUpload && (
                             <DropdownMenuItem
                               className="text-[#dc2626] focus:text-[#dc2626]"
@@ -479,6 +637,80 @@ export default function ProjectPage({
             "divide-y-2 divide-[#1a1a1a] transition-opacity duration-300",
             isLoadingData ? "opacity-0" : "opacity-100"
           )}>
+            {/* Folder rows (only at root level) */}
+            {displayFolders.map((folder) => (
+              <div
+                key={folder._id}
+                className="group flex items-center gap-5 px-6 py-3 hover:bg-[#e8e8e0] cursor-pointer transition-colors"
+                onClick={() =>
+                  navigate({
+                    to: folderPath(resolvedTeamSlug, projectId, folder._id),
+                  })
+                }
+              >
+                {/* Folder icon */}
+                <div className="relative w-44 aspect-video bg-[#e8e8e0] overflow-hidden border-2 border-[#1a1a1a] shrink-0 shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:translate-y-[2px] group-hover:translate-x-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)] transition-all flex items-center justify-center">
+                  <Folder className="h-8 w-8 text-[#888] group-hover:text-[#2d5a2d] transition-colors" />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-[#1a1a1a] truncate">
+                    {folder.name}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-[#888] font-mono">
+                      {folder.videoCount} {folder.videoCount === 1 ? "video" : "videos"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {canUpload && (
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-[#888] hover:text-[#1a1a1a]"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenameFolderTarget({
+                              id: folder._id,
+                              name: folder.name,
+                            });
+                          }}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-[#dc2626] focus:text-[#dc2626]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(folder._id, folder.name);
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Video rows */}
             {videos?.map((video) => {
               const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                 ? video.thumbnailUrl
@@ -602,6 +834,20 @@ export default function ProjectPage({
                         <LinkIcon className="mr-2 h-4 w-4" />
                         Share
                       </DropdownMenuItem>
+                      {canUpload && (folders?.length ?? 0) > 0 && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMoveVideoTarget({
+                              videoId: video._id,
+                              currentFolderId: folderId,
+                            });
+                          }}
+                        >
+                          <FolderInput className="mr-2 h-4 w-4" />
+                          Move to...
+                        </DropdownMenuItem>
+                      )}
                       {canUpload && (
                         <DropdownMenuItem
                           className="text-[#dc2626] focus:text-[#dc2626]"
@@ -638,6 +884,38 @@ export default function ProjectPage({
           </div>
         </div>
       ) : null}
+
+      {/* Folder dialogs */}
+      {resolvedProjectId && (
+        <CreateFolderDialog
+          projectId={resolvedProjectId}
+          open={createFolderOpen}
+          onOpenChange={setCreateFolderOpen}
+        />
+      )}
+
+      {renameFolderTarget && (
+        <RenameFolderDialog
+          folderId={renameFolderTarget.id}
+          currentName={renameFolderTarget.name}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setRenameFolderTarget(null);
+          }}
+        />
+      )}
+
+      {moveVideoTarget && folders && (
+        <MoveToFolderDialog
+          videoId={moveVideoTarget.videoId}
+          currentFolderId={moveVideoTarget.currentFolderId}
+          folders={folders}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setMoveVideoTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -112,6 +112,23 @@ export async function requireProjectAccess(
   return { user, membership, project };
 }
 
+export async function requireFolderAccess(
+  ctx: QueryCtx | MutationCtx,
+  folderId: Id<"folders">,
+  requiredRole?: Role
+) {
+  const user = await requireUser(ctx);
+
+  const folder = await ctx.db.get(folderId);
+  if (!folder) {
+    throw new Error("Folder not found");
+  }
+
+  const { membership, project } = await requireProjectAccess(ctx, folder.projectId, requiredRole);
+
+  return { user, membership, project, folder };
+}
+
 export async function requireVideoAccess(
   ctx: QueryCtx | MutationCtx,
   videoId: Id<"videos">,
