@@ -1,9 +1,6 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getTeamEssentialSpecs(params: { teamSlug: string }) {
   return [
@@ -19,18 +16,12 @@ export function useTeamData(params: { teamSlug: string }) {
   });
   const team = context?.team;
   const projects = useQuery(api.projects.list, team ? { teamId: team._id } : "skip");
-  const billing = useQuery(
-    api.billing.getTeamBilling,
-    team ? { teamId: team._id } : "skip",
-  );
+  const billing = useQuery(api.billing.getTeamBilling, team ? { teamId: team._id } : "skip");
 
   return { context, team, projects, billing };
 }
 
-export async function prewarmTeam(
-  convex: ConvexReactClient,
-  params: { teamSlug: string },
-) {
+export async function prewarmTeam(convex: ConvexReactClient, params: { teamSlug: string }) {
   prewarmSpecs(convex, getTeamEssentialSpecs(params));
 
   try {

@@ -15,16 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Copy,
-  Check,
-  Plus,
-  Trash2,
-  Eye,
-  Lock,
-  ExternalLink,
-  Globe,
-} from "lucide-react";
+import { Copy, Check, Plus, Trash2, Eye, Lock, ExternalLink, Globe } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -167,7 +158,11 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                   onClick={handleCopyPublicLink}
                   disabled={video?.visibility !== "public"}
                 >
-                  {copiedId === "public" ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                  {copiedId === "public" ? (
+                    <Check className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Copy className="mr-2 h-4 w-4" />
+                  )}
                   Copy URL
                 </Button>
                 <Button
@@ -192,37 +187,27 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full justify-between mt-1">
-                  {newLinkOptions.expiresInDays
-                    ? `${newLinkOptions.expiresInDays} days`
-                    : "Never"}
+                  {newLinkOptions.expiresInDays ? `${newLinkOptions.expiresInDays} days` : "Never"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem
-                  onClick={() =>
-                    setNewLinkOptions((o) => ({ ...o, expiresInDays: undefined }))
-                  }
+                  onClick={() => setNewLinkOptions((o) => ({ ...o, expiresInDays: undefined }))}
                 >
                   Never
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>
-                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 1 }))
-                  }
+                  onClick={() => setNewLinkOptions((o) => ({ ...o, expiresInDays: 1 }))}
                 >
                   1 day
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>
-                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 7 }))
-                  }
+                  onClick={() => setNewLinkOptions((o) => ({ ...o, expiresInDays: 7 }))}
                 >
                   7 days
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>
-                    setNewLinkOptions((o) => ({ ...o, expiresInDays: 30 }))
-                  }
+                  onClick={() => setNewLinkOptions((o) => ({ ...o, expiresInDays: 30 }))}
                 >
                   30 days
                 </DropdownMenuItem>
@@ -272,9 +257,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                       <code className="text-sm bg-[#e8e8e0] px-2 py-0.5 font-mono truncate max-w-[200px]">
                         /share/{link.token}
                       </code>
-                      {link.isExpired ? (
-                        <Badge variant="destructive">Expired</Badge>
-                      ) : null}
+                      {link.isExpired ? <Badge variant="destructive">Expired</Badge> : null}
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-[#888]">
                       <span className="flex items-center gap-1">
@@ -288,18 +271,12 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                         </span>
                       ) : null}
                       {link.expiresAt ? (
-                        <span>
-                          Expires {formatRelativeTime(link.expiresAt)}
-                        </span>
+                        <span>Expires {formatRelativeTime(link.expiresAt)}</span>
                       ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleCopyLink(link.token)}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => handleCopyLink(link.token)}>
                       {copiedId === link.token ? (
                         <Check className="h-4 w-4 text-[#2d5a2d]" />
                       ) : (

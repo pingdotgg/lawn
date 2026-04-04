@@ -155,7 +155,9 @@ export default function WatchPage() {
           </CardHeader>
           <CardContent>
             <Link to="/" preload="intent" className="block">
-              <Button variant="outline" className="w-full">Go to lawn</Button>
+              <Button variant="outline" className="w-full">
+                Go to lawn
+              </Button>
             </Link>
           </CardContent>
         </Card>
@@ -178,7 +180,9 @@ export default function WatchPage() {
             lawn
           </Link>
           <div className="h-4 w-[2px] bg-[#1a1a1a]/20" />
-          <h1 className="text-base font-black truncate max-w-[150px] sm:max-w-[300px]">{video.title}</h1>
+          <h1 className="text-base font-black truncate max-w-[150px] sm:max-w-[300px]">
+            {video.title}
+          </h1>
         </div>
         <div className="flex items-center gap-3 text-xs text-[#888]">
           {video.duration && (
@@ -240,10 +244,11 @@ export default function WatchPage() {
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-white">
-                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                 <p className="text-sm font-medium text-white/85">
-                   {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
-                 </p>
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                <p className="text-sm font-medium text-white/85">
+                  {playbackError ??
+                    (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
+                </p>
               </div>
             </div>
           )}
@@ -257,11 +262,11 @@ export default function WatchPage() {
             </h2>
             {comments && comments.length > 0 && (
               <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 px-2 py-0.5 rounded-full">
-                {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+                {comments.length} {comments.length === 1 ? "comment" : "comments"}
               </span>
             )}
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {comments === undefined ? (
               <p className="text-sm text-[#888]">Loading comments...</p>
@@ -276,13 +281,19 @@ export default function WatchPage() {
                       <button
                         type="button"
                         className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                        onClick={() => playerRef.current?.seekTo(comment.timestampSeconds, { play: true })}
+                        onClick={() =>
+                          playerRef.current?.seekTo(comment.timestampSeconds, { play: true })
+                        }
                       >
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
-                    <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">
+                      {comment.text}
+                    </p>
+                    <p className="text-[11px] text-[#888] mt-1">
+                      {formatRelativeTime(comment._creationTime)}
+                    </p>
 
                     {comment.replies.length > 0 ? (
                       <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
@@ -293,7 +304,9 @@ export default function WatchPage() {
                               <button
                                 type="button"
                                 className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                                onClick={() => playerRef.current?.seekTo(reply.timestampSeconds, { play: true })}
+                                onClick={() =>
+                                  playerRef.current?.seekTo(reply.timestampSeconds, { play: true })
+                                }
                               >
                                 {formatTimestamp(reply.timestampSeconds)}
                               </button>
@@ -308,7 +321,7 @@ export default function WatchPage() {
               </div>
             )}
           </div>
-          
+
           <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4">
             {isUserLoaded && user ? (
               <form onSubmit={handleSubmitComment} className="space-y-2">
@@ -323,7 +336,12 @@ export default function WatchPage() {
                   className="min-h-[90px] text-sm"
                 />
                 {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-                <Button type="submit" size="sm" disabled={!commentText.trim() || isSubmittingComment} className="w-full">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!commentText.trim() || isSubmittingComment}
+                  className="w-full"
+                >
                   <MessageSquare className="mr-1.5 h-4 w-4" />
                   {isSubmittingComment ? "Posting..." : "Post comment"}
                 </Button>
@@ -364,7 +382,7 @@ export default function WatchPage() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {comments === undefined ? (
               <p className="text-sm text-[#888]">Loading comments...</p>
@@ -387,8 +405,12 @@ export default function WatchPage() {
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
-                    <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">
+                      {comment.text}
+                    </p>
+                    <p className="text-[11px] text-[#888] mt-1">
+                      {formatRelativeTime(comment._creationTime)}
+                    </p>
 
                     {comment.replies.length > 0 ? (
                       <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
@@ -417,7 +439,7 @@ export default function WatchPage() {
               </div>
             )}
           </div>
-          
+
           <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4 pb-safe">
             {isUserLoaded && user ? (
               <form onSubmit={handleSubmitComment} className="space-y-2">
@@ -432,7 +454,12 @@ export default function WatchPage() {
                   className="min-h-[90px] text-sm"
                 />
                 {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-                <Button type="submit" size="sm" disabled={!commentText.trim() || isSubmittingComment} className="w-full">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!commentText.trim() || isSubmittingComment}
+                  className="w-full"
+                >
                   <MessageSquare className="mr-1.5 h-4 w-4" />
                   {isSubmittingComment ? "Posting..." : "Post comment"}
                 </Button>

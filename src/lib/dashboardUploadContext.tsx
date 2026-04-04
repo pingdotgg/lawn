@@ -27,9 +27,7 @@ export function DashboardUploadProvider({
   children: ReactNode;
 }) {
   return (
-    <DashboardUploadContext.Provider value={value}>
-      {children}
-    </DashboardUploadContext.Provider>
+    <DashboardUploadContext.Provider value={value}>{children}</DashboardUploadContext.Provider>
   );
 }
 

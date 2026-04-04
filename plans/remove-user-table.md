@@ -224,4 +224,3 @@ Likely touched files:
 - `convex/users.ts` (deprecate/remove)
 - `src/hooks/useUserSync.ts` (remove)
 - `src/components/teams/MemberInvite.tsx` (member display source updates)
-

@@ -42,7 +42,7 @@ export const list = query({
           ...project,
           videoCount: videos.length,
         };
-      })
+      }),
     );
 
     return projectsWithCounts;
@@ -62,9 +62,7 @@ export const listUploadTargets = query({
       .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
       .collect();
 
-    const uploadableMemberships = memberships.filter(
-      (membership) => membership.role !== "viewer",
-    );
+    const uploadableMemberships = memberships.filter((membership) => membership.role !== "viewer");
 
     const targets = await Promise.all(
       uploadableMemberships.map(async (membership) => {
@@ -90,9 +88,9 @@ export const listUploadTargets = query({
 
     return targets
       .flat()
-      .sort((a, b) =>
-        a.teamName.localeCompare(b.teamName) ||
-        a.projectName.localeCompare(b.projectName),
+      .sort(
+        (a, b) =>
+          a.teamName.localeCompare(b.teamName) || a.projectName.localeCompare(b.projectName),
       );
   },
 });

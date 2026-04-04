@@ -1,9 +1,6 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getShareEssentialSpecs(params: { token: string }) {
   return [
@@ -31,9 +28,6 @@ export function useShareData(params: { token: string; grantToken?: string | null
   return { shareInfo, videoData, comments };
 }
 
-export async function prewarmShare(
-  convex: ConvexReactClient,
-  params: { token: string },
-) {
+export async function prewarmShare(convex: ConvexReactClient, params: { token: string }) {
   prewarmSpecs(convex, getShareEssentialSpecs(params));
 }

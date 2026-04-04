@@ -73,15 +73,12 @@ export default function CompareFrameio() {
               <br />
               We're cheaper and faster.
               <br />
-              <span className="text-[var(--foreground-muted)]">
-                That might be better.
-              </span>
+              <span className="text-[var(--foreground-muted)]">That might be better.</span>
             </p>
             <p className="mt-6 text-lg text-[var(--foreground-muted)] font-medium max-w-lg">
-              Frame.io is a great product built for enterprise teams with
-              enterprise budgets. lawn is a scrappy little tool that does the
-              important stuff for $5/month flat. No per-seat math. No PhD in
-              procurement required.
+              Frame.io is a great product built for enterprise teams with enterprise budgets. lawn
+              is a scrappy little tool that does the important stuff for $5/month flat. No per-seat
+              math. No PhD in procurement required.
             </p>
           </div>
         </div>
@@ -99,9 +96,7 @@ export default function CompareFrameio() {
           <div className="border-2 border-[var(--border)] shadow-[8px_8px_0px_0px_var(--shadow-color)] bg-[var(--background)]">
             {/* Header row */}
             <div className="grid grid-cols-3 border-b-2 border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground-inverse)]">
-              <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm">
-                Feature
-              </div>
+              <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm">Feature</div>
               <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm border-l-2 border-[var(--border)]">
                 Frame.io
               </div>
@@ -117,9 +112,7 @@ export default function CompareFrameio() {
                 className={`grid grid-cols-3 ${i < comparisonRows.length - 1 ? "border-b-2 border-[var(--border)]" : ""}`}
               >
                 <div className="p-4 md:p-6 flex flex-col justify-center">
-                  <span className="font-black uppercase tracking-tight text-lg">
-                    {row.feature}
-                  </span>
+                  <span className="font-black uppercase tracking-tight text-lg">{row.feature}</span>
                   <span className="text-xs text-[var(--foreground-muted)] mt-1 hidden md:block">
                     {row.note}
                   </span>
@@ -149,8 +142,8 @@ export default function CompareFrameio() {
             MATH.
           </h2>
           <p className="text-center text-lg text-[var(--foreground-muted)] font-medium mb-16 max-w-lg mx-auto">
-            Frame.io charges $19 per user per month. lawn charges $5 per month.
-            Not per user. Just $5. Here's what that means annually.
+            Frame.io charges $19 per user per month. lawn charges $5 per month. Not per user. Just
+            $5. Here's what that means annually.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -183,9 +176,7 @@ export default function CompareFrameio() {
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
                         lawn
                       </span>
-                      <span className="font-black text-[var(--accent)]">
-                        ${lawnAnnual}/yr
-                      </span>
+                      <span className="font-black text-[var(--accent)]">${lawnAnnual}/yr</span>
                     </div>
                     <div className="border-t-2 border-[var(--border-subtle)] pt-4 mt-auto">
                       <div className="text-3xl font-black text-[var(--accent)]">
@@ -215,8 +206,8 @@ export default function CompareFrameio() {
             ADVICE.
           </h2>
           <p className="text-center text-lg text-[var(--foreground-muted)] font-medium mb-16 max-w-lg mx-auto">
-            We could trash-talk Frame.io but that would be dishonest and also
-            they have way more employees than us. Here's the real deal.
+            We could trash-talk Frame.io but that would be dishonest and also they have way more
+            employees than us. Here's the real deal.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -234,8 +225,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You need enterprise compliance docs (SOC 2, etc.) for your
-                      procurement team to approve anything
+                      You need enterprise compliance docs (SOC 2, etc.) for your procurement team to
+                      approve anything
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -243,8 +234,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're deeply embedded in Adobe Premiere and After Effects
-                      and need native panel integration
+                      You're deeply embedded in Adobe Premiere and After Effects and need native
+                      panel integration
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -252,8 +243,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You have 100+ people with complex multi-stage approval
-                      workflows and version trees
+                      You have 100+ people with complex multi-stage approval workflows and version
+                      trees
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -261,14 +252,14 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      Budget isn't a concern and you want every feature
-                      imaginable, even the ones you'll never use
+                      Budget isn't a concern and you want every feature imaginable, even the ones
+                      you'll never use
                     </span>
                   </li>
                 </ul>
                 <p className="text-sm text-[var(--foreground-muted)] mt-6 pt-4 border-t-2 border-[var(--border-subtle)]">
-                  Genuinely, Frame.io is solid software. If this is you, go use
-                  it. We won't be offended. (Okay maybe a little.)
+                  Genuinely, Frame.io is solid software. If this is you, go use it. We won't be
+                  offended. (Okay maybe a little.)
                 </p>
               </div>
             </div>
@@ -287,8 +278,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're a small-to-mid team that just needs to share cuts
-                      and collect feedback without a NASA control panel
+                      You're a small-to-mid team that just needs to share cuts and collect feedback
+                      without a NASA control panel
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -296,8 +287,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're an agency tired of doing per-seat multiplication
-                      every time you onboard a client
+                      You're an agency tired of doing per-seat multiplication every time you onboard
+                      a client
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -305,8 +296,8 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're a freelancer who just needs to show a cut to a
-                      client without making them create yet another account
+                      You're a freelancer who just needs to show a cut to a client without making
+                      them create yet another account
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -314,14 +305,14 @@ export default function CompareFrameio() {
                       --
                     </span>
                     <span className="font-medium">
-                      You value speed and simplicity over a feature checklist
-                      that makes the marketing site look impressive
+                      You value speed and simplicity over a feature checklist that makes the
+                      marketing site look impressive
                     </span>
                   </li>
                 </ul>
                 <p className="text-sm text-[var(--foreground-muted)] mt-6 pt-4 border-t border-[#333]">
-                  We do less than Frame.io. Proudly. Turns out "upload, share,
-                  comment" is 90% of what anyone actually needs.
+                  We do less than Frame.io. Proudly. Turns out "upload, share, comment" is 90% of
+                  what anyone actually needs.
                 </p>
               </div>
             </div>
@@ -338,8 +329,7 @@ export default function CompareFrameio() {
             NOW.
           </h2>
           <p className="text-xl md:text-2xl text-[var(--foreground-muted)] font-medium mb-12 max-w-md">
-            $5/month. Unlimited seats. No sales call required. No credit card to
-            start.
+            $5/month. Unlimited seats. No sales call required. No credit card to start.
           </p>
           <Link
             to="/sign-up"

@@ -88,10 +88,7 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
     }
   };
 
-  const handleUpdateRole = async (
-    memberId: Id<"teamMembers">,
-    newRole: Role,
-  ) => {
+  const handleUpdateRole = async (memberId: Id<"teamMembers">, newRole: Role) => {
     try {
       await updateRole({ teamId, membershipId: memberId, role: newRole });
     } catch (error) {
@@ -104,9 +101,7 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Team members</DialogTitle>
-          <DialogDescription>
-            Invite new members or manage existing ones.
-          </DialogDescription>
+          <DialogDescription>Invite new members or manage existing ones.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleInvite} className="space-y-4">
@@ -126,15 +121,9 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setRole("admin")}>
-                  Admin
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRole("member")}>
-                  Member
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRole("viewer")}>
-                  Viewer
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRole("admin")}>Admin</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRole("member")}>Member</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRole("viewer")}>Viewer</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -146,21 +135,11 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
 
         {inviteLink && (
           <div className="border-2 border-[#1a1a1a] bg-[#e8e8e0] p-3">
-            <p className="text-sm text-[#888] mb-2">
-              Share this link with the invitee:
-            </p>
+            <p className="text-sm text-[#888] mb-2">Share this link with the invitee:</p>
             <div className="flex gap-2">
               <Input value={inviteLink} readOnly className="text-sm" />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopyLink}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
+              <Button variant="outline" size="icon" onClick={handleCopyLink}>
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -177,9 +156,7 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
                 <div className="flex items-center gap-3">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={member.userAvatarUrl} />
-                    <AvatarFallback>
-                      {getInitials(member.userName)}
-                    </AvatarFallback>
+                    <AvatarFallback>{getInitials(member.userName)}</AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="text-sm font-bold text-[#1a1a1a]">{member.userName}</p>
@@ -199,19 +176,13 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateRole(member._id, "admin")}
-                          >
+                          <DropdownMenuItem onClick={() => handleUpdateRole(member._id, "admin")}>
                             Admin
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateRole(member._id, "member")}
-                          >
+                          <DropdownMenuItem onClick={() => handleUpdateRole(member._id, "member")}>
                             Member
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleUpdateRole(member._id, "viewer")}
-                          >
+                          <DropdownMenuItem onClick={() => handleUpdateRole(member._id, "viewer")}>
                             Viewer
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -243,9 +214,7 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
                 >
                   <div>
                     <p className="text-sm text-[#1a1a1a]">{invite.email}</p>
-                    <p className="text-xs text-[#888]">
-                      Invited as {roleLabels[invite.role]}
-                    </p>
+                    <p className="text-xs text-[#888]">Invited as {roleLabels[invite.role]}</p>
                   </div>
                   <Badge variant="outline">Pending</Badge>
                 </div>

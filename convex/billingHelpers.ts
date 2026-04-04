@@ -39,8 +39,7 @@ export function resolvePlanFromStripePriceId(
 }
 
 export function getStripePriceIdForPlan(plan: TeamPlan): string {
-  const variableName =
-    plan === "basic" ? "STRIPE_PRICE_BASIC_MONTHLY" : "STRIPE_PRICE_PRO_MONTHLY";
+  const variableName = plan === "basic" ? "STRIPE_PRICE_BASIC_MONTHLY" : "STRIPE_PRICE_PRO_MONTHLY";
   const value = process.env[variableName];
   if (!hasText(value)) {
     throw new Error(`${variableName} is not configured`);
@@ -48,27 +47,19 @@ export function getStripePriceIdForPlan(plan: TeamPlan): string {
   return value;
 }
 
-export function hasActiveTeamSubscriptionStatus(
-  status: string | undefined | null,
-): boolean {
+export function hasActiveTeamSubscriptionStatus(status: string | undefined | null): boolean {
   return status === "active" || status === "trialing" || status === "past_due";
 }
 
 type BillingCtx = QueryCtx | MutationCtx;
 
-export async function getTeamSubscriptionByOrgId(
-  ctx: BillingCtx,
-  teamId: Id<"teams">,
-) {
+export async function getTeamSubscriptionByOrgId(ctx: BillingCtx, teamId: Id<"teams">) {
   return await ctx.runQuery(components.stripe.public.getSubscriptionByOrgId, {
     orgId: teamId,
   });
 }
 
-export async function getTeamSubscriptionState(
-  ctx: BillingCtx,
-  teamId: Id<"teams">,
-) {
+export async function getTeamSubscriptionState(ctx: BillingCtx, teamId: Id<"teams">) {
   const team = await ctx.db.get(teamId);
   if (!team) {
     throw new Error("Team not found");
@@ -77,17 +68,12 @@ export async function getTeamSubscriptionState(
   const subscription = await getTeamSubscriptionByOrgId(ctx, teamId);
   const subscriptionPlan = resolvePlanFromStripePriceId(subscription?.priceId);
   const plan = subscriptionPlan ?? normalizeStoredTeamPlan(team.plan);
-  const hasActiveSubscription = hasActiveTeamSubscriptionStatus(
-    subscription?.status,
-  );
+  const hasActiveSubscription = hasActiveTeamSubscriptionStatus(subscription?.status);
 
   return { team, subscription, plan, hasActiveSubscription };
 }
 
-export async function getTeamStorageUsedBytes(
-  ctx: BillingCtx,
-  teamId: Id<"teams">,
-) {
+export async function getTeamStorageUsedBytes(ctx: BillingCtx, teamId: Id<"teams">) {
   const projects = await ctx.db
     .query("projects")
     .withIndex("by_team", (q) => q.eq("teamId", teamId))
@@ -115,10 +101,7 @@ export async function getTeamStorageUsedBytes(
   return total;
 }
 
-export async function assertTeamHasActiveSubscription(
-  ctx: BillingCtx,
-  teamId: Id<"teams">,
-) {
+export async function assertTeamHasActiveSubscription(ctx: BillingCtx, teamId: Id<"teams">) {
   const state = await getTeamSubscriptionState(ctx, teamId);
   if (!state.hasActiveSubscription) {
     throw new Error("An active Basic or Pro subscription is required.");

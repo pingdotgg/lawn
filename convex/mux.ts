@@ -25,20 +25,14 @@ function normalizePrivateKey(value: string): string {
 }
 
 function getMuxJwtCredentials(): { keyId: string; keySecret: string } {
-  const keyId = readEnv(
-    "MUX_SIGNING_KEY",
-    "MUX_SIGNING_KEY_ID",
-  );
+  const keyId = readEnv("MUX_SIGNING_KEY", "MUX_SIGNING_KEY_ID");
   if (!keyId) {
     throw new Error(
       "Missing required environment variable: MUX_SIGNING_KEY (or legacy MUX_SIGNING_KEY_ID)",
     );
   }
 
-  const keySecret = readEnv(
-    "MUX_PRIVATE_KEY",
-    "MUX_SIGNING_PRIVATE_KEY",
-  );
+  const keySecret = readEnv("MUX_PRIVATE_KEY", "MUX_SIGNING_PRIVATE_KEY");
   if (!keySecret) {
     throw new Error(
       "Missing required environment variable: MUX_PRIVATE_KEY (or legacy MUX_SIGNING_PRIVATE_KEY)",
@@ -150,7 +144,11 @@ export function verifyMuxWebhookSignature(rawBody: string, signature: string | n
   const mux = getMuxClient();
   const webhookSecret = requireEnv("MUX_WEBHOOK_SECRET");
 
-  mux.webhooks.verifySignature(rawBody, {
-    "mux-signature": signature,
-  }, webhookSecret);
+  mux.webhooks.verifySignature(
+    rawBody,
+    {
+      "mux-signature": signature,
+    },
+    webhookSecret,
+  );
 }

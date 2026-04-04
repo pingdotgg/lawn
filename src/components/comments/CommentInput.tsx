@@ -36,8 +36,8 @@ export function CommentInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const createComment = useMutation(api.comments.create);
 
-  const defaultPlaceholder = showTimestamp 
-    ? `Comment at ${formatTimestamp(timestampSeconds)}...` 
+  const defaultPlaceholder = showTimestamp
+    ? `Comment at ${formatTimestamp(timestampSeconds)}...`
     : "Add a comment...";
   const finalPlaceholder = placeholder || defaultPlaceholder;
 
@@ -74,13 +74,7 @@ export function CommentInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (
-      e.key === "Enter" &&
-      !e.shiftKey &&
-      !e.metaKey &&
-      !e.ctrlKey &&
-      !e.altKey
-    ) {
+    if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       void submitComment();
     }
@@ -90,12 +84,10 @@ export function CommentInput({
   };
 
   return (
-    <form 
-      onSubmit={handleSubmit} 
+    <form
+      onSubmit={handleSubmit}
       className={
-        variant === "seamless" 
-          ? "relative w-full bg-[#f0f0e8]"
-          : "relative w-full pb-1 pr-1"
+        variant === "seamless" ? "relative w-full bg-[#f0f0e8]" : "relative w-full pb-1 pr-1"
       }
     >
       <textarea
@@ -112,10 +104,10 @@ export function CommentInput({
         }
         rows={3}
       />
-      <div 
+      <div
         className={
-          variant === "seamless" 
-            ? "absolute bottom-3 right-3 flex items-center gap-2" 
+          variant === "seamless"
+            ? "absolute bottom-3 right-3 flex items-center gap-2"
             : "absolute bottom-3 right-3 flex items-center gap-2"
         }
       >

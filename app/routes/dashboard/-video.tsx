@@ -1,4 +1,3 @@
-
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
@@ -18,14 +17,7 @@ import { formatDuration } from "@/lib/utils";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { DashboardHeader } from "@/components/DashboardHeader";
-import {
-  Edit2,
-  Check,
-  X,
-  Link as LinkIcon,
-  MessageSquare,
-  MoreVertical,
-} from "lucide-react";
+import { Edit2, Check, X, Link as LinkIcon, MessageSquare, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,17 +74,23 @@ export default function VideoPage() {
   const [isLoadingOriginalPlayback, setIsLoadingOriginalPlayback] = useState(false);
   const [preferredSource, setPreferredSource] = useState<"mux720" | "original">("original");
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+  const videoStatus = video?.status;
+  const videoS3Key = video?.s3Key;
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
+  const canLoadOriginalPlayback =
+    Boolean(resolvedVideoId && videoStatus) &&
+    videoStatus !== "uploading" &&
+    videoStatus !== "failed";
   const playbackUrl = playbackSession?.url ?? null;
   const activePlaybackUrl =
     preferredSource === "mux720"
-      ? playbackUrl ?? originalPlaybackUrl
-      : originalPlaybackUrl ?? playbackUrl;
+      ? (playbackUrl ?? originalPlaybackUrl)
+      : (originalPlaybackUrl ?? playbackUrl);
   const activeQualityId =
-    activePlaybackUrl && playbackUrl && activePlaybackUrl === playbackUrl
-      ? "mux720"
-      : "original";
-  const isUsingOriginalFallback = Boolean(activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl);
+    activePlaybackUrl && playbackUrl && activePlaybackUrl === playbackUrl ? "mux720" : "original";
+  const isUsingOriginalFallback = Boolean(
+    activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl,
+  );
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() =>
@@ -146,7 +144,7 @@ export default function VideoPage() {
   }, [getPlaybackSession, isPlayable, resolvedVideoId, video?.muxPlaybackId]);
 
   useEffect(() => {
-    if (!resolvedVideoId || !video || video.status === "uploading" || video.status === "failed") {
+    if (!resolvedVideoId || !canLoadOriginalPlayback) {
       setOriginalPlaybackUrl(null);
       setIsLoadingOriginalPlayback(false);
       return;
@@ -172,7 +170,7 @@ export default function VideoPage() {
     return () => {
       cancelled = true;
     };
-  }, [getOriginalPlaybackUrl, resolvedVideoId, video?.status, video?.s3Key]);
+  }, [canLoadOriginalPlayback, getOriginalPlaybackUrl, resolvedVideoId, videoS3Key]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -199,7 +197,7 @@ export default function VideoPage() {
       playerRef.current?.seekTo(time);
       setHighlightedCommentId(undefined);
     },
-    [playerRef, setHighlightedCommentId]
+    [playerRef, setHighlightedCommentId],
   );
 
   const handleSaveTitle = async () => {
@@ -253,68 +251,68 @@ export default function VideoPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <DashboardHeader paths={[
-        {
-          label: resolvedTeamSlug,
-          href: teamHomePath(resolvedTeamSlug),
-          prewarmIntentHandlers: prewarmTeamIntentHandlers,
-        },
-        {
-          label: context?.project?.name ?? "project",
-          href: projectPath(resolvedTeamSlug, resolvedProjectId),
-          prewarmIntentHandlers: prewarmProjectIntentHandlers,
-        },
-        { 
-          label: isEditingTitle ? (
-            <div className="flex items-center gap-2">
-              <Input
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                className="w-40 sm:w-64 h-8 text-base font-black tracking-tighter uppercase font-mono"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSaveTitle();
-                  if (e.key === "Escape") setIsEditingTitle(false);
-                }}
-              />
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveTitle}>
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={() => setIsEditingTitle(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="truncate max-w-[150px] sm:max-w-[300px]">{video.title}</span>
-              {canEdit && (
+      <DashboardHeader
+        paths={[
+          {
+            label: resolvedTeamSlug,
+            href: teamHomePath(resolvedTeamSlug),
+            prewarmIntentHandlers: prewarmTeamIntentHandlers,
+          },
+          {
+            label: context?.project?.name ?? "project",
+            href: projectPath(resolvedTeamSlug, resolvedProjectId),
+            prewarmIntentHandlers: prewarmProjectIntentHandlers,
+          },
+          {
+            label: isEditingTitle ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  className="w-40 sm:w-64 h-8 text-base font-black tracking-tighter uppercase font-mono"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveTitle();
+                    if (e.key === "Escape") setIsEditingTitle(false);
+                  }}
+                />
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleSaveTitle}>
+                  <Check className="h-4 w-4" />
+                </Button>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-6"
-                  onClick={startEditingTitle}
+                  className="h-8 w-8"
+                  onClick={() => setIsEditingTitle(false)}
                 >
-                  <Edit2 className="h-3 w-3" />
+                  <X className="h-4 w-4" />
                 </Button>
-              )}
-              {video.status !== "ready" && (
-                <Badge
-                  variant={video.status === "failed" ? "destructive" : "secondary"}
-                >
-                  {video.status === "uploading" && "Uploading"}
-                  {video.status === "processing" && "Processing"}
-                  {video.status === "failed" && "Failed"}
-                </Badge>
-              )}
-            </div>
-          )
-        }
-      ]}>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="truncate max-w-[150px] sm:max-w-[300px]">{video.title}</span>
+                {canEdit && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={startEditingTitle}
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
+                {video.status !== "ready" && (
+                  <Badge variant={video.status === "failed" ? "destructive" : "secondary"}>
+                    {video.status === "uploading" && "Uploading"}
+                    {video.status === "processing" && "Processing"}
+                    {video.status === "failed" && "Failed"}
+                  </Badge>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      >
         {/* Desktop: inline actions */}
         <div className="hidden sm:flex items-center gap-3 text-xs text-[#888]">
           <span className="truncate max-w-[100px]">{video.uploaderName}</span>
@@ -367,16 +365,16 @@ export default function VideoPage() {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setShareDialogOpen(true)}>
-              <LinkIcon className="mr-2 h-4 w-4" />
-              Share
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setMobileCommentsOpen(true)}>
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setShareDialogOpen(true)}>
+                <LinkIcon className="mr-2 h-4 w-4" />
+                Share
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMobileCommentsOpen(true)}>
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </DashboardHeader>
@@ -435,9 +433,7 @@ export default function VideoPage() {
                 </div>
               ) : (
                 <div className="text-center">
-                  {video.status === "uploading" && (
-                    <p className="text-white/60">Uploading...</p>
-                  )}
+                  {video.status === "uploading" && <p className="text-white/60">Uploading...</p>}
                   {video.status === "processing" && (
                     <p className="text-white/60">
                       {isLoadingOriginalPlayback
@@ -445,9 +441,7 @@ export default function VideoPage() {
                         : "Processing video..."}
                     </p>
                   )}
-                  {video.status === "failed" && (
-                    <p className="text-[#dc2626]">Processing failed</p>
-                  )}
+                  {video.status === "failed" && <p className="text-[#dc2626]">Processing failed</p>}
                 </div>
               )}
             </div>
@@ -462,7 +456,7 @@ export default function VideoPage() {
             </h2>
             {comments && comments.length > 0 && (
               <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
-                {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+                {comments.length} {comments.length === 1 ? "comment" : "comments"}
               </span>
             )}
           </div>

@@ -9,10 +9,5 @@ export const Route = createFileRoute("/dashboard/$teamSlug/$projectId/")({
 function ProjectIndexRoute() {
   const { teamSlug, projectId } = Route.useParams();
 
-  return (
-    <ProjectPage
-      teamSlug={teamSlug}
-      projectId={projectId as Id<"projects">}
-    />
-  );
+  return <ProjectPage teamSlug={teamSlug} projectId={projectId as Id<"projects">} />;
 }

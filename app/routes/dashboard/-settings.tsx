@@ -65,19 +65,13 @@ export default function TeamSettingsPage() {
   const { context, team, members, billing } = useSettingsData({ teamSlug });
   const updateTeam = useMutation(api.teams.update);
   const deleteTeam = useMutation(api.teams.deleteTeam);
-  const createSubscriptionCheckout = useAction(
-    api.billing.createSubscriptionCheckout,
-  );
-  const createCustomerPortalSession = useAction(
-    api.billing.createCustomerPortalSession,
-  );
+  const createSubscriptionCheckout = useAction(api.billing.createSubscriptionCheckout);
+  const createCustomerPortalSession = useAction(api.billing.createCustomerPortalSession);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
-  const [isCheckingOutPlan, setIsCheckingOutPlan] = useState<BillingPlan | null>(
-    null,
-  );
+  const [isCheckingOutPlan, setIsCheckingOutPlan] = useState<BillingPlan | null>(null);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
   const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() => {
@@ -125,8 +119,7 @@ export default function TeamSettingsPage() {
 
   const storageUsed = billing?.storageUsedBytes ?? 0;
   const storageLimit = planConfig.storageLimitBytes;
-  const storagePct =
-    storageLimit > 0 ? Math.min((storageUsed / storageLimit) * 100, 100) : 0;
+  const storagePct = storageLimit > 0 ? Math.min((storageUsed / storageLimit) * 100, 100) : 0;
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
@@ -186,8 +179,7 @@ export default function TeamSettingsPage() {
 
       window.location.assign(session.url);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to start checkout.";
+      const message = error instanceof Error ? error.message : "Unable to start checkout.";
       setBillingError(message);
     } finally {
       setIsCheckingOutPlan(null);
@@ -210,9 +202,7 @@ export default function TeamSettingsPage() {
       window.location.assign(session.url);
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to open Stripe billing portal.";
+        error instanceof Error ? error.message : "Unable to open Stripe billing portal.";
       setBillingError(message);
     } finally {
       setIsOpeningPortal(false);
@@ -251,11 +241,7 @@ export default function TeamSettingsPage() {
                 <Button size="sm" onClick={() => void handleSaveName()}>
                   Save
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setIsEditingName(false)}
-                >
+                <Button size="sm" variant="ghost" onClick={() => setIsEditingName(false)}>
                   Cancel
                 </Button>
               </div>
@@ -287,13 +273,9 @@ export default function TeamSettingsPage() {
           {/* ── Stats strip ── */}
           <div className="border-t-2 border-b-2 border-[#1a1a1a] py-5 mb-8 grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 lg:gap-12">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">
-                Plan
-              </p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">Plan</p>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-black text-[#1a1a1a]">
-                  {currentPlanLabel}
-                </span>
+                <span className="text-xl font-black text-[#1a1a1a]">{currentPlanLabel}</span>
                 {hasActiveSubscription ? (
                   <Badge variant={isTrialing ? "warning" : "success"}>
                     {isTrialing ? "Trialing" : "Active"}
@@ -309,9 +291,7 @@ export default function TeamSettingsPage() {
               )}
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">
-                Storage
-              </p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">Storage</p>
               <p className="text-xl font-black text-[#1a1a1a]">
                 {billing ? formatBytes(storageUsed) : "—"}
                 <span className="text-sm font-bold text-[#888]">
@@ -327,12 +307,8 @@ export default function TeamSettingsPage() {
               </div>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">
-                Seats
-              </p>
-              <p className="text-xl font-black text-[#1a1a1a]">
-                {planConfig.seats}
-              </p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#888] mb-1">Seats</p>
+              <p className="text-xl font-black text-[#1a1a1a]">{planConfig.seats}</p>
             </div>
           </div>
 
@@ -363,9 +339,7 @@ export default function TeamSettingsPage() {
                         >
                           {config.label}
                         </p>
-                        {isCurrentPlan && (
-                          <Check className="h-4 w-4 text-[#7cb87c]" />
-                        )}
+                        {isCurrentPlan && <Check className="h-4 w-4 text-[#7cb87c]" />}
                       </div>
                       <p
                         className={`text-3xl font-black ${isCurrentPlan ? "text-[#f0f0e8]" : "text-[#1a1a1a]"}`}
@@ -409,23 +383,18 @@ export default function TeamSettingsPage() {
                   onClick={() => void handleOpenPortal()}
                 >
                   <CreditCard className="mr-2 h-4 w-4" />
-                  {isOpeningPortal
-                    ? "Opening billing portal..."
-                    : "Manage subscription"}
+                  {isOpeningPortal ? "Opening billing portal..." : "Manage subscription"}
                 </Button>
               )}
 
               {billingError && (
-                <p className="text-sm font-bold text-[#dc2626] mt-3">
-                  {billingError}
-                </p>
+                <p className="text-sm font-bold text-[#dc2626] mt-3">{billingError}</p>
               )}
 
               {!hasActiveSubscription && (
                 <p className="text-sm text-[#888] mt-3">
-                  An active subscription is required to create projects and upload
-                  videos. Eligible teams receive a {TEAM_TRIAL_DAYS}-day trial before
-                  billing starts.
+                  An active subscription is required to create projects and upload videos. Eligible
+                  teams receive a {TEAM_TRIAL_DAYS}-day trial before billing starts.
                 </p>
               )}
             </div>
@@ -435,9 +404,7 @@ export default function TeamSettingsPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[10px] uppercase tracking-[0.2em] font-bold text-[#888]">
                   Members
-                  <span className="ml-2 text-[#1a1a1a]">
-                    {members?.length || 0}
-                  </span>
+                  <span className="ml-2 text-[#1a1a1a]">{members?.length || 0}</span>
                 </h2>
                 {isAdmin && (
                   <button
@@ -456,12 +423,8 @@ export default function TeamSettingsPage() {
                     className="flex items-center justify-between py-3 border-b border-[#ccc]"
                   >
                     <div className="min-w-0">
-                      <p className="font-bold text-sm text-[#1a1a1a] truncate">
-                        {member.userName}
-                      </p>
-                      <p className="text-xs text-[#888] truncate">
-                        {member.userEmail}
-                      </p>
+                      <p className="font-bold text-sm text-[#1a1a1a] truncate">{member.userName}</p>
+                      <p className="text-xs text-[#888] truncate">{member.userEmail}</p>
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#888] shrink-0 ml-3">
                       {member.role}
@@ -484,9 +447,7 @@ export default function TeamSettingsPage() {
           {isOwner && (
             <div className="border-t-2 border-[#dc2626]/30 mt-16 pt-6 flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-[#1a1a1a]">
-                  Delete team
-                </p>
+                <p className="text-sm font-bold text-[#1a1a1a]">Delete team</p>
                 <p className="text-xs text-[#888] mt-0.5">
                   {canDeleteTeam
                     ? "Permanently remove this team, all projects, and videos."

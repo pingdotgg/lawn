@@ -191,4 +191,3 @@ Optional index additions if `resolveContext` needs optimization:
 - Flattening routes to active-team session model (rejected for this plan)
 - Changing role hierarchy or permission semantics
 - Replatforming auth identity model
-

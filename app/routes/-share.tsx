@@ -253,10 +253,12 @@ export default function SharePage() {
                 onChange={(event) => setPasswordInput(event.target.value)}
                 autoFocus
               />
-              {passwordError && (
-                <p className="text-sm text-[#dc2626]">Incorrect password</p>
-              )}
-              <Button type="submit" className="w-full" disabled={!passwordInput || isRequestingGrant}>
+              {passwordError && <p className="text-sm text-[#dc2626]">Incorrect password</p>}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={!passwordInput || isRequestingGrant}
+              >
                 {isRequestingGrant ? "Verifying..." : "View video"}
               </Button>
             </form>
@@ -275,9 +277,7 @@ export default function SharePage() {
               <Video className="h-6 w-6 text-[#888]" />
             </div>
             <CardTitle>Video not available</CardTitle>
-            <CardDescription>
-              This video is not available or is still processing.
-            </CardDescription>
+            <CardDescription>This video is not available or is still processing.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -321,9 +321,7 @@ export default function SharePage() {
 
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a]">{video.title}</h1>
-          {video.description && (
-            <p className="text-[#888] mt-1">{video.description}</p>
-          )}
+          {video.description && <p className="text-[#888] mt-1">{video.description}</p>}
           <div className="flex items-center gap-4 mt-2 text-sm text-[#888]">
             {video.duration && <span className="font-mono">{formatDuration(video.duration)}</span>}
             {comments && <span>{comments.length} threads</span>}
@@ -343,7 +341,7 @@ export default function SharePage() {
             />
           ) : (
             <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-              {(playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http")) ? (
+              {playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http") ? (
                 <img
                   src={playbackSession?.posterUrl ?? video.thumbnailUrl}
                   alt={`${video.title} thumbnail`}
@@ -354,7 +352,8 @@ export default function SharePage() {
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
                 <p className="text-sm font-medium text-white/85">
-                  {playbackError ?? (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
+                  {playbackError ??
+                    (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
                 </p>
               </div>
             </div>
@@ -410,13 +409,17 @@ export default function SharePage() {
                     <button
                       type="button"
                       className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                      onClick={() => playerRef.current?.seekTo(comment.timestampSeconds, { play: true })}
+                      onClick={() =>
+                        playerRef.current?.seekTo(comment.timestampSeconds, { play: true })
+                      }
                     >
                       {formatTimestamp(comment.timestampSeconds)}
                     </button>
                   </div>
                   <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
-                  <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
+                  <p className="text-[11px] text-[#888] mt-1">
+                    {formatRelativeTime(comment._creationTime)}
+                  </p>
 
                   {comment.replies.length > 0 ? (
                     <div className="mt-3 ml-4 border-l-2 border-[#1a1a1a] pl-3 space-y-2">
@@ -427,7 +430,9 @@ export default function SharePage() {
                             <button
                               type="button"
                               className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                              onClick={() => playerRef.current?.seekTo(reply.timestampSeconds, { play: true })}
+                              onClick={() =>
+                                playerRef.current?.seekTo(reply.timestampSeconds, { play: true })
+                              }
                             >
                               {formatTimestamp(reply.timestampSeconds)}
                             </button>

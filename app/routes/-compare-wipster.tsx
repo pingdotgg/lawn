@@ -78,9 +78,9 @@ export default function CompareWipster() {
               </span>
             </p>
             <p className="mt-6 text-lg text-[var(--foreground-muted)] font-medium max-w-lg">
-              Wipster is a solid tool with real approval workflows and a proper
-              feature set. lawn is smaller, cheaper, and open source. We do less
-              for less money, and that's the whole pitch.
+              Wipster is a solid tool with real approval workflows and a proper feature set. lawn is
+              smaller, cheaper, and open source. We do less for less money, and that's the whole
+              pitch.
             </p>
           </div>
         </div>
@@ -98,9 +98,7 @@ export default function CompareWipster() {
           <div className="border-2 border-[var(--border)] shadow-[8px_8px_0px_0px_var(--shadow-color)] bg-[var(--background)]">
             {/* Header row */}
             <div className="grid grid-cols-3 border-b-2 border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground-inverse)]">
-              <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm">
-                Feature
-              </div>
+              <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm">Feature</div>
               <div className="p-4 md:p-6 font-black uppercase tracking-wider text-sm border-l-2 border-[var(--border)]">
                 Wipster
               </div>
@@ -116,9 +114,7 @@ export default function CompareWipster() {
                 className={`grid grid-cols-3 ${i < comparisonRows.length - 1 ? "border-b-2 border-[var(--border)]" : ""}`}
               >
                 <div className="p-4 md:p-6 flex flex-col justify-center">
-                  <span className="font-black uppercase tracking-tight text-lg">
-                    {row.feature}
-                  </span>
+                  <span className="font-black uppercase tracking-tight text-lg">{row.feature}</span>
                   <span className="text-xs text-[var(--foreground-muted)] mt-1 hidden md:block">
                     {row.note}
                   </span>
@@ -134,8 +130,7 @@ export default function CompareWipster() {
           </div>
 
           <p className="text-center text-sm text-[var(--foreground-muted)] mt-6 md:hidden">
-            * Wipster pricing based on their per-user model. Actual pricing may
-            vary by plan.
+            * Wipster pricing based on their per-user model. Actual pricing may vary by plan.
           </p>
         </div>
       </section>
@@ -149,8 +144,8 @@ export default function CompareWipster() {
             MATH.
           </h2>
           <p className="text-center text-lg text-[var(--foreground-muted)] font-medium mb-16 max-w-lg mx-auto">
-            Wipster charges per user. lawn charges $5 per month total. Not per
-            user. Just $5. The math gets increasingly silly as your team grows.
+            Wipster charges per user. lawn charges $5 per month total. Not per user. Just $5. The
+            math gets increasingly silly as your team grows.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -183,9 +178,7 @@ export default function CompareWipster() {
                       <span className="text-xs font-bold uppercase tracking-wider text-[var(--accent)]">
                         lawn
                       </span>
-                      <span className="font-black text-[var(--accent)]">
-                        ${lawnAnnual}/yr
-                      </span>
+                      <span className="font-black text-[var(--accent)]">${lawnAnnual}/yr</span>
                     </div>
                     <div className="border-t-2 border-[var(--border-subtle)] pt-4 mt-auto">
                       <div className="text-3xl font-black text-[var(--accent)]">
@@ -213,9 +206,9 @@ export default function CompareWipster() {
               You can literally read our code.
             </p>
             <p className="text-base font-medium opacity-90 max-w-2xl">
-              lawn is fully open source. Every line. The elegant parts and the
-              parts where we left a TODO from three months ago. No black box. No
-              trust required. Just code you can read, fork, and judge silently.
+              lawn is fully open source. Every line. The elegant parts and the parts where we left a
+              TODO from three months ago. No black box. No trust required. Just code you can read,
+              fork, and judge silently.
             </p>
             <a
               href="https://github.com/pingdotgg/lawn"
@@ -238,9 +231,8 @@ export default function CompareWipster() {
             ADVICE.
           </h2>
           <p className="text-center text-lg text-[var(--foreground-muted)] font-medium mb-16 max-w-lg mx-auto">
-            Wipster is genuinely good software built by people who care about
-            video review. We just think there's room for something simpler. Here
-            are the facts.
+            Wipster is genuinely good software built by people who care about video review. We just
+            think there's room for something simpler. Here are the facts.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -258,8 +250,8 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You need built-in approval workflows with multiple review
-                      stages, status tracking, and the whole production pipeline
+                      You need built-in approval workflows with multiple review stages, status
+                      tracking, and the whole production pipeline
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -267,8 +259,8 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're an established media team that's already invested in
-                      a full review ecosystem and switching costs are real
+                      You're an established media team that's already invested in a full review
+                      ecosystem and switching costs are real
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -276,8 +268,8 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You want deep review stages with version comparisons,
-                      granular permissions, and structured feedback rounds
+                      You want deep review stages with version comparisons, granular permissions,
+                      and structured feedback rounds
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -285,14 +277,14 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      Per-user pricing is fine because your budget is already
-                      approved and nobody's counting
+                      Per-user pricing is fine because your budget is already approved and nobody's
+                      counting
                     </span>
                   </li>
                 </ul>
                 <p className="text-sm text-[var(--foreground-muted)] mt-6 pt-4 border-t-2 border-[var(--border-subtle)]">
-                  Seriously, Wipster is good. If this is you, go use it. We'll
-                  be here if you change your mind later.
+                  Seriously, Wipster is good. If this is you, go use it. We'll be here if you change
+                  your mind later.
                 </p>
               </div>
             </div>
@@ -311,8 +303,8 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You're a small team or agency that just needs to share cuts
-                      and collect feedback without a 45-minute onboarding
+                      You're a small team or agency that just needs to share cuts and collect
+                      feedback without a 45-minute onboarding
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -320,8 +312,7 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You hate per-seat pricing with a passion that concerns your
-                      friends and family
+                      You hate per-seat pricing with a passion that concerns your friends and family
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -329,8 +320,8 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You want clients to review with just a link, no account
-                      creation, no "please check your email" nonsense
+                      You want clients to review with just a link, no account creation, no "please
+                      check your email" nonsense
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -338,14 +329,14 @@ export default function CompareWipster() {
                       --
                     </span>
                     <span className="font-medium">
-                      You value open source and want to know exactly what
-                      software you're trusting with your work
+                      You value open source and want to know exactly what software you're trusting
+                      with your work
                     </span>
                   </li>
                 </ul>
                 <p className="text-sm text-[var(--foreground-muted)] mt-6 pt-4 border-t border-[#333]">
-                  We do less than Wipster. Proudly. Upload, share, comment. Go
-                  home. That's 90% of what anyone actually needs.
+                  We do less than Wipster. Proudly. Upload, share, comment. Go home. That's 90% of
+                  what anyone actually needs.
                 </p>
               </div>
             </div>

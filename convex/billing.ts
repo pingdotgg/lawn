@@ -89,8 +89,7 @@ export const createSubscriptionCheckout = action({
 
     const stripePriceId = getStripePriceIdForPlan(args.plan);
 
-    const shouldStartTrial =
-      !existingSubscription && !team.stripeSubscriptionId;
+    const shouldStartTrial = !existingSubscription && !team.stripeSubscriptionId;
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: "subscription",
@@ -148,8 +147,7 @@ export const createCustomerPortalSession = action({
       { orgId: args.teamId },
     );
 
-    const stripeCustomerId =
-      team.stripeCustomerId ?? existingSubscription?.stripeCustomerId;
+    const stripeCustomerId = team.stripeCustomerId ?? existingSubscription?.stripeCustomerId;
 
     if (!stripeCustomerId) {
       throw new Error("No Stripe customer found for this team yet.");
@@ -192,16 +190,11 @@ export const getTeamBilling = query({
       storageLimitBytes: TEAM_PLAN_STORAGE_LIMIT_BYTES[subscriptionState.plan],
       storageUsedBytes,
       hasActiveSubscription: subscriptionState.hasActiveSubscription,
-      subscriptionStatus:
-        subscription?.status ?? subscriptionState.team.billingStatus ?? null,
+      subscriptionStatus: subscription?.status ?? subscriptionState.team.billingStatus ?? null,
       stripeCustomerId:
-        subscriptionState.team.stripeCustomerId ??
-        subscription?.stripeCustomerId ??
-        null,
+        subscriptionState.team.stripeCustomerId ?? subscription?.stripeCustomerId ?? null,
       stripeSubscriptionId:
-        subscription?.stripeSubscriptionId ??
-        subscriptionState.team.stripeSubscriptionId ??
-        null,
+        subscription?.stripeSubscriptionId ?? subscriptionState.team.stripeSubscriptionId ?? null,
       stripePriceId: subscription?.priceId ?? subscriptionState.team.stripePriceId ?? null,
       currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
       role: membership.role,
@@ -220,9 +213,7 @@ export const syncTeamSubscriptionFromWebhook = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const normalizedOrgId = args.orgId
-      ? ctx.db.normalizeId("teams", args.orgId)
-      : null;
+    const normalizedOrgId = args.orgId ? ctx.db.normalizeId("teams", args.orgId) : null;
 
     let team = normalizedOrgId ? await ctx.db.get(normalizedOrgId) : null;
 
@@ -238,9 +229,7 @@ export const syncTeamSubscriptionFromWebhook = internalMutation({
     if (!team && args.stripeCustomerId) {
       team = await ctx.db
         .query("teams")
-        .withIndex("by_stripe_customer_id", (q) =>
-          q.eq("stripeCustomerId", args.stripeCustomerId),
-        )
+        .withIndex("by_stripe_customer_id", (q) => q.eq("stripeCustomerId", args.stripeCustomerId))
         .unique();
     }
 

@@ -14,10 +14,7 @@ const workflowStatusValidator = v.union(
 
 const visibilityValidator = v.union(v.literal("public"), v.literal("private"));
 
-type WorkflowStatus =
-  | "review"
-  | "rework"
-  | "done";
+type WorkflowStatus = "review" | "rework" | "done";
 
 function normalizeWorkflowStatus(status: WorkflowStatus | undefined): WorkflowStatus {
   return status ?? "review";
@@ -35,10 +32,7 @@ async function generatePublicId(ctx: MutationCtx) {
   );
 }
 
-async function deleteShareAccessGrantsForLink(
-  ctx: MutationCtx,
-  linkId: Id<"shareLinks">,
-) {
+async function deleteShareAccessGrantsForLink(ctx: MutationCtx, linkId: Id<"shareLinks">) {
   const grants = await ctx.db
     .query("shareAccessGrants")
     .withIndex("by_share_link", (q) => q.eq("shareLinkId", linkId))
@@ -464,7 +458,7 @@ export const getVideoByMuxUploadId = internalQuery({
     v.object({
       videoId: v.id("videos"),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args): Promise<{ videoId: Id<"videos"> } | null> => {
     const video = await ctx.db
@@ -485,7 +479,7 @@ export const getVideoByMuxAssetId = internalQuery({
     v.object({
       videoId: v.id("videos"),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args): Promise<{ videoId: Id<"videos"> } | null> => {
     const video = await ctx.db

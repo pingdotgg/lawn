@@ -1,10 +1,7 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getVideoEssentialSpecs(params: {
   teamSlug: string;
@@ -43,10 +40,7 @@ export function useVideoData(params: {
   const resolvedProjectId = context?.project?._id;
   const resolvedVideoId = context?.video?._id;
 
-  const video = useQuery(
-    api.videos.get,
-    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
-  );
+  const video = useQuery(api.videos.get, resolvedVideoId ? { videoId: resolvedVideoId } : "skip");
   const comments = useQuery(
     api.comments.list,
     resolvedVideoId ? { videoId: resolvedVideoId } : "skip",

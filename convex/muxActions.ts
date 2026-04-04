@@ -4,11 +4,7 @@ import { v } from "convex/values";
 import { internalAction, ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
-import {
-  buildMuxThumbnailUrl,
-  getMuxAsset,
-  verifyMuxWebhookSignature,
-} from "./mux";
+import { buildMuxThumbnailUrl, getMuxAsset, verifyMuxWebhookSignature } from "./mux";
 
 type MuxData = {
   id?: string;
@@ -180,8 +176,7 @@ export const processWebhook = internalAction({
 
           let resolvedPassthrough = asString(data.passthrough);
           let playbackId = getPreferredPlaybackId(data.playback_ids);
-          let duration =
-            typeof data.duration === "number" ? data.duration : undefined;
+          let duration = typeof data.duration === "number" ? data.duration : undefined;
 
           if (!resolvedPassthrough || !playbackId || duration === undefined) {
             const asset = await getMuxAsset(assetId);
@@ -190,8 +185,7 @@ export const processWebhook = internalAction({
             resolvedPassthrough = resolvedPassthrough ?? asString(asset.passthrough);
             playbackId = playbackId ?? getPreferredPlaybackId(assetPlaybackIds);
             duration =
-              duration ??
-              (typeof asset.duration === "number" ? asset.duration : undefined);
+              duration ?? (typeof asset.duration === "number" ? asset.duration : undefined);
           }
 
           if (!playbackId) {

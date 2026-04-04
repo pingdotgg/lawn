@@ -13,9 +13,7 @@ function getBasePublicUrl(): string {
 export function buildPublicUrl(key: string): string {
   const includeBucket = process.env.RAILWAY_PUBLIC_URL_INCLUDE_BUCKET !== "false";
   const url = new URL(getBasePublicUrl());
-  const basePath = url.pathname.endsWith("/")
-    ? url.pathname.slice(0, -1)
-    : url.pathname;
+  const basePath = url.pathname.endsWith("/") ? url.pathname.slice(0, -1) : url.pathname;
   const objectPath = includeBucket ? `${BUCKET_NAME}/${key}` : key;
   url.pathname = `${basePath}/${objectPath}`;
   return url.toString();

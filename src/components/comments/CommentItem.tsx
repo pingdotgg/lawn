@@ -70,25 +70,19 @@ export function CommentItem({
       className={cn(
         "transition-all relative group",
         isReply ? "py-2" : "p-4",
-        isHighlighted
-          ? "bg-[#2d5a2d]/10"
-          : "hover:bg-[#1a1a1a]/5",
-        comment.resolved && "opacity-50"
+        isHighlighted ? "bg-[#2d5a2d]/10" : "hover:bg-[#1a1a1a]/5",
+        comment.resolved && "opacity-50",
       )}
     >
       <div className="flex items-start gap-3">
         <Avatar className="h-9 w-9 shadow-sm">
           <AvatarImage src={comment.userAvatarUrl} />
-          <AvatarFallback className="text-[10px]">
-            {getInitials(comment.userName)}
-          </AvatarFallback>
+          <AvatarFallback className="text-[10px]">{getInitials(comment.userName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-bold text-sm text-[#1a1a1a] truncate">
-                {comment.userName}
-              </span>
+              <span className="font-bold text-sm text-[#1a1a1a] truncate">{comment.userName}</span>
               <button
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
                 className="text-xs text-[#2d5a2d] hover:text-[#1a1a1a] font-mono font-bold shrink-0"

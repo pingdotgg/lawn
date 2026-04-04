@@ -99,8 +99,7 @@ export function useVideoUploadManager() {
 
               const avgSpeed =
                 recentSpeeds.length > 0
-                  ? recentSpeeds.reduce((sum, speed) => sum + speed, 0) /
-                    recentSpeeds.length
+                  ? recentSpeeds.reduce((sum, speed) => sum + speed, 0) / recentSpeeds.length
                   : 0;
               const remaining = event.total - event.loaded;
               const eta = avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
@@ -148,9 +147,7 @@ export function useVideoUploadManager() {
 
           setUploads((prev) =>
             prev.map((upload) =>
-              upload.id === uploadId
-                ? { ...upload, status: "complete", progress: 100 }
-                : upload,
+              upload.id === uploadId ? { ...upload, status: "complete", progress: 100 } : upload,
             ),
           );
 
@@ -158,14 +155,11 @@ export function useVideoUploadManager() {
             setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
           }, 3000);
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Upload failed";
+          const errorMessage = error instanceof Error ? error.message : "Upload failed";
 
           setUploads((prev) =>
             prev.map((upload) =>
-              upload.id === uploadId
-                ? { ...upload, status: "error", error: errorMessage }
-                : upload,
+              upload.id === uploadId ? { ...upload, status: "error", error: errorMessage } : upload,
             ),
           );
 

@@ -37,9 +37,7 @@ const shareLinkRateLimiter = new RateLimiter(components.rateLimiter, {
   },
 });
 
-function hasPasswordProtection(
-  link: Pick<Doc<"shareLinks">, "password" | "passwordHash">,
-) {
+function hasPasswordProtection(link: Pick<Doc<"shareLinks">, "password" | "passwordHash">) {
   return Boolean(link.passwordHash || link.password);
 }
 
@@ -67,10 +65,7 @@ async function generateShareToken(ctx: MutationCtx) {
   );
 }
 
-async function deleteShareAccessGrantsForLink(
-  ctx: MutationCtx,
-  shareLinkId: Id<"shareLinks">,
-) {
+async function deleteShareAccessGrantsForLink(ctx: MutationCtx, shareLinkId: Id<"shareLinks">) {
   const grants = await ctx.db
     .query("shareAccessGrants")
     .withIndex("by_share_link", (q) => q.eq("shareLinkId", shareLinkId))
@@ -96,9 +91,7 @@ export const create = mutation({
       ? Date.now() + args.expiresInDays * 24 * 60 * 60 * 1000
       : undefined;
     const normalizedPassword = normalizeProvidedPassword(args.password);
-    const passwordHash = normalizedPassword
-      ? await hashPassword(normalizedPassword)
-      : undefined;
+    const passwordHash = normalizedPassword ? await hashPassword(normalizedPassword) : undefined;
 
     await ctx.db.insert("shareLinks", {
       videoId: args.videoId,

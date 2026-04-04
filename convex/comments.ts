@@ -1,16 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
-import {
-  identityAvatarUrl,
-  identityName,
-  requireVideoAccess,
-  requireUser,
-} from "./auth";
+import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
 
-function toThreadedComments<T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number }>(
-  comments: T[],
-) {
+function toThreadedComments<
+  T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
+>(comments: T[]) {
   const topLevel = comments
     .filter((c) => !c.parentId)
     .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
@@ -45,10 +40,7 @@ function toPublicCommentPayload(comment: {
   };
 }
 
-async function getPublicVideoByPublicId(
-  ctx: QueryCtx | MutationCtx,
-  publicId: string,
-) {
+async function getPublicVideoByPublicId(ctx: QueryCtx | MutationCtx, publicId: string) {
   const video = await ctx.db
     .query("videos")
     .withIndex("by_public_id", (q) => q.eq("publicId", publicId))

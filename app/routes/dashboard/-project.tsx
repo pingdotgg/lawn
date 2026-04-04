@@ -1,15 +1,12 @@
-
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { DropZone } from "@/components/upload/DropZone";
-import { UploadProgress } from "@/components/upload/UploadProgress";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
 import {
-  ArrowLeft,
   Play,
   MoreVertical,
   Trash2,
@@ -109,11 +106,7 @@ function VideoIntentTarget({
   });
 
   return (
-    <div
-      className={className}
-      onClick={onOpen}
-      {...prewarmIntentHandlers}
-    >
+    <div className={className} onClick={onOpen} {...prewarmIntentHandlers}>
       {children}
     </div>
   );
@@ -130,14 +123,15 @@ export default function ProjectPage({
   const pathname = useLocation().pathname;
   const convex = useConvex();
 
-  const { context, resolvedProjectId, resolvedTeamSlug, project, videos } =
-    useProjectData({ teamSlug, projectId });
+  const { context, resolvedProjectId, resolvedTeamSlug, project, videos } = useProjectData({
+    teamSlug,
+    projectId,
+  });
   const projectPresenceCounts = useQuery(
     api.videoPresence.listProjectOnlineCounts,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
   );
-  const { requestUpload, uploads } =
-    useDashboardUploadContext();
+  const { requestUpload } = useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
@@ -168,10 +162,7 @@ export default function ProjectPage({
   );
 
   const isLoadingData =
-    context === undefined ||
-    project === undefined ||
-    videos === undefined ||
-    shouldCanonicalize;
+    context === undefined || project === undefined || videos === undefined || shouldCanonicalize;
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {
@@ -234,9 +225,7 @@ export default function ProjectPage({
       visibility: "public" | "private";
     }) => {
       const canSharePublicly =
-        Boolean(video.publicId) &&
-        video.status === "ready" &&
-        video.visibility === "public";
+        Boolean(video.publicId) && video.status === "ready" && video.visibility === "public";
       const path = canSharePublicly
         ? `/watch/${video.publicId}`
         : videoPath(resolvedTeamSlug, projectId, video._id);
@@ -276,18 +265,22 @@ export default function ProjectPage({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <DashboardHeader paths={[
-        {
-          label: resolvedTeamSlug,
-          href: teamHomePath(resolvedTeamSlug),
-          prewarmIntentHandlers: prewarmTeamIntentHandlers,
-        },
-        { label: project?.name ?? "\u00A0" }
-      ]}>
-        <div className={cn(
-          "flex items-center gap-2 transition-opacity duration-300 flex-shrink-0",
-          isLoadingData ? "opacity-0" : "opacity-100"
-        )}>
+      <DashboardHeader
+        paths={[
+          {
+            label: resolvedTeamSlug,
+            href: teamHomePath(resolvedTeamSlug),
+            prewarmIntentHandlers: prewarmTeamIntentHandlers,
+          },
+          { label: project?.name ?? "\u00A0" },
+        ]}
+      >
+        <div
+          className={cn(
+            "flex items-center gap-2 transition-opacity duration-300 flex-shrink-0",
+            isLoadingData ? "opacity-0" : "opacity-100",
+          )}
+        >
           {/* View toggle */}
           <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
             <button
@@ -313,9 +306,7 @@ export default function ProjectPage({
               <LayoutList className="h-4 w-4" />
             </button>
           </div>
-          {canUpload && (
-            <UploadButton onFilesSelected={handleFilesSelected} />
-          )}
+          {canUpload && <UploadButton onFilesSelected={handleFilesSelected} />}
         </div>
       </DashboardHeader>
 
@@ -331,18 +322,20 @@ export default function ProjectPage({
           </div>
         ) : viewMode === "grid" ? (
           /* Grid View - Responsive tiles */
-          <div className={cn(
-            "p-6 transition-opacity duration-300",
-            isLoadingData ? "opacity-0" : "opacity-100"
-          )}>
+          <div
+            className={cn(
+              "p-6 transition-opacity duration-300",
+              isLoadingData ? "opacity-0" : "opacity-100",
+            )}
+          >
             <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {videos?.map((video) => {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                   ? video.thumbnailUrl
                   : undefined;
-                const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
-                const watchingCount =
-                  projectPresenceCounts?.counts?.[video._id] ?? 0;
+                const canDownload =
+                  Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+                const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
 
                 return (
                   <VideoIntentTarget
@@ -370,104 +363,98 @@ export default function ProjectPage({
                           <Play className="h-10 w-10 text-[#888]" />
                         </div>
                       )}
-                    {video.status === "ready" && video.duration && (
-                      <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[11px] font-mono px-1.5 py-0.5">
-                        {formatDuration(video.duration)}
-                      </div>
-                    )}
-                    {video.status !== "ready" && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="text-white text-xs font-bold uppercase tracking-wider">
-                          {video.status === "uploading" && "Uploading..."}
-                          {video.status === "processing" && "Processing..."}
-                          {video.status === "failed" && "Failed"}
-                        </span>
-                      </div>
-                    )}
-                    {/* Hover menu */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          asChild
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center bg-black/60 hover:bg-black/80 text-white"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canDownload && (
+                      {video.status === "ready" && video.duration && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[11px] font-mono px-1.5 py-0.5">
+                          {formatDuration(video.duration)}
+                        </div>
+                      )}
+                      {video.status !== "ready" && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <span className="text-white text-xs font-bold uppercase tracking-wider">
+                            {video.status === "uploading" && "Uploading..."}
+                            {video.status === "processing" && "Processing..."}
+                            {video.status === "failed" && "Failed"}
+                          </span>
+                        </div>
+                      )}
+                      {/* Hover menu */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center bg-black/60 hover:bg-black/80 text-white"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {canDownload && (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDownloadVideo(video._id, video.title);
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void handleDownloadVideo(
-                                  video._id,
-                                  video.title,
-                                );
+                                void handleShareVideo(video);
                               }}
                             >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
+                              <LinkIcon className="mr-2 h-4 w-4" />
+                              Share
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleShareVideo(video);
-                            }}
-                          >
-                            <LinkIcon className="mr-2 h-4 w-4" />
-                            Share
-                          </DropdownMenuItem>
-                          {canUpload && (
-                            <DropdownMenuItem
-                              className="text-[#dc2626] focus:text-[#dc2626]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteVideo(video._id);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            {canUpload && (
+                              <DropdownMenuItem
+                                className="text-[#dc2626] focus:text-[#dc2626]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteVideo(video._id);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2.5">
-                    <p className="text-[15px] text-[#1a1a1a] font-black truncate leading-tight">
-                      {video.title}
-                    </p>
-                    <div className="mt-1.5 flex items-center gap-3">
-                      <VideoWorkflowStatusControl
-                        status={video.workflowStatus}
-                        stopPropagation
-                        disabled={!canUpload}
-                        onChange={(workflowStatus) =>
-                          void handleUpdateWorkflowStatus(video._id, workflowStatus)
-                        }
-                      />
-                      {video.commentCount > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-[#888]">
-                          <MessageSquare className="h-3 w-3" />
-                          {video.commentCount}
+                    <div className="mt-2.5">
+                      <p className="text-[15px] text-[#1a1a1a] font-black truncate leading-tight">
+                        {video.title}
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-3">
+                        <VideoWorkflowStatusControl
+                          status={video.workflowStatus}
+                          stopPropagation
+                          disabled={!canUpload}
+                          onChange={(workflowStatus) =>
+                            void handleUpdateWorkflowStatus(video._id, workflowStatus)
+                          }
+                        />
+                        {video.commentCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-[#888]">
+                            <MessageSquare className="h-3 w-3" />
+                            {video.commentCount}
+                          </span>
+                        )}
+                        {watchingCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-[#1a1a1a]">
+                            <Eye className="h-3 w-3" />
+                            {watchingCount}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-[#888] ml-auto font-mono">
+                          {formatRelativeTime(video._creationTime)}
                         </span>
-                      )}
-                      {watchingCount > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-[#1a1a1a]">
-                          <Eye className="h-3 w-3" />
-                          {watchingCount}
-                        </span>
-                      )}
-                      <span className="text-[11px] text-[#888] ml-auto font-mono">
-                        {formatRelativeTime(video._creationTime)}
-                      </span>
+                      </div>
                     </div>
-                  </div>
                   </VideoIntentTarget>
                 );
               })}
@@ -475,17 +462,19 @@ export default function ProjectPage({
           </div>
         ) : (
           /* List View - Horizontal rows */
-          <div className={cn(
-            "divide-y-2 divide-[#1a1a1a] transition-opacity duration-300",
-            isLoadingData ? "opacity-0" : "opacity-100"
-          )}>
+          <div
+            className={cn(
+              "divide-y-2 divide-[#1a1a1a] transition-opacity duration-300",
+              isLoadingData ? "opacity-0" : "opacity-100",
+            )}
+          >
             {videos?.map((video) => {
               const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
                 ? video.thumbnailUrl
                 : undefined;
-              const canDownload = Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
-              const watchingCount =
-                projectPresenceCounts?.counts?.[video._id] ?? 0;
+              const canDownload =
+                Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+              const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
 
               return (
                 <VideoIntentTarget
@@ -530,93 +519,86 @@ export default function ProjectPage({
                     )}
                   </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-[#1a1a1a] truncate">
-                    {video.title}
-                  </p>
-                  <div className="flex items-center gap-3 mt-1">
-                    <VideoWorkflowStatusControl
-                      status={video.workflowStatus}
-                      stopPropagation
-                      disabled={!canUpload}
-                      onChange={(workflowStatus) =>
-                        void handleUpdateWorkflowStatus(video._id, workflowStatus)
-                      }
-                    />
-                    {video.commentCount > 0 && (
-                      <span className="inline-flex items-center gap-1 text-xs text-[#888]">
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {video.commentCount}
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-[#1a1a1a] truncate">{video.title}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <VideoWorkflowStatusControl
+                        status={video.workflowStatus}
+                        stopPropagation
+                        disabled={!canUpload}
+                        onChange={(workflowStatus) =>
+                          void handleUpdateWorkflowStatus(video._id, workflowStatus)
+                        }
+                      />
+                      {video.commentCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs text-[#888]">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          {video.commentCount}
+                        </span>
+                      )}
+                      {watchingCount > 0 && (
+                        <span className="inline-flex items-center gap-1 text-xs text-[#1a1a1a]">
+                          <Eye className="h-3.5 w-3.5" />
+                          {watchingCount}
+                        </span>
+                      )}
+                      <span className="text-xs text-[#888] font-mono">
+                        {formatRelativeTime(video._creationTime)}
                       </span>
-                    )}
-                    {watchingCount > 0 && (
-                      <span className="inline-flex items-center gap-1 text-xs text-[#1a1a1a]">
-                        <Eye className="h-3.5 w-3.5" />
-                        {watchingCount}
-                      </span>
-                    )}
-                    <span className="text-xs text-[#888] font-mono">
-                      {formatRelativeTime(video._creationTime)}
-                    </span>
-                    {video.uploaderName && (
-                      <span className="text-xs text-[#888]">
-                        {video.uploaderName}
-                      </span>
-                    )}
+                      {video.uploaderName && (
+                        <span className="text-xs text-[#888]">{video.uploaderName}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Actions */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-[#888] hover:text-[#1a1a1a]"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {canDownload && (
+                  {/* Actions */}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-[#888] hover:text-[#1a1a1a]"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {canDownload && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDownloadVideo(video._id, video.title);
+                            }}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
-                            void handleDownloadVideo(video._id, video.title);
+                            void handleShareVideo(video);
                           }}
                         >
-                          <Download className="mr-2 h-4 w-4" />
-                          Download
+                          <LinkIcon className="mr-2 h-4 w-4" />
+                          Share
                         </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleShareVideo(video);
-                        }}
-                      >
-                        <LinkIcon className="mr-2 h-4 w-4" />
-                        Share
-                      </DropdownMenuItem>
-                      {canUpload && (
-                        <DropdownMenuItem
-                          className="text-[#dc2626] focus:text-[#dc2626]"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteVideo(video._id);
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                        {canUpload && (
+                          <DropdownMenuItem
+                            className="text-[#dc2626] focus:text-[#dc2626]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteVideo(video._id);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </VideoIntentTarget>
               );
             })}

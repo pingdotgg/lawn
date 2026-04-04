@@ -11,26 +11,17 @@ export function MarketingFooter() {
             </h3>
             <ul className="space-y-3 text-sm font-bold">
               <li>
-                <Link
-                  to="/pricing"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/pricing" className="hover:text-[#7cb87c] transition-colors">
                   Pricing
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/sign-up"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/sign-up" className="hover:text-[#7cb87c] transition-colors">
                   Start free trial
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/sign-in"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/sign-in" className="hover:text-[#7cb87c] transition-colors">
                   Sign in
                 </Link>
               </li>
@@ -42,18 +33,12 @@ export function MarketingFooter() {
             </h3>
             <ul className="space-y-3 text-sm font-bold">
               <li>
-                <Link
-                  to="/compare/frameio"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/compare/frameio" className="hover:text-[#7cb87c] transition-colors">
                   lawn vs Frame.io
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/compare/wipster"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/compare/wipster" className="hover:text-[#7cb87c] transition-colors">
                   lawn vs Wipster
                 </Link>
               </li>
@@ -65,18 +50,12 @@ export function MarketingFooter() {
             </h3>
             <ul className="space-y-3 text-sm font-bold">
               <li>
-                <Link
-                  to="/for/video-editors"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/for/video-editors" className="hover:text-[#7cb87c] transition-colors">
                   For video editors
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/for/agencies"
-                  className="hover:text-[#7cb87c] transition-colors"
-                >
+                <Link to="/for/agencies" className="hover:text-[#7cb87c] transition-colors">
                   For agencies
                 </Link>
               </li>
@@ -102,9 +81,7 @@ export function MarketingFooter() {
         </div>
         <div className="border-t border-[#333] pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <span className="font-black text-3xl tracking-tighter">lawn.</span>
-          <span className="text-sm text-[#888]">
-            Video review for creative teams.
-          </span>
+          <span className="text-sm text-[#888]">Video review for creative teams.</span>
         </div>
       </div>
     </footer>

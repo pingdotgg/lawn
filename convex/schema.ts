@@ -6,12 +6,7 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     ownerClerkId: v.string(),
-    plan: v.union(
-      v.literal("basic"),
-      v.literal("pro"),
-      v.literal("free"),
-      v.literal("team")
-    ),
+    plan: v.union(v.literal("basic"), v.literal("pro"), v.literal("free"), v.literal("team")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     stripePriceId: v.optional(v.string()),
@@ -28,12 +23,7 @@ export default defineSchema({
     userEmail: v.string(),
     userName: v.string(),
     userAvatarUrl: v.optional(v.string()),
-    role: v.union(
-      v.literal("owner"),
-      v.literal("admin"),
-      v.literal("member"),
-      v.literal("viewer")
-    ),
+    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member"), v.literal("viewer")),
   })
     .index("by_team", ["teamId"])
     .index("by_user", ["userClerkId"])
@@ -43,11 +33,7 @@ export default defineSchema({
   teamInvites: defineTable({
     teamId: v.id("teams"),
     email: v.string(),
-    role: v.union(
-      v.literal("admin"),
-      v.literal("member"),
-      v.literal("viewer")
-    ),
+    role: v.union(v.literal("admin"), v.literal("member"), v.literal("viewer")),
     invitedByClerkId: v.string(),
     invitedByName: v.string(),
     token: v.string(),
@@ -76,11 +62,7 @@ export default defineSchema({
     muxAssetId: v.optional(v.string()),
     muxPlaybackId: v.optional(v.string()),
     muxAssetStatus: v.optional(
-      v.union(
-        v.literal("preparing"),
-        v.literal("ready"),
-        v.literal("errored")
-      )
+      v.union(v.literal("preparing"), v.literal("ready"), v.literal("errored")),
     ),
     // Metadata
     s3Key: v.optional(v.string()),
@@ -93,13 +75,9 @@ export default defineSchema({
       v.literal("uploading"),
       v.literal("processing"),
       v.literal("ready"),
-      v.literal("failed")
+      v.literal("failed"),
     ),
-    workflowStatus: v.union(
-      v.literal("review"),
-      v.literal("rework"),
-      v.literal("done"),
-    ),
+    workflowStatus: v.union(v.literal("review"), v.literal("rework"), v.literal("done")),
   })
     .index("by_project", ["projectId"])
     .index("by_public_id", ["publicId"])

@@ -24,7 +24,7 @@ const painPoints = [
     id: "04",
     title: "FAST TURNAROUND MEANS FAST TOOLS",
     description:
-      "Client says \"I need to see it by 3pm.\" It's 2:47pm. You upload the cut, it plays instantly. No transcoding queue. No \"processing your video\" spinner. Just playback.",
+      'Client says "I need to see it by 3pm." It\'s 2:47pm. You upload the cut, it plays instantly. No transcoding queue. No "processing your video" spinner. Just playback.',
   },
 ];
 
@@ -74,13 +74,12 @@ export default function ForAgencies() {
           </h1>
           <div className="mt-12 max-w-2xl">
             <p className="text-xl md:text-2xl font-medium text-[#1a1a1a]">
-              You're a 15-person agency with 30 freelancers rotating through.
-              Per-seat pricing wasn't built for you. It was built to charge you
-              more.
+              You're a 15-person agency with 30 freelancers rotating through. Per-seat pricing
+              wasn't built for you. It was built to charge you more.
             </p>
             <p className="text-lg text-[#888] font-medium mt-4">
-              lawn is video review for creative teams. Unlimited seats. $5/month.
-              The whole agency, not per editor.
+              lawn is video review for creative teams. Unlimited seats. $5/month. The whole agency,
+              not per editor.
             </p>
           </div>
           <div className="mt-12 flex flex-col sm:flex-row gap-4">
@@ -91,9 +90,7 @@ export default function ForAgencies() {
               START YOUR TEAM
             </Link>
             <div className="bg-[#f0f0e8] border-2 border-[#1a1a1a] px-8 py-5 shadow-[8px_8px_0px_0px_var(--shadow-color)]">
-              <span className="text-3xl font-black block leading-none">
-                $5/mo
-              </span>
+              <span className="text-3xl font-black block leading-none">$5/mo</span>
               <span className="text-xs font-bold uppercase tracking-wider text-[#888] mt-1 block">
                 Unlimited seats. Seriously.
               </span>
@@ -111,8 +108,8 @@ export default function ForAgencies() {
             IS HARD ENOUGH.
           </h2>
           <p className="text-xl text-[#888] font-medium mb-16 max-w-2xl">
-            Your video review tool shouldn't make it harder. Here are the
-            problems we actually solve.
+            Your video review tool shouldn't make it harder. Here are the problems we actually
+            solve.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -122,9 +119,7 @@ export default function ForAgencies() {
                 className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] flex flex-col hover:-translate-y-1 hover:translate-x-1 hover:shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all"
               >
                 <div className="border-b-2 border-[#1a1a1a] px-6 py-4 flex items-center gap-4 bg-[#1a1a1a] text-[#f0f0e8]">
-                  <span className="text-sm font-black text-[#7cb87c]">
-                    /{point.id}
-                  </span>
+                  <span className="text-sm font-black text-[#7cb87c]">/{point.id}</span>
                 </div>
                 <div className="p-6 md:p-8 flex-grow">
                   <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight leading-tight mb-4">
@@ -151,8 +146,8 @@ export default function ForAgencies() {
                 MATH.
               </h2>
               <p className="text-xl text-[#888] font-medium max-w-sm">
-                Frame.io charges $19/user/month. lawn charges $5/month total.
-                Here's what that looks like at agency scale.
+                Frame.io charges $19/user/month. lawn charges $5/month total. Here's what that looks
+                like at agency scale.
               </p>
             </div>
 
@@ -179,34 +174,22 @@ export default function ForAgencies() {
                         <span className="text-xs font-bold tracking-widest text-[#888] block mb-1">
                           FRAME.IO
                         </span>
-                        <span className="text-3xl font-black text-[#dc2626]">
-                          {row.competitor}
-                        </span>
-                        <span className="text-sm text-[#888] font-bold">
-                          /mo
-                        </span>
+                        <span className="text-3xl font-black text-[#dc2626]">{row.competitor}</span>
+                        <span className="text-sm text-[#888] font-bold">/mo</span>
                       </div>
                       <div className="p-6 md:p-8 flex-1 border-b-2 sm:border-b-0 sm:border-r-2 border-[#1a1a1a] bg-[#f0f0e8]">
                         <span className="text-xs font-bold tracking-widest text-[#888] block mb-1">
                           LAWN
                         </span>
-                        <span className="text-3xl font-black text-[#2d5a2d]">
-                          {row.lawn}
-                        </span>
-                        <span className="text-sm text-[#888] font-bold">
-                          /mo
-                        </span>
+                        <span className="text-3xl font-black text-[#2d5a2d]">{row.lawn}</span>
+                        <span className="text-sm text-[#888] font-bold">/mo</span>
                       </div>
                       <div className="p-6 md:p-8 flex-1 bg-[#f0f0e8]">
                         <span className="text-xs font-bold tracking-widest text-[#888] block mb-1">
                           YOU SAVE / YEAR
                         </span>
-                        <span className="text-3xl font-black text-[#2d5a2d]">
-                          {row.saved}
-                        </span>
-                        <p className="text-sm font-bold text-[#888] mt-2">
-                          {row.commentary}
-                        </p>
+                        <span className="text-3xl font-black text-[#2d5a2d]">{row.saved}</span>
+                        <p className="text-sm font-bold text-[#888] mt-2">{row.commentary}</p>
                       </div>
                     </div>
                   </div>
@@ -215,9 +198,8 @@ export default function ForAgencies() {
 
               <div className="border-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#f0f0e8] p-6 md:p-8">
                 <p className="text-lg font-bold">
-                  <span className="text-[#7cb87c]">The pattern:</span> They
-                  charge more as you grow. We don't. Your 50th seat costs the
-                  same as your first — $0 extra.
+                  <span className="text-[#7cb87c]">The pattern:</span> They charge more as you grow.
+                  We don't. Your 50th seat costs the same as your first — $0 extra.
                 </p>
               </div>
             </div>
@@ -234,8 +216,7 @@ export default function ForAgencies() {
             TEAM.
           </h2>
           <p className="text-xl md:text-2xl font-medium mb-4 max-w-lg">
-            $5/month. Unlimited seats. Unlimited projects. No per-user pricing.
-            Ever.
+            $5/month. Unlimited seats. Unlimited projects. No per-user pricing. Ever.
           </p>
           <p className="text-lg text-[#f0f0e8]/60 font-medium mb-12">
             Set up takes about 2 minutes. Your first freelancer will thank you.

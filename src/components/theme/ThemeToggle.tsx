@@ -16,9 +16,7 @@ type Theme = "light" | "dark";
 
 function getSystemTheme(): Theme {
   if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function getInitialTheme(): Theme {
@@ -47,7 +45,11 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const emptySubscribe = () => () => {};
 
 function useMounted() {
-  return useSyncExternalStore(emptySubscribe, () => true, () => false);
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
 }
 
 export function useTheme() {
@@ -87,12 +89,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mounted, toggleTheme]);
 
-  const value = useMemo(
-    () => ({ theme, toggleTheme, mounted }),
-    [theme, toggleTheme, mounted]
-  );
+  const value = useMemo(() => ({ theme, toggleTheme, mounted }), [theme, toggleTheme, mounted]);
 
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

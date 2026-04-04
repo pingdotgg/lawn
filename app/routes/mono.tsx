@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 
@@ -22,12 +21,24 @@ export default function HomepageMono() {
       {/* Minimal nav */}
       <nav className="sticky top-0 z-50 px-6 py-4 flex justify-between items-center bg-[#f0f0e8]">
         <div className="flex items-center gap-4">
-          <span className={`text-xl font-black transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn</span>
-          <span className={`text-xs text-[#888] hidden sm:inline border-l border-[#ccc] pl-4 transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>video review</span>
+          <span
+            className={`text-xl font-black transition-opacity duration-200 ${scrolled ? "opacity-100" : "opacity-0"}`}
+          >
+            lawn
+          </span>
+          <span
+            className={`text-xs text-[#888] hidden sm:inline border-l border-[#ccc] pl-4 transition-opacity duration-200 ${scrolled ? "opacity-100" : "opacity-0"}`}
+          >
+            video review
+          </span>
         </div>
         <div className="flex gap-4 text-sm">
-          <Link to="/sign-in" className="hover:underline">Sign In</Link>
-          <Link to="/sign-up" className="font-bold underline underline-offset-4">Start</Link>
+          <Link to="/sign-in" className="hover:underline">
+            Sign In
+          </Link>
+          <Link to="/sign-up" className="font-bold underline underline-offset-4">
+            Start
+          </Link>
         </div>
       </nav>
 
@@ -54,7 +65,8 @@ export default function HomepageMono() {
               <span className="text-3xl font-black">$5/mo</span>
               <span className="text-sm ml-2 opacity-70">unlimited seats</span>
             </div>
-            <Link to="/sign-up"
+            <Link
+              to="/sign-up"
               className="border-2 border-[#1a1a1a] px-6 py-4 font-bold hover:bg-[#1a1a1a] hover:text-[#f0f0e8] transition-colors"
             >
               Get Started →
@@ -72,7 +84,10 @@ export default function HomepageMono() {
             { title: "0.3s response", desc: "Built for speed" },
             { title: "Any NLE", desc: "No lock-in" },
           ].map((item, i) => (
-            <div key={i} className={`p-6 ${i < 3 ? 'border-r-2 border-[#1a1a1a]' : ''} ${i < 2 ? 'lg:border-r-2' : 'lg:border-r-0'}`}>
+            <div
+              key={i}
+              className={`p-6 ${i < 3 ? "border-r-2 border-[#1a1a1a]" : ""} ${i < 2 ? "lg:border-r-2" : "lg:border-r-0"}`}
+            >
               <div className="font-black">{item.title}</div>
               <div className="text-sm text-[#888]">{item.desc}</div>
             </div>
@@ -160,23 +175,30 @@ export default function HomepageMono() {
       <section className="px-6 py-16 border-b-2 border-[#1a1a1a]">
         <div className="max-w-3xl mx-auto text-center">
           <blockquote className="text-2xl sm:text-3xl font-bold leading-tight">
-            "I built lawn because I got tired of waiting for Frame.io to load.
-            Video review should be instant."
+            "I built lawn because I got tired of waiting for Frame.io to load. Video review should
+            be instant."
           </blockquote>
-          <p className="mt-4 text-[#888]">— <a href="https://x.com/theo" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#1a1a1a]">Theo</a></p>
+          <p className="mt-4 text-[#888]">
+            —{" "}
+            <a
+              href="https://x.com/theo"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-[#1a1a1a]"
+            >
+              Theo
+            </a>
+          </p>
         </div>
       </section>
 
       {/* CTA */}
       <section className="px-6 py-24">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-5xl sm:text-6xl font-black">
-            Pick your plan
-          </h2>
-          <p className="text-xl text-[#888] mt-4 mb-8">
-            Basic is $5/month. Pro is $25/month.
-          </p>
-          <Link to="/sign-up"
+          <h2 className="text-5xl sm:text-6xl font-black">Pick your plan</h2>
+          <p className="text-xl text-[#888] mt-4 mb-8">Basic is $5/month. Pro is $25/month.</p>
+          <Link
+            to="/sign-up"
             className="inline-block bg-[#2d5a2d] text-[#f0f0e8] px-12 py-5 text-xl font-black hover:bg-[#3a6a3a] transition-colors"
           >
             Start with Basic
@@ -190,7 +212,9 @@ export default function HomepageMono() {
         <div className="max-w-5xl mx-auto flex justify-between items-center text-sm">
           <span className="font-black text-xl">lawn</span>
           <div className="flex gap-6 text-[#888]">
-            <a href="/github" className="hover:text-[#1a1a1a]">GitHub</a>
+            <a href="/github" className="hover:text-[#1a1a1a]">
+              GitHub
+            </a>
           </div>
         </div>
       </footer>

@@ -1,6 +1,14 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
+import {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import type Hls from "hls.js";
 import {
   Play,
@@ -42,7 +50,11 @@ interface VideoPlayerProps {
   allowDownload?: boolean;
   downloadUrl?: string;
   downloadFilename?: string;
-  onRequestDownload?: () => Promise<DownloadResult | null | undefined> | DownloadResult | null | undefined;
+  onRequestDownload?: () =>
+    | Promise<DownloadResult | null | undefined>
+    | DownloadResult
+    | null
+    | undefined;
   qualityOptionsConfig?: Array<{
     id: string;
     label: string;
@@ -92,7 +104,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     onSelectQuality,
     controlsBelow = false,
   },
-  ref
+  ref,
 ) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -172,7 +184,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setCurrentTime(next);
       onTimeUpdate?.(next);
     },
-    [duration, onTimeUpdate]
+    [duration, onTimeUpdate],
   );
 
   const seekTo = useCallback(
@@ -191,7 +203,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       }
       showControls();
     },
-    [applyTime, showControls]
+    [applyTime, showControls],
   );
 
   useImperativeHandle(ref, () => ({ seekTo }), [seekTo]);
@@ -201,7 +213,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       applyTime((videoRef.current?.currentTime ?? 0) + delta);
       showControls();
     },
-    [applyTime, showControls]
+    [applyTime, showControls],
   );
 
   const togglePlay = useCallback(() => {
@@ -302,7 +314,14 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setContextMenu(null);
       setIsDownloading(false);
     }
-  }, [allowDownload, isDownloading, onRequestDownload, downloadUrl, downloadFilename, showControls]);
+  }, [
+    allowDownload,
+    isDownloading,
+    onRequestDownload,
+    downloadUrl,
+    downloadFilename,
+    showControls,
+  ]);
 
   const copyTimestamp = useCallback(async () => {
     const timeToCopy = isScrubbing ? scrubTimeRef.current : currentTime;
@@ -335,7 +354,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setQualityMenuOpen(false);
       showControls();
     },
-    [showControls]
+    [showControls],
   );
 
   const getTimeFromClientX = useCallback(
@@ -347,7 +366,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       const percent = clamp((clientX - rect.left) / rect.width, 0, 1);
       return percent * duration;
     },
-    [duration]
+    [duration],
   );
 
   const startScrub = useCallback(
@@ -365,7 +384,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setCurrentTime(nextTime);
       onTimeUpdate?.(nextTime);
     },
-    [duration, getTimeFromClientX, onTimeUpdate]
+    [duration, getTimeFromClientX, onTimeUpdate],
   );
 
   const updateScrub = useCallback(
@@ -377,7 +396,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setCurrentTime(nextTime);
       onTimeUpdate?.(nextTime);
     },
-    [getTimeFromClientX, onTimeUpdate]
+    [getTimeFromClientX, onTimeUpdate],
   );
 
   const endScrub = useCallback(() => {
@@ -688,15 +707,26 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const playedPercent = duration > 0 ? clamp(displayTime / duration, 0, 1) : 0;
   const canDownload = allowDownload && (Boolean(downloadUrl) || Boolean(onRequestDownload));
   const isHls = isHlsSource(src);
-  const hasExternalQualityOptions = Boolean(qualityOptionsConfig && qualityOptionsConfig.length > 0);
+  const hasExternalQualityOptions = Boolean(
+    qualityOptionsConfig && qualityOptionsConfig.length > 0,
+  );
   const qualityLabel = useMemo(() => {
     if (hasExternalQualityOptions) {
-      return qualityOptionsConfig?.find((option) => option.id === selectedQualityId)?.label ?? "Quality";
+      return (
+        qualityOptionsConfig?.find((option) => option.id === selectedQualityId)?.label ?? "Quality"
+      );
     }
     if (!isHls) return "Original";
     if (selectedQualityLevel === AUTO_QUALITY_LEVEL) return "Auto";
     return qualityOptions.find((option) => option.level === selectedQualityLevel)?.label ?? "Auto";
-  }, [hasExternalQualityOptions, isHls, qualityOptions, qualityOptionsConfig, selectedQualityId, selectedQualityLevel]);
+  }, [
+    hasExternalQualityOptions,
+    isHls,
+    qualityOptions,
+    qualityOptionsConfig,
+    selectedQualityId,
+    selectedQualityLevel,
+  ]);
   const hasManualQualityOptions = isHls && qualityOptions.length > 0;
   const isExternalControls = controlsBelow && !isFullscreen;
 
@@ -734,10 +764,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               className={cn(
                 "absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/40 shadow",
                 isResolved ? "bg-green-400" : "bg-orange-400",
-                isActive && "ring-2 ring-white/60"
+                isActive && "ring-2 ring-white/60",
               )}
               style={{ left: `${marker.position}%` }}
-              onPointerDown={(e) => { e.stopPropagation(); }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 applyTime(marker.comment.timestampSeconds);
@@ -761,7 +793,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       <div className="flex flex-wrap items-center gap-2 text-white">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePlay();
+          }}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
@@ -771,11 +806,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-1">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMute();
+            }}
             className="inline-flex h-7 w-7 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10"
             aria-label={isMuted ? "Unmute" : "Mute"}
           >
-            {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            {isMuted || volume === 0 ? (
+              <VolumeX className="h-4 w-4" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
           </button>
           <input
             aria-label="Volume"
@@ -784,7 +826,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             max={1}
             step={0.01}
             value={isMuted ? 0 : volume}
-            onChange={(e) => { e.stopPropagation(); setVideoVolume(Number(e.target.value)); }}
+            onChange={(e) => {
+              e.stopPropagation();
+              setVideoVolume(Number(e.target.value));
+            }}
             className="h-1 w-24 cursor-pointer accent-[color:var(--accent)]"
           />
         </div>
@@ -798,7 +843,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); handleSeekBy(-10); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSeekBy(-10);
+            }}
             className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
             aria-label="Rewind 10 seconds"
             title="Rewind 10 seconds"
@@ -808,7 +856,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); handleSeekBy(10); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSeekBy(10);
+            }}
             className="hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
             aria-label="Forward 10 seconds"
             title="Forward 10 seconds"
@@ -818,7 +869,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); cyclePlaybackRate(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              cyclePlaybackRate();
+            }}
             className="inline-flex h-9 min-w-[56px] items-center justify-center rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
             aria-label={`Playback speed ${playbackRate}x`}
             title="Change playback speed"
@@ -829,7 +883,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           <div className="relative">
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); showControls(); setQualityMenuOpen((c) => !c); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                showControls();
+                setQualityMenuOpen((c) => !c);
+              }}
               className="inline-flex h-9 min-w-[108px] items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-white/95 transition hover:border-white/25 hover:bg-white/15"
               aria-label={`Quality ${qualityLabel}`}
               title="Quality settings"
@@ -850,7 +908,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
                       <button
                         key={option.id}
                         type="button"
-                        onClick={() => { if (option.disabled) return; onSelectQuality?.(option.id); setQualityMenuOpen(false); showControls(); }}
+                        onClick={() => {
+                          if (option.disabled) return;
+                          onSelectQuality?.(option.id);
+                          setQualityMenuOpen(false);
+                          showControls();
+                        }}
                         disabled={option.disabled}
                         className="flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-white/95 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -894,20 +957,28 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           {canDownload && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); void handleDownload(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDownload();
+              }}
               disabled={isDownloading}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 sm:px-3 text-xs font-medium text-white transition hover:border-white/25 hover:bg-white/20 disabled:opacity-60"
               aria-label="Download video"
               title="Download video"
             >
               <Download className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="hidden sm:inline">{isDownloading ? "Preparing..." : "Download"}</span>
+              <span className="hidden sm:inline">
+                {isDownloading ? "Preparing..." : "Download"}
+              </span>
             </button>
           )}
 
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
             aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
@@ -922,11 +993,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={wrapperRef}
-      className={cn(
-        "relative",
-        controlsBelow ? "flex flex-col h-full bg-black" : "",
-        className,
-      )}
+      className={cn("relative", controlsBelow ? "flex flex-col h-full bg-black" : "", className)}
     >
       <div
         ref={containerRef}
@@ -936,7 +1003,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             ? "flex-1 min-h-0"
             : cn(
                 "aspect-video rounded-xl border border-zinc-800/80 shadow-[0_10px_40px_rgba(0,0,0,0.45)]",
-                isFullscreen && "rounded-none border-none shadow-none"
+                isFullscreen && "rounded-none border-none shadow-none",
               ),
         )}
         tabIndex={0}
@@ -990,7 +1057,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           poster={poster}
           className={cn(
             "h-full w-full object-contain transition-opacity duration-200",
-            isMediaReady ? "opacity-100" : "opacity-0"
+            isMediaReady ? "opacity-100" : "opacity-0",
           )}
           playsInline
           preload="auto"
@@ -1003,11 +1070,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         {!isMediaReady && (
           <div className="pointer-events-none absolute inset-0 z-[5]">
             {poster ? (
-              <img
-                src={poster}
-                alt=""
-                className="h-full w-full object-cover blur-[4px]"
-              />
+              <img src={poster} alt="" className="h-full w-full object-cover blur-[4px]" />
             ) : (
               <div className="h-full w-full bg-zinc-900" />
             )}
@@ -1048,7 +1111,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           <div
             className={cn(
               "absolute inset-x-0 bottom-0 z-20 transition-opacity",
-              controlsVisible ? "opacity-100" : "opacity-0"
+              controlsVisible ? "opacity-100" : "opacity-0",
             )}
           >
             <div className="pointer-events-auto bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-4 pt-10">

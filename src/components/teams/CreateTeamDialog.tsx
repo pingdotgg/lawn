@@ -63,11 +63,7 @@ export function CreateTeamDialog({ open, onOpenChange }: CreateTeamDialogProps) 
             />
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim() || isLoading}>

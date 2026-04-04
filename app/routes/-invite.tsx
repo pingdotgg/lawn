@@ -1,4 +1,3 @@
-
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
@@ -96,7 +95,10 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Sign in with the email address above to accept this invite.
             </p>
-            <a href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`} className="block">
+            <a
+              href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`}
+              className="block"
+            >
               <Button className="w-full">Sign in to accept</Button>
             </a>
           </CardContent>
@@ -124,7 +126,10 @@ export default function InvitePage() {
             <p className="text-sm text-[#888] text-center">
               Please sign in with the correct email address to accept this invite.
             </p>
-            <a href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`} className="block">
+            <a
+              href={`/sign-in?redirect_url=${encodeURIComponent(`/invite/${token}`)}`}
+              className="block"
+            >
               <Button className="w-full" variant="outline">
                 Sign in with different account
               </Button>
@@ -155,11 +160,7 @@ export default function InvitePage() {
               {error}
             </div>
           )}
-          <Button
-            className="w-full"
-            onClick={handleAccept}
-            disabled={isAccepting}
-          >
+          <Button className="w-full" onClick={handleAccept} disabled={isAccepting}>
             {isAccepting ? (
               "Joining..."
             ) : (

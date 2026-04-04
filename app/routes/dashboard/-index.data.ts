@@ -1,9 +1,6 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getDashboardIndexEssentialSpecs() {
   return [makeRouteQuerySpec(api.teams.listWithProjects, {})];

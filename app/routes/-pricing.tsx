@@ -11,8 +11,7 @@ export default function PricingPage() {
             PRICING.
           </h1>
           <p className="text-2xl md:text-3xl font-bold mt-8 max-w-2xl">
-            $5/month. Not per user. Not per project.{" "}
-            <span className="text-[#888]">Total.</span>
+            $5/month. Not per user. Not per project. <span className="text-[#888]">Total.</span>
           </p>
         </div>
       </section>
@@ -35,20 +34,16 @@ export default function PricingPage() {
 
               <ul className="space-y-4 text-lg font-bold flex-grow mb-8">
                 <li className="flex items-center gap-3">
-                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span>{" "}
-                  Unlimited seats
+                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span> Unlimited seats
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span>{" "}
-                  Unlimited projects
+                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span> Unlimited projects
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span>{" "}
-                  Unlimited clients
+                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span> Unlimited clients
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span>{" "}
-                  100GB Storage
+                  <span className="text-[#2d5a2d] text-2xl">&#10003;</span> 100GB Storage
                 </li>
               </ul>
 
@@ -79,20 +74,16 @@ export default function PricingPage() {
 
               <ul className="space-y-4 text-lg font-bold flex-grow mb-8">
                 <li className="flex items-center gap-3">
-                  <span className="text-[#7cb87c] text-2xl">&#10003;</span>{" "}
-                  Unlimited seats
+                  <span className="text-[#7cb87c] text-2xl">&#10003;</span> Unlimited seats
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#7cb87c] text-2xl">&#10003;</span>{" "}
-                  Unlimited projects
+                  <span className="text-[#7cb87c] text-2xl">&#10003;</span> Unlimited projects
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#7cb87c] text-2xl">&#10003;</span>{" "}
-                  Unlimited clients
+                  <span className="text-[#7cb87c] text-2xl">&#10003;</span> Unlimited clients
                 </li>
                 <li className="flex items-center gap-3">
-                  <span className="text-[#7cb87c] text-2xl">&#10003;</span> 1TB
-                  Storage
+                  <span className="text-[#7cb87c] text-2xl">&#10003;</span> 1TB Storage
                 </li>
               </ul>
 

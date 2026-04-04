@@ -32,14 +32,14 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
       if (disabled) return;
 
       const files = Array.from(e.dataTransfer.files).filter((file) =>
-        file.type.startsWith("video/")
+        file.type.startsWith("video/"),
       );
 
       if (files.length > 0) {
         onFilesSelected(files);
       }
     },
-    [disabled, onFilesSelected]
+    [disabled, onFilesSelected],
   );
 
   const handleChange = useCallback(
@@ -51,7 +51,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
         onFilesSelected(files);
       }
     },
-    [disabled, onFilesSelected]
+    [disabled, onFilesSelected],
   );
 
   return (
@@ -62,7 +62,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
           ? "border-[#2d5a2d] bg-[#2d5a2d]/5"
           : "border-[#1a1a1a] hover:border-[#888] bg-[#f0f0e8]",
         disabled && "opacity-40 cursor-not-allowed",
-        className
+        className,
       )}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
@@ -81,9 +81,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
         <div
           className={cn(
             "w-14 h-14 flex items-center justify-center transition-colors border-2 border-[#1a1a1a]",
-            isDragActive
-              ? "bg-[#2d5a2d] text-[#f0f0e8]"
-              : "bg-[#e8e8e0] text-[#888]"
+            isDragActive ? "bg-[#2d5a2d] text-[#f0f0e8]" : "bg-[#e8e8e0] text-[#888]",
           )}
         >
           <Upload className="h-6 w-6" />
@@ -92,9 +90,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
           <p className="font-bold text-[#1a1a1a]">
             {isDragActive ? "Drop to upload" : "Drop videos or click to upload"}
           </p>
-          <p className="text-sm text-[#888] mt-1">
-            MP4, MOV, WebM supported
-          </p>
+          <p className="text-sm text-[#888] mt-1">MP4, MOV, WebM supported</p>
         </div>
       </div>
     </div>

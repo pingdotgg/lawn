@@ -32,10 +32,7 @@ export function VideoWatchers({
     >
       <div className="flex -space-x-1.5">
         {visible.map((watcher) => (
-          <Avatar
-            key={watcher.userId}
-            className="h-5 w-5 border-2 border-[#f0f0e8] ring-0"
-          >
+          <Avatar key={watcher.userId} className="h-5 w-5 border-2 border-[#f0f0e8] ring-0">
             {watcher.avatarUrl ? (
               <AvatarImage src={watcher.avatarUrl} alt={watcher.displayName} />
             ) : null}

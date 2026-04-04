@@ -1,17 +1,10 @@
-
 import { useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -78,10 +71,7 @@ function TeamProjectCard({
         </div>
         {canCreateProject && (
           <DropdownMenu>
-            <DropdownMenuTrigger
-              asChild
-              onClick={(e) => e.stopPropagation()}
-            >
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button
                 variant="ghost"
                 size="icon"
@@ -140,10 +130,7 @@ export default function TeamPage() {
   }, [shouldCanonicalize, context, navigate]);
 
   const isLoadingData =
-    context === undefined ||
-    billing === undefined ||
-    projects === undefined ||
-    shouldCanonicalize;
+    context === undefined || billing === undefined || projects === undefined || shouldCanonicalize;
 
   // Not found state
   if (context === null) {
@@ -203,10 +190,7 @@ export default function TeamPage() {
           </Button>
         )}
         {canManageMembers && (
-          <Button
-            variant="outline"
-            onClick={() => setMemberDialogOpen(true)}
-          >
+          <Button variant="outline" onClick={() => setMemberDialogOpen(true)}>
             <Users className="sm:mr-1.5 h-4 w-4" />
             <span className="hidden sm:inline">Members</span>
           </Button>
@@ -259,10 +243,7 @@ export default function TeamPage() {
               </CardHeader>
               {canCreateProject && (
                 <CardContent>
-                  <Button
-                    className="w-full"
-                    onClick={() => setCreateDialogOpen(true)}
-                  >
+                  <Button className="w-full" onClick={() => setCreateDialogOpen(true)}>
                     <Plus className="mr-1.5 h-4 w-4" />
                     Create project
                   </Button>
@@ -285,19 +266,19 @@ export default function TeamPage() {
             </Card>
           </div>
         ) : (
-          <div className={cn(
-            "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
-            isLoadingData ? "opacity-0" : "opacity-100"
-          )}>
+          <div
+            className={cn(
+              "grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 transition-opacity duration-300",
+              isLoadingData ? "opacity-0" : "opacity-100",
+            )}
+          >
             {projects?.map((project) => (
               <TeamProjectCard
                 key={project._id}
                 teamSlug={team.slug}
                 project={project}
                 canCreateProject={canCreateProject}
-                onOpen={() =>
-                  navigate({ to: projectPath(team.slug, project._id) })
-                }
+                onOpen={() => navigate({ to: projectPath(team.slug, project._id) })}
                 onDelete={handleDeleteProject}
               />
             ))}
@@ -323,17 +304,10 @@ export default function TeamPage() {
               />
             </div>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={!newProjectName.trim() || isLoading}
-              >
+              <Button type="submit" disabled={!newProjectName.trim() || isLoading}>
                 {isLoading ? "Creating..." : "Create"}
               </Button>
             </DialogFooter>

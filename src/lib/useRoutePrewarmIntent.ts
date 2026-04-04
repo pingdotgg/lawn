@@ -56,14 +56,11 @@ export function useRoutePrewarmIntent(
 ): RoutePrewarmIntentHandlers {
   const prewarmRef = useRef(prewarmFn);
   prewarmRef.current = prewarmFn;
+  const debounceMs = options.debounceMs ?? PREWARM_DEBOUNCE_MS;
 
   const controller = useMemo(
-    () =>
-      createRoutePrewarmIntent(
-        () => prewarmRef.current(),
-        options,
-      ),
-    [options.debounceMs],
+    () => createRoutePrewarmIntent(() => prewarmRef.current(), { debounceMs }),
+    [debounceMs],
   );
 
   useEffect(() => {

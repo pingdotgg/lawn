@@ -1,9 +1,6 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getInviteEssentialSpecs(params: { token: string }) {
   return [
@@ -21,9 +18,6 @@ export function useInviteData(params: { token: string }) {
   return { invite };
 }
 
-export async function prewarmInvite(
-  convex: ConvexReactClient,
-  params: { token: string },
-) {
+export async function prewarmInvite(convex: ConvexReactClient, params: { token: string }) {
   prewarmSpecs(convex, getInviteEssentialSpecs(params));
 }

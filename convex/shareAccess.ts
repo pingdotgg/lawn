@@ -61,13 +61,10 @@ export async function issueShareAccessGrant(
 export async function resolveActiveShareGrant(
   ctx: ReadCtx,
   grantToken: string,
-): Promise<
-  | {
-      grant: Doc<"shareAccessGrants">;
-      shareLink: Doc<"shareLinks">;
-    }
-  | null
-> {
+): Promise<{
+  grant: Doc<"shareAccessGrants">;
+  shareLink: Doc<"shareLinks">;
+} | null> {
   const grant = await ctx.db
     .query("shareAccessGrants")
     .withIndex("by_token", (q) => q.eq("token", grantToken))

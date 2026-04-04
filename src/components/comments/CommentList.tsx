@@ -28,16 +28,15 @@ export function CommentList({
   const comments = providedComments ?? queriedComments;
 
   if (comments === undefined) {
-    return (
-      <div className="p-4 text-center text-[#888]">Loading...</div>
-    );
+    return <div className="p-4 text-center text-[#888]">Loading...</div>;
   }
 
   if (comments.length === 0) {
     return (
       <div className="h-full flex items-center justify-center p-6">
         <p className="text-[#888] text-sm text-center">
-          No comments yet.<br />
+          No comments yet.
+          <br />
           Click on the timeline to add one.
         </p>
       </div>

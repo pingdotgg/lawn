@@ -19,11 +19,7 @@ function ThemeToggleButton() {
       title={`Switch to ${theme === "dark" ? "light" : "dark"} mode (⌘⇧L)`}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
     >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>
   );
 }
@@ -42,9 +38,7 @@ export function DashboardHeader({
   paths?: PathSegment[];
 }) {
   const convex = useConvex();
-  const prewarmHomeIntentHandlers = useRoutePrewarmIntent(() =>
-    prewarmDashboardIndex(convex),
-  );
+  const prewarmHomeIntentHandlers = useRoutePrewarmIntent(() => prewarmDashboardIndex(convex));
 
   return (
     <header className="flex-shrink-0 border-b-2 border-[#1a1a1a] bg-[#f0f0e8] grid grid-cols-[1fr_auto] sm:grid-cols-[auto_1fr_auto] items-center px-4 sm:px-6">
@@ -61,24 +55,25 @@ export function DashboardHeader({
         {paths.map((path, index) => {
           const isIntermediate = paths.length >= 2 && index < paths.length - 1;
           return (
-          <div key={index} className={`${isIntermediate ? 'hidden sm:flex' : 'flex'} items-center min-w-0 flex-shrink`}>
-            <span className="text-[#888] mr-2 flex-shrink-0">/</span>
-            {path.href ? (
-              <Link
-                to={path.href}
-                preload="intent"
-                className="hover:text-[#2d5a2d] transition-colors truncate mr-2"
-                {...path.prewarmIntentHandlers}
-              >
-                {path.label}
-              </Link>
-            ) : (
-              <div className="truncate flex items-center gap-3">
-                {path.label}
-              </div>
-            )}
-          </div>
-        );
+            <div
+              key={index}
+              className={`${isIntermediate ? "hidden sm:flex" : "flex"} items-center min-w-0 flex-shrink`}
+            >
+              <span className="text-[#888] mr-2 flex-shrink-0">/</span>
+              {path.href ? (
+                <Link
+                  to={path.href}
+                  preload="intent"
+                  className="hover:text-[#2d5a2d] transition-colors truncate mr-2"
+                  {...path.prewarmIntentHandlers}
+                >
+                  {path.label}
+                </Link>
+              ) : (
+                <div className="truncate flex items-center gap-3">{path.label}</div>
+              )}
+            </div>
+          );
         })}
       </div>
 
@@ -94,9 +89,11 @@ export function DashboardHeader({
             },
             elements: {
               avatarBox: "w-8 h-8 rounded-none border-2 border-[#1a1a1a]",
-              userButtonPopoverCard: "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
+              userButtonPopoverCard:
+                "bg-[#f0f0e8] border-2 border-[#1a1a1a] rounded-none shadow-[8px_8px_0px_0px_var(--shadow-color)]",
               userButtonPopoverActionButton: "!text-[#1a1a1a] hover:!bg-[#e8e8e0] rounded-none",
-              userButtonPopoverActionButtonText: "!text-[#1a1a1a] hover:!text-[#1a1a1a] font-mono font-bold",
+              userButtonPopoverActionButtonText:
+                "!text-[#1a1a1a] hover:!text-[#1a1a1a] font-mono font-bold",
               userButtonPopoverActionButtonIcon: "!text-[#1a1a1a] hover:!text-[#1a1a1a]",
               userButtonPopoverFooter: "hidden",
             },

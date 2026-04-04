@@ -2,12 +2,7 @@ import { Presence } from "@convex-dev/presence";
 import { ConvexError, v } from "convex/values";
 import { components } from "./_generated/api";
 import { mutation, query, MutationCtx } from "./_generated/server";
-import {
-  identityAvatarUrl,
-  identityName,
-  requireProjectAccess,
-  requireVideoAccess,
-} from "./auth";
+import { identityAvatarUrl, identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { findShareLinkByToken } from "./shareAccess";
 
 const presence = new Presence(components.presence);
@@ -24,7 +19,10 @@ function roomIdForVideo(videoId: string) {
 }
 
 function guestDisplayName(clientId: string) {
-  const suffix = clientId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase();
+  const suffix = clientId
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 4)
+    .toUpperCase();
   return `Guest ${suffix || "USER"}`;
 }
 
@@ -67,11 +65,7 @@ export const heartbeat = mutation({
       }
     }
 
-    const hasTokenAccess = await hasShareTokenAccess(
-      ctx,
-      args.shareToken,
-      args.videoId,
-    );
+    const hasTokenAccess = await hasShareTokenAccess(ctx, args.shareToken, args.videoId);
 
     if (!hasVideoAccess && !hasTokenAccess) {
       throw new ConvexError({
@@ -218,11 +212,7 @@ export const listProjectOnlineCounts = query({
 
     await Promise.all(
       videos.map(async (video) => {
-        const onlineUsers = await presence.listRoom(
-          ctx,
-          roomIdForVideo(video._id),
-          true,
-        );
+        const onlineUsers = await presence.listRoom(ctx, roomIdForVideo(video._id), true);
         counts[video._id] = onlineUsers.length;
       }),
     );

@@ -1,5 +1,4 @@
-const BASE62_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const BASE62_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const PASSWORD_HASH_VERSION = "pbkdf2_sha256_v1";
 const PASSWORD_SALT_BYTES = 16;
 const PASSWORD_KEY_BYTES = 32;
@@ -84,18 +83,10 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
   return diff === 0;
 }
 
-async function derivePasswordHashBytes(
-  password: string,
-  salt: Uint8Array,
-  iterations: number,
-) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    textEncoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
+async function derivePasswordHashBytes(password: string, salt: Uint8Array, iterations: number) {
+  const key = await crypto.subtle.importKey("raw", textEncoder.encode(password), "PBKDF2", false, [
+    "deriveBits",
+  ]);
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
@@ -119,10 +110,7 @@ export async function hashPassword(password: string): Promise<string> {
   return `${PASSWORD_HASH_VERSION}$${PASSWORD_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(hash)}`;
 }
 
-export async function verifyPassword(
-  password: string,
-  encodedHash: string,
-): Promise<boolean> {
+export async function verifyPassword(password: string, encodedHash: string): Promise<boolean> {
   try {
     const [version, iterationsRaw, saltHex, hashHex] = encodedHash.split("$");
     if (version !== PASSWORD_HASH_VERSION) {

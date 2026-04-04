@@ -9,10 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
-export type VideoWorkflowStatus =
-  | "review"
-  | "rework"
-  | "done";
+export type VideoWorkflowStatus = "review" | "rework" | "done";
 
 export const VIDEO_WORKFLOW_STATUS_OPTIONS: Array<{
   value: VideoWorkflowStatus;
@@ -67,25 +64,22 @@ export function VideoWorkflowStatusControl({
           disabled={disabled}
           className={cn(
             "inline-flex items-center gap-1.5 font-bold uppercase tracking-wider transition-colors",
-            disabled
-              ? "cursor-not-allowed opacity-50"
-              : "cursor-pointer hover:text-[#1a1a1a]",
+            disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:text-[#1a1a1a]",
             isLg ? "text-xs text-[#1a1a1a]" : "text-[10px] text-[#888]",
             className,
           )}
           aria-label="Update review status"
           title="Update review status"
         >
-          <span className={cn(
-            "rounded-full shrink-0",
-            workflowStatusDotColor(status),
-            isLg ? "h-2.5 w-2.5" : "h-2 w-2",
-          )} />
+          <span
+            className={cn(
+              "rounded-full shrink-0",
+              workflowStatusDotColor(status),
+              isLg ? "h-2.5 w-2.5" : "h-2 w-2",
+            )}
+          />
           {workflowStatusLabel(status)}
-          <ChevronDown className={cn(
-            "opacity-50",
-            isLg ? "h-3.5 w-3.5" : "h-3 w-3",
-          )} />
+          <ChevronDown className={cn("opacity-50", isLg ? "h-3.5 w-3.5" : "h-3 w-3")} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" onClick={handleClick}>
@@ -98,10 +92,12 @@ export function VideoWorkflowStatusControl({
         >
           {VIDEO_WORKFLOW_STATUS_OPTIONS.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value} className="gap-2">
-              <span className={cn(
-                "h-2 w-2 rounded-full shrink-0",
-                workflowStatusDotColor(option.value),
-              )} />
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full shrink-0",
+                  workflowStatusDotColor(option.value),
+                )}
+              />
               {option.label}
             </DropdownMenuRadioItem>
           ))}

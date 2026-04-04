@@ -48,15 +48,9 @@ export function UploadProgress({
           <p className="text-xs text-[#888] mt-0.5">{formatBytes(fileSize)}</p>
         </div>
         <div className="flex items-center gap-2">
-          {status === "complete" && (
-            <CheckCircle className="h-5 w-5 text-[#2d5a2d]" />
-          )}
-          {status === "error" && (
-            <AlertCircle className="h-5 w-5 text-[#dc2626]" />
-          )}
-          {status === "processing" && (
-            <Loader2 className="h-5 w-5 text-[#2d5a2d] animate-spin" />
-          )}
+          {status === "complete" && <CheckCircle className="h-5 w-5 text-[#2d5a2d]" />}
+          {status === "error" && <AlertCircle className="h-5 w-5 text-[#dc2626]" />}
+          {status === "processing" && <Loader2 className="h-5 w-5 text-[#2d5a2d] animate-spin" />}
           {(status === "pending" || status === "uploading") && onCancel && (
             <Button
               variant="ghost"
@@ -78,20 +72,19 @@ export function UploadProgress({
             <span>
               {progress}%
               {estimatedSecondsRemaining !== null && estimatedSecondsRemaining > 0 && (
-                <span className="text-[#888]"> · {formatTimeRemaining(estimatedSecondsRemaining)} left</span>
+                <span className="text-[#888]">
+                  {" "}
+                  · {formatTimeRemaining(estimatedSecondsRemaining)} left
+                </span>
               )}
             </span>
           </div>
         </div>
       )}
 
-      {status === "processing" && (
-        <p className="text-xs text-[#888] mt-2">Processing video...</p>
-      )}
+      {status === "processing" && <p className="text-xs text-[#888] mt-2">Processing video...</p>}
 
-      {status === "error" && error && (
-        <p className="text-xs text-[#dc2626] mt-2">{error}</p>
-      )}
+      {status === "error" && error && <p className="text-xs text-[#dc2626] mt-2">{error}</p>}
     </div>
   );
 }

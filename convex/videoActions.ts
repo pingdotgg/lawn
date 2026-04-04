@@ -98,9 +98,7 @@ function normalizeBucketKey(key: string): string {
     try {
       const pathname = new URL(key).pathname.replace(/^\/+/, "");
       const bucketPrefix = `${BUCKET_NAME}/`;
-      return pathname.startsWith(bucketPrefix)
-        ? pathname.slice(bucketPrefix.length)
-        : pathname;
+      return pathname.startsWith(bucketPrefix) ? pathname.slice(bucketPrefix.length) : pathname;
     } catch {
       return key;
     }
@@ -122,9 +120,7 @@ async function buildSignedBucketObjectUrl(
   const command = new GetObjectCommand({
     Bucket: BUCKET_NAME,
     Key: normalizedKey,
-    ResponseContentDisposition: filename
-      ? `attachment; filename="${filename}"`
-      : undefined,
+    ResponseContentDisposition: filename ? `attachment; filename="${filename}"` : undefined,
     ResponseContentType: options?.contentType,
   });
   return await getSignedUrl(s3, command, { expiresIn: options?.expiresIn ?? 600 });
@@ -137,10 +133,7 @@ function getValueString(value: unknown, field: string): string | null {
 
 function normalizeContentType(contentType: string | null | undefined): string {
   if (!contentType) return "";
-  return contentType
-    .split(";")[0]
-    .trim()
-    .toLowerCase();
+  return contentType.split(";")[0].trim().toLowerCase();
 }
 
 function isAllowedUploadContentType(contentType: string): boolean {
@@ -177,21 +170,14 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
   );
 }
 
-async function requireVideoMemberAccess(
-  ctx: ActionCtx,
-  videoId: Id<"videos">
-) {
-  const video = (await ctx.runQuery(api.videos.get, { videoId })) as
-    | { role?: string }
-    | null;
+async function requireVideoMemberAccess(ctx: ActionCtx, videoId: Id<"videos">) {
+  const video = (await ctx.runQuery(api.videos.get, { videoId })) as { role?: string } | null;
   if (!video || video.role === "viewer") {
     throw new Error("Requires member role or higher");
   }
 }
 
-function buildPublicPlaybackSession(
-  playbackId: string,
-): { url: string; posterUrl: string } {
+function buildPublicPlaybackSession(playbackId: string): { url: string; posterUrl: string } {
   return {
     url: buildMuxPlaybackUrl(playbackId),
     posterUrl: buildMuxThumbnailUrl(playbackId),
@@ -311,9 +297,7 @@ export const markUploadComplete = action({
         throw new Error("Video file is too large for direct upload.");
       }
 
-      const normalizedContentType = normalizeContentType(
-        head.ContentType ?? video.contentType,
-      );
+      const normalizedContentType = normalizeContentType(head.ContentType ?? video.contentType);
       if (!isAllowedUploadContentType(normalizedContentType)) {
         throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
       }
@@ -394,10 +378,7 @@ export const getPlaybackSession = action({
     url: v.string(),
     posterUrl: v.string(),
   }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ url: string; posterUrl: string }> => {
+  handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
     const video = await ctx.runQuery(api.videos.getVideoForPlayback, {
       videoId: args.videoId,
     });
@@ -471,10 +452,7 @@ export const getPublicPlaybackSession = action({
     url: v.string(),
     posterUrl: v.string(),
   }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ url: string; posterUrl: string }> => {
+  handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
     const result = await ctx.runQuery(api.videos.getByPublicId, {
       publicId: args.publicId,
     });
@@ -498,10 +476,7 @@ export const getSharedPlaybackSession = action({
     url: v.string(),
     posterUrl: v.string(),
   }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{ url: string; posterUrl: string }> => {
+  handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
     const result = await ctx.runQuery(api.videos.getByShareGrant, {
       grantToken: args.grantToken,
     });

@@ -28,11 +28,7 @@ type DashboardProjectCardProps = {
   onOpen: () => void;
 };
 
-function formatTeamPlanLabel(
-  plan: string,
-  billingStatus?: string,
-  stripeSubscriptionId?: string,
-) {
+function formatTeamPlanLabel(plan: string, billingStatus?: string, stripeSubscriptionId?: string) {
   if (!stripeSubscriptionId && billingStatus !== "active") {
     return "Unpaid";
   }
@@ -49,11 +45,7 @@ function formatTeamPlanLabel(
   return "Basic";
 }
 
-function DashboardProjectCard({
-  teamSlug,
-  project,
-  onOpen,
-}: DashboardProjectCardProps) {
+function DashboardProjectCard({ teamSlug, project, onOpen }: DashboardProjectCardProps) {
   const convex = useConvex();
   const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
     prewarmProject(convex, {
@@ -111,10 +103,7 @@ export default function DashboardPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button
-                className="w-full"
-                onClick={() => setCreateDialogOpen(true)}
-              >
+              <Button className="w-full" onClick={() => setCreateDialogOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 Create a team
               </Button>
@@ -122,10 +111,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <CreateTeamDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-        />
+        <CreateTeamDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
       </div>
     );
   }
@@ -141,10 +127,7 @@ export default function DashboardPage() {
 
       <div className="flex-1 overflow-auto p-6 space-y-12">
         <div
-          className={cn(
-            "transition-opacity duration-300",
-            isLoading ? "opacity-0" : "opacity-100"
-          )}
+          className={cn("transition-opacity duration-300", isLoading ? "opacity-0" : "opacity-100")}
         >
           {teams?.map((team) => {
             if (!team) return null;
@@ -176,7 +159,7 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 </div>
-                
+
                 {team.projects.length === 0 ? (
                   <Card className="max-w-sm text-center">
                     <CardHeader>
@@ -216,10 +199,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <CreateTeamDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-      />
+      <CreateTeamDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
     </div>
   );
 }

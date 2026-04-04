@@ -20,13 +20,9 @@ export function seoHead({
   type = "website",
   noIndex = false,
 }: SeoOptions) {
-  const fullTitle = title.toLowerCase().includes("lawn")
-    ? title
-    : `${title} | lawn`;
+  const fullTitle = title.toLowerCase().includes("lawn") ? title : `${title} | lawn`;
   const url = `${SITE_URL}${path}`;
-  const imageUrl = ogImage.startsWith("http")
-    ? ogImage
-    : `${SITE_URL}${ogImage}`;
+  const imageUrl = ogImage.startsWith("http") ? ogImage : `${SITE_URL}${ogImage}`;
 
   const meta: Array<Record<string, string>> = [
     { title: fullTitle },

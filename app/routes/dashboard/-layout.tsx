@@ -1,23 +1,11 @@
-
 import { useAuth } from "@clerk/tanstack-react-start";
-import { useConvex, useQuery } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 
-import {
-  Outlet,
-  Link,
-  useLocation,
-  useParams,
-} from "@tanstack/react-router";
+import { Outlet, useLocation, useParams } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import {
-  dashboardHomePath,
-  teamHomePath,
-  teamSettingsPath,
-} from "@/lib/routes";
-import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import {
   Dialog,
   DialogContent,
@@ -26,9 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UploadProgress } from "@/components/upload/UploadProgress";
-import { prewarmDashboardIndex } from "./-index.data";
-import { prewarmSettings } from "./-settings.data";
-import { prewarmTeam } from "./-team.data";
 import { useVideoUploadManager } from "./-useVideoUploadManager";
 import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
 
@@ -52,30 +37,16 @@ export default function DashboardLayout() {
   const location = useLocation();
   const { pathname, searchStr } = location;
   const params = useParams({ strict: false });
-  const convex = useConvex();
-  const teamSlug =
-    typeof params.teamSlug === "string" ? params.teamSlug : undefined;
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : undefined;
   const routeProjectId =
-    typeof params.projectId === "string"
-      ? (params.projectId as Id<"projects">)
-      : undefined;
-  const routeVideoId =
-    typeof params.videoId === "string" ? params.videoId : undefined;
+    typeof params.projectId === "string" ? (params.projectId as Id<"projects">) : undefined;
+  const routeVideoId = typeof params.videoId === "string" ? params.videoId : undefined;
   const publicPlaybackId = useQuery(
     api.videos.getPublicIdByVideoId,
     routeVideoId ? { videoId: routeVideoId } : "skip",
   );
-  const teamHome = teamSlug ? teamHomePath(teamSlug) : null;
-  const settingsPath = teamSlug ? teamSettingsPath(teamSlug) : null;
-  const uploadTargets = useQuery(
-    api.projects.listUploadTargets,
-    teamSlug ? { teamSlug } : {},
-  );
-  const {
-    uploads,
-    uploadFilesToProject,
-    cancelUpload,
-  } = useVideoUploadManager();
+  const uploadTargets = useQuery(api.projects.listUploadTargets, teamSlug ? { teamSlug } : {});
+  const { uploads, uploadFilesToProject, cancelUpload } = useVideoUploadManager();
   const [isGlobalDragActive, setIsGlobalDragActive] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
@@ -98,10 +69,7 @@ export default function DashboardLayout() {
         return;
       }
 
-      if (
-        routeProjectId &&
-        (canUploadToCurrentProject || uploadTargets === undefined)
-      ) {
+      if (routeProjectId && (canUploadToCurrentProject || uploadTargets === undefined)) {
         void uploadFilesToProject(routeProjectId, files);
         return;
       }
@@ -114,12 +82,7 @@ export default function DashboardLayout() {
       setPendingFiles(files);
       setProjectPickerOpen(true);
     },
-    [
-      canUploadToCurrentProject,
-      routeProjectId,
-      uploadFilesToProject,
-      uploadTargets,
-    ],
+    [canUploadToCurrentProject, routeProjectId, uploadFilesToProject, uploadTargets],
   );
 
   const handleProjectSelected = useCallback(
@@ -278,15 +241,15 @@ export default function DashboardLayout() {
           <DialogHeader>
             <DialogTitle>Choose a project</DialogTitle>
             <DialogDescription>
-              {pendingFiles?.length ? `Upload ${pendingFiles.length} video${pendingFiles.length > 1 ? "s" : ""} to:` : "Pick a project to start uploading."}
+              {pendingFiles?.length
+                ? `Upload ${pendingFiles.length} video${pendingFiles.length > 1 ? "s" : ""} to:`
+                : "Pick a project to start uploading."}
             </DialogDescription>
           </DialogHeader>
           {uploadTargets === undefined ? (
             <p className="text-sm text-[#888]">Loading projects...</p>
           ) : uploadTargets.length === 0 ? (
-            <p className="text-sm text-[#888]">
-              No uploadable projects found for your account.
-            </p>
+            <p className="text-sm text-[#888]">No uploadable projects found for your account.</p>
           ) : (
             <div className="max-h-80 overflow-y-auto border-2 border-[#1a1a1a] divide-y-2 divide-[#1a1a1a]">
               {uploadTargets.map((target) => (

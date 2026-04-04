@@ -46,12 +46,7 @@ export function useVideoPresence(input: {
   const [roomToken, setRoomToken] = useState<string | null>(null);
   const sessionTokenRef = useRef<string | null>(null);
 
-  const {
-    videoId,
-    enabled = true,
-    shareToken,
-    intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS,
-  } = input;
+  const { videoId, enabled = true, shareToken, intervalMs = DEFAULT_HEARTBEAT_INTERVAL_MS } = input;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -119,10 +114,7 @@ export function useVideoPresence(input: {
     };
   }, [clientId, convex.url, disconnect, enabled, heartbeat, intervalMs, shareToken, videoId]);
 
-  const state = useQuery(
-    api.videoPresence.list,
-    roomToken ? { roomToken } : "skip",
-  );
+  const state = useQuery(api.videoPresence.list, roomToken ? { roomToken } : "skip");
 
   const watchers = useMemo(() => {
     if (!state) return [];

@@ -62,10 +62,9 @@ export default function ForVideoEditors() {
             VIDEO REVIEW THAT EDITORS ACTUALLY WANT TO USE.
           </h1>
           <p className="text-xl md:text-2xl font-medium text-[#888] max-w-3xl mb-12">
-            Your client said "make it pop" on a 47-minute timeline. You deserve
-            a review tool that at least tells you where they meant. lawn gives
-            you frame-accurate feedback, instant playback, and a workflow that
-            doesn't fight your NLE.
+            Your client said "make it pop" on a 47-minute timeline. You deserve a review tool that
+            at least tells you where they meant. lawn gives you frame-accurate feedback, instant
+            playback, and a workflow that doesn't fight your NLE.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link
@@ -101,9 +100,7 @@ export default function ForVideoEditors() {
                 className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[8px_8px_0px_0px_var(--shadow-color)] hover:-translate-y-1 hover:translate-x-1 hover:shadow-[6px_6px_0px_0px_var(--shadow-color)] transition-all"
               >
                 <div className="border-b-2 border-[#1a1a1a] px-6 py-4 flex justify-between items-center">
-                  <span className="text-sm font-black text-[#888]">
-                    /{point.id}
-                  </span>
+                  <span className="text-sm font-black text-[#888]">/{point.id}</span>
                   <span className="text-sm font-bold text-[#2d5a2d] uppercase tracking-wider">
                     SOLVED
                   </span>
@@ -129,8 +126,7 @@ export default function ForVideoEditors() {
             HOW IT WORKS.
           </h2>
           <p className="text-lg text-[#888] font-medium text-center mb-16 max-w-2xl mx-auto">
-            Three steps. No onboarding calls, no training videos, no "schedule a
-            demo" buttons.
+            Three steps. No onboarding calls, no training videos, no "schedule a demo" buttons.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
@@ -140,12 +136,8 @@ export default function ForVideoEditors() {
                 className="bg-[#f0f0e8] border-2 border-[#1a1a1a] shadow-[12px_12px_0px_0px_var(--shadow-color)] flex flex-col hover:-translate-y-2 hover:translate-x-2 hover:shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all"
               >
                 <div className="border-b-2 border-[#1a1a1a] bg-[#1a1a1a] text-[#f0f0e8] p-6 flex justify-between items-end">
-                  <span className="text-7xl font-black leading-none">
-                    {item.step}
-                  </span>
-                  <span className="text-xl font-bold tracking-widest text-[#888] mb-1">
-                    STEP
-                  </span>
+                  <span className="text-7xl font-black leading-none">{item.step}</span>
+                  <span className="text-xl font-bold tracking-widest text-[#888] mb-1">STEP</span>
                 </div>
                 <div className="p-8 flex-grow flex flex-col">
                   <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-4 text-[#2d5a2d]">
@@ -172,9 +164,8 @@ export default function ForVideoEditors() {
             TOTAL.
           </h2>
           <p className="text-xl md:text-2xl font-medium max-w-2xl mx-auto mb-4 text-[#f0f0e8]/80">
-            Unlimited seats. Unlimited projects. Unlimited reviewers. Your
-            entire team, your clients, your client's clients — everyone gets
-            access for one flat price.
+            Unlimited seats. Unlimited projects. Unlimited reviewers. Your entire team, your
+            clients, your client's clients — everyone gets access for one flat price.
           </p>
           <p className="text-lg font-bold text-[#7cb87c]">
             Stop paying per-seat tax on collaboration.
@@ -189,8 +180,7 @@ export default function ForVideoEditors() {
             START EDITING FASTER.
           </h2>
           <p className="text-xl text-[#888] font-medium mb-12 max-w-xl">
-            Free trial, no credit card. Set up your first review in under a
-            minute.
+            Free trial, no credit card. Set up your first review in under a minute.
           </p>
           <Link
             to="/sign-up"

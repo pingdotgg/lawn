@@ -10,11 +10,7 @@ interface UploadButtonProps {
   children?: React.ReactNode;
 }
 
-export function UploadButton({
-  onFilesSelected,
-  disabled,
-  children,
-}: UploadButtonProps) {
+export function UploadButton({ onFilesSelected, disabled, children }: UploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = () => {

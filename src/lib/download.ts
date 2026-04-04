@@ -17,4 +17,3 @@ export function triggerDownload(url: string, filename?: string) {
   anchor.click();
   anchor.remove();
 }
-

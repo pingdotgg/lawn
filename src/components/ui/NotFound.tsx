@@ -7,13 +7,14 @@ export function NotFound() {
         <div className="font-mono text-sm md:text-base text-[#888888] mb-4 uppercase tracking-widest border-b-2 border-[#1a1a1a] pb-2 w-full">
           Status Code // 404
         </div>
-        
+
         <h1 className="text-7xl md:text-[10rem] font-black leading-none tracking-tighter mb-6">
           NOT FOUND.
         </h1>
-        
+
         <p className="text-xl md:text-2xl max-w-2xl mb-12 leading-relaxed">
-          The requested path doesn't exist. It might have been moved, deleted, or you typed the URL incorrectly.
+          The requested path doesn't exist. It might have been moved, deleted, or you typed the URL
+          incorrectly.
         </p>
 
         <Link

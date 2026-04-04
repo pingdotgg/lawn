@@ -1,9 +1,4 @@
-import {
-  HeadContent,
-  Outlet,
-  Scripts,
-  createRootRoute,
-} from "@tanstack/react-router";
+import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { ClerkProvider } from "@clerk/tanstack-react-start";
 import type { ReactNode } from "react";
 
@@ -32,6 +27,12 @@ export const Route = createRootRoute({
       { rel: "icon", type: "image/svg+xml", href: "/grass-logo.svg?v=4" },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico?v=4" },
       { rel: "shortcut icon", href: "/favicon.ico?v=4" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=block",
+      },
       { rel: "preconnect", href: "https://stream.mux.com", crossOrigin: "anonymous" },
       { rel: "preconnect", href: "https://image.mux.com", crossOrigin: "anonymous" },
       { rel: "dns-prefetch", href: "//stream.mux.com" },

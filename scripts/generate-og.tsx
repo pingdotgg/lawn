@@ -17,9 +17,7 @@ async function prepareBackground(): Promise<Buffer> {
   const grassBuf = readFileSync(grassPath);
 
   // Resize/crop grass to OG dimensions, then darken for text readability
-  const bg = await sharp(grassBuf)
-    .resize(WIDTH, HEIGHT, { fit: "cover" })
-    .toBuffer();
+  const bg = await sharp(grassBuf).resize(WIDTH, HEIGHT, { fit: "cover" }).toBuffer();
 
   // Create a semi-transparent dark overlay
   const overlay = await sharp({
@@ -34,7 +32,10 @@ async function prepareBackground(): Promise<Buffer> {
     .toBuffer();
 
   // Composite the overlay on top of the grass
-  return sharp(bg).composite([{ input: overlay }]).png().toBuffer();
+  return sharp(bg)
+    .composite([{ input: overlay }])
+    .png()
+    .toBuffer();
 }
 
 function TextOverlay({
@@ -103,32 +104,16 @@ function TextOverlay({
 const images: { name: string; jsx: ReturnType<typeof TextOverlay> }[] = [
   {
     name: "default",
-    jsx: (
-      <TextOverlay
-        title="lawn"
-        titleSize={200}
-        subtitle="Video review that doesn't suck"
-      />
-    ),
+    jsx: <TextOverlay title="lawn" titleSize={200} subtitle="Video review that doesn't suck" />,
   },
   {
     name: "home",
-    jsx: (
-      <TextOverlay
-        title="lawn"
-        titleSize={200}
-        subtitle="Video review that doesn't suck"
-      />
-    ),
+    jsx: <TextOverlay title="lawn" titleSize={200} subtitle="Video review that doesn't suck" />,
   },
   {
     name: "compare-frameio",
     jsx: (
-      <TextOverlay
-        title="lawn vs Frame.io"
-        titleSize={96}
-        subtitle="$5/mo flat vs $19/user/mo"
-      />
+      <TextOverlay title="lawn vs Frame.io" titleSize={96} subtitle="$5/mo flat vs $19/user/mo" />
     ),
   },
   {
@@ -163,9 +148,7 @@ const images: { name: string; jsx: ReturnType<typeof TextOverlay> }[] = [
   },
   {
     name: "pricing",
-    jsx: (
-      <TextOverlay title="$5/mo" titleSize={220} subtitle="Unlimited everything" />
-    ),
+    jsx: <TextOverlay title="$5/mo" titleSize={220} subtitle="Unlimited everything" />,
   },
 ];
 

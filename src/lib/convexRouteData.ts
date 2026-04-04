@@ -41,8 +41,7 @@ export function prewarmSpecs(
   options: PrewarmSpecsOptions = {},
 ) {
   const dedupeMs = options.dedupeMs ?? PREWARM_DEDUPE_MS;
-  const extendSubscriptionFor =
-    options.extendSubscriptionFor ?? PREWARM_EXTEND_MS;
+  const extendSubscriptionFor = options.extendSubscriptionFor ?? PREWARM_EXTEND_MS;
   const now = Date.now();
 
   for (const spec of specs) {

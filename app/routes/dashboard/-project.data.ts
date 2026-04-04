@@ -1,15 +1,9 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
-export function getProjectEssentialSpecs(params: {
-  teamSlug: string;
-  projectId: Id<"projects">;
-}) {
+export function getProjectEssentialSpecs(params: { teamSlug: string; projectId: Id<"projects"> }) {
   return [
     makeRouteQuerySpec(api.workspace.resolveContext, {
       teamSlug: params.teamSlug,
@@ -24,10 +18,7 @@ export function getProjectEssentialSpecs(params: {
   ];
 }
 
-export function useProjectData(params: {
-  teamSlug: string;
-  projectId: Id<"projects">;
-}) {
+export function useProjectData(params: { teamSlug: string; projectId: Id<"projects"> }) {
   const context = useQuery(api.workspace.resolveContext, {
     teamSlug: params.teamSlug,
     projectId: params.projectId,

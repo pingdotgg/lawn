@@ -3,11 +3,7 @@ import { query } from "./_generated/server";
 import { getUser } from "./auth";
 import { Doc } from "./_generated/dataModel";
 
-function buildCanonicalPath(input: {
-  teamSlug: string;
-  projectId?: string;
-  videoId?: string;
-}) {
+function buildCanonicalPath(input: { teamSlug: string; projectId?: string; videoId?: string }) {
   if (input.videoId && input.projectId) {
     return `/dashboard/${input.teamSlug}/${input.projectId}/${input.videoId}`;
   }
@@ -77,10 +73,8 @@ export const resolveContext = query({
     });
 
     const sameTeamSlug = args.teamSlug === undefined || args.teamSlug === team.slug;
-    const sameProjectId =
-      args.projectId === undefined || args.projectId === canonicalProjectId;
-    const sameVideoId =
-      args.videoId === undefined || args.videoId === canonicalVideoId;
+    const sameProjectId = args.projectId === undefined || args.projectId === canonicalProjectId;
+    const sameVideoId = args.videoId === undefined || args.videoId === canonicalVideoId;
 
     const sameProjectVideoChain =
       args.videoId === undefined ||
@@ -95,8 +89,7 @@ export const resolveContext = query({
       project: project ?? undefined,
       video: video ?? undefined,
       canonicalPath,
-      isCanonical:
-        sameTeamSlug && sameProjectId && sameVideoId && sameProjectVideoChain,
+      isCanonical: sameTeamSlug && sameProjectId && sameVideoId && sameProjectVideoChain,
     };
   },
 });

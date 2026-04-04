@@ -1,9 +1,7 @@
 import { QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
-type ClerkIdentity = NonNullable<
-  Awaited<ReturnType<QueryCtx["auth"]["getUserIdentity"]>>
->;
+type ClerkIdentity = NonNullable<Awaited<ReturnType<QueryCtx["auth"]["getUserIdentity"]>>>;
 
 function hasString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
@@ -73,15 +71,13 @@ type Role = keyof typeof ROLE_HIERARCHY;
 export async function requireTeamAccess(
   ctx: QueryCtx | MutationCtx,
   teamId: Id<"teams">,
-  requiredRole?: Role
+  requiredRole?: Role,
 ) {
   const user = await requireUser(ctx);
 
   const membership = await ctx.db
     .query("teamMembers")
-    .withIndex("by_team_and_user", (q) =>
-      q.eq("teamId", teamId).eq("userClerkId", user.subject)
-    )
+    .withIndex("by_team_and_user", (q) => q.eq("teamId", teamId).eq("userClerkId", user.subject))
     .unique();
 
   if (!membership) {
@@ -98,7 +94,7 @@ export async function requireTeamAccess(
 export async function requireProjectAccess(
   ctx: QueryCtx | MutationCtx,
   projectId: Id<"projects">,
-  requiredRole?: Role
+  requiredRole?: Role,
 ) {
   const user = await requireUser(ctx);
 
@@ -115,7 +111,7 @@ export async function requireProjectAccess(
 export async function requireVideoAccess(
   ctx: QueryCtx | MutationCtx,
   videoId: Id<"videos">,
-  requiredRole?: Role
+  requiredRole?: Role,
 ) {
   const user = await requireUser(ctx);
 

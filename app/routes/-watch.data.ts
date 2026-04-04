@@ -1,9 +1,6 @@
 import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
-import {
-  makeRouteQuerySpec,
-  prewarmSpecs,
-} from "@/lib/convexRouteData";
+import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getWatchEssentialSpecs(params: { publicId: string }) {
   return [
@@ -28,9 +25,6 @@ export function useWatchData(params: { publicId: string }) {
   return { videoData, comments };
 }
 
-export async function prewarmWatch(
-  convex: ConvexReactClient,
-  params: { publicId: string },
-) {
+export async function prewarmWatch(convex: ConvexReactClient, params: { publicId: string }) {
   prewarmSpecs(convex, getWatchEssentialSpecs(params));
 }
