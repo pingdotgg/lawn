@@ -34,7 +34,7 @@ export function UploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept="video/*"
+        accept="video/*,.docx,.wav,.aup3"
         multiple
         onChange={handleChange}
         className="hidden"

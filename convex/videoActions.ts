@@ -23,10 +23,18 @@ import { BUCKET_NAME, getS3Client } from "./s3";
 const GIBIBYTE = 1024 ** 3;
 const MAX_PRESIGNED_PUT_FILE_SIZE_BYTES = 5 * GIBIBYTE;
 const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
+  // Video
   "video/mp4",
   "video/quicktime",
   "video/webm",
   "video/x-matroska",
+  // Documents
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+  // Audio
+  "audio/wav",
+  "audio/x-wav",
+  // Binary / generic (covers .aup3 — Audacity project files)
+  "application/octet-stream",
 ]);
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
@@ -147,18 +155,24 @@ function isAllowedUploadContentType(contentType: string): boolean {
   return ALLOWED_UPLOAD_CONTENT_TYPES.has(contentType);
 }
 
+function isVideoContentType(contentType: string): boolean {
+  return contentType.startsWith("video/");
+}
+
 function validateUploadRequestOrThrow(args: { fileSize: number; contentType: string }) {
   if (!Number.isFinite(args.fileSize) || args.fileSize <= 0) {
-    throw new Error("Video file size must be greater than zero.");
+    throw new Error("File size must be greater than zero.");
   }
 
   if (args.fileSize > MAX_PRESIGNED_PUT_FILE_SIZE_BYTES) {
-    throw new Error("Video file is too large for direct upload.");
+    throw new Error("File is too large for direct upload.");
   }
 
   const normalizedContentType = normalizeContentType(args.contentType);
   if (!isAllowedUploadContentType(normalizedContentType)) {
-    throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+    throw new Error(
+      "Unsupported file format. Allowed: mp4, mov, webm, mkv, docx, wav, aup3.",
+    );
   }
 
   return normalizedContentType;
@@ -170,9 +184,9 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
   }
 
   return (
-    error.message.includes("Unsupported video format") ||
-    error.message.includes("Video file is too large") ||
-    error.message.includes("Uploaded video file not found") ||
+    error.message.includes("Unsupported file format") ||
+    error.message.includes("File is too large") ||
+    error.message.includes("Uploaded file not found") ||
     error.message.includes("Storage limit reached")
   );
 }
@@ -304,18 +318,20 @@ export const markUploadComplete = action({
         !Number.isFinite(contentLengthRaw) ||
         contentLengthRaw <= 0
       ) {
-        throw new Error("Uploaded video file not found or empty.");
+        throw new Error("Uploaded file not found or empty.");
       }
       const contentLength = contentLengthRaw;
       if (contentLength > MAX_PRESIGNED_PUT_FILE_SIZE_BYTES) {
-        throw new Error("Video file is too large for direct upload.");
+        throw new Error("File is too large for direct upload.");
       }
 
       const normalizedContentType = normalizeContentType(
         head.ContentType ?? video.contentType,
       );
       if (!isAllowedUploadContentType(normalizedContentType)) {
-        throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+        throw new Error(
+          "Unsupported file format. Allowed: mp4, mov, webm, mkv, docx, wav, aup3.",
+        );
       }
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
@@ -324,18 +340,26 @@ export const markUploadComplete = action({
         contentType: normalizedContentType,
       });
 
-      await ctx.runMutation(internal.videos.markAsProcessing, {
-        videoId: args.videoId,
-      });
-
-      const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
-        expiresIn: 60 * 60 * 24,
-      });
-      const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl);
-      if (asset.id) {
-        await ctx.runMutation(internal.videos.setMuxAssetReference, {
+      if (isVideoContentType(normalizedContentType)) {
+        // ── Video path: send to Mux for transcoding ──
+        await ctx.runMutation(internal.videos.markAsProcessing, {
           videoId: args.videoId,
-          muxAssetId: asset.id,
+        });
+
+        const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
+          expiresIn: 60 * 60 * 24,
+        });
+        const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl);
+        if (asset.id) {
+          await ctx.runMutation(internal.videos.setMuxAssetReference, {
+            videoId: args.videoId,
+            muxAssetId: asset.id,
+          });
+        }
+      } else {
+        // ── Non-video path: skip Mux, mark ready immediately ──
+        await ctx.runMutation(internal.videos.markFileAsReady, {
+          videoId: args.videoId,
         });
       }
     } catch (error) {
@@ -357,7 +381,7 @@ export const markUploadComplete = action({
       const uploadError =
         shouldDeleteObject && error instanceof Error
           ? error.message
-          : "Mux ingest failed after upload.";
+          : "Upload processing failed.";
       await ctx.runMutation(internal.videos.markAsFailed, {
         videoId: args.videoId,
         uploadError,

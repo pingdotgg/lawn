@@ -414,6 +414,19 @@ export const markAsReady = internalMutation({
   },
 });
 
+/** Mark a non-video file as ready (no Mux processing required). */
+export const markFileAsReady = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, {
+      uploadError: undefined,
+      status: "ready",
+    });
+  },
+});
+
 export const markAsFailed = internalMutation({
   args: {
     videoId: v.id("videos"),
