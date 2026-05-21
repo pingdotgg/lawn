@@ -541,10 +541,6 @@ export const completeMultipartUpload = action({
       parts: normalizedParts,
     });
 
-    await ctx.runMutation(internal.videos.clearMultipartUploadId, {
-      videoId: args.videoId,
-    });
-
     const s3 = getS3Client();
     const head = await s3.send(
       new HeadObjectCommand({
@@ -575,6 +571,10 @@ export const completeMultipartUpload = action({
       videoId: args.videoId,
       fileSize: contentLengthRaw,
       contentType: normalizedContentType,
+    });
+
+    await ctx.runMutation(internal.videos.clearMultipartUploadId, {
+      videoId: args.videoId,
     });
 
     return { success: true };

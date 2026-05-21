@@ -53,9 +53,13 @@ function runTransaction<T>(
 }
 
 export async function saveUploadResumeSession(session: MultipartUploadResumeSession) {
-  await runTransaction("readwrite", (store) =>
-    store.put({ ...session, updatedAt: Date.now() }),
-  );
+  try {
+    await runTransaction("readwrite", (store) =>
+      store.put({ ...session, updatedAt: Date.now() }),
+    );
+  } catch {
+    // Resume persistence is best-effort and must not block uploads.
+  }
 }
 
 export async function loadUploadResumeSession(videoId: Id<"videos">) {

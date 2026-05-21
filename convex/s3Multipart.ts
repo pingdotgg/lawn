@@ -144,8 +144,12 @@ export async function abortMultipartUploadSession(args: {
         UploadId: args.uploadId,
       }),
     );
-  } catch {
-    // Upload may already be completed or aborted.
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : "";
+    if (errorName === "NoSuchUpload" || errorName === "NotFound") {
+      return;
+    }
+    throw error;
   }
 }
 

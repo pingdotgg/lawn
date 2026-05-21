@@ -257,9 +257,16 @@ async function uploadMultipartFile(args: {
 }) {
   const { file, videoId, contentType, initiate, actions, signal, onProgress, resumeSession } =
     args;
+  const canReuseResumeSession =
+    !!resumeSession &&
+    resumeSession.strategy === "multipart" &&
+    resumeSession.uploadId === initiate.uploadId &&
+    resumeSession.s3Key === initiate.key &&
+    resumeSession.partSizeBytes === initiate.partSizeBytes &&
+    resumeSession.partCount === initiate.partCount;
   const completedParts = mergeUploadedParts(
     initiate.uploadedParts,
-    resumeSession?.completedParts ?? [],
+    canReuseResumeSession ? resumeSession.completedParts : [],
   );
   const completedMap = new Map(
     completedParts.map((part) => [part.partNumber, part.etag] as const),
