@@ -41,13 +41,26 @@ function runTransaction<T>(
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
+        let closed = false;
+        const closeDb = () => {
+          if (closed) return;
+          closed = true;
+          db.close();
+        };
+
         const transaction = db.transaction(STORE_NAME, mode);
         const store = transaction.objectStore(STORE_NAME);
         const request = run(store);
-        request.onerror = () => reject(request.error ?? new Error("Upload resume DB request failed"));
+        request.onerror = () => {
+          closeDb();
+          reject(request.error ?? new Error("Upload resume DB request failed"));
+        };
         request.onsuccess = () => resolve(request.result as T);
-        transaction.oncomplete = () => db.close();
-        transaction.onerror = () => reject(transaction.error ?? new Error("Upload resume DB transaction failed"));
+        transaction.oncomplete = () => closeDb();
+        transaction.onerror = () => {
+          closeDb();
+          reject(transaction.error ?? new Error("Upload resume DB transaction failed"));
+        };
       }),
   );
 }

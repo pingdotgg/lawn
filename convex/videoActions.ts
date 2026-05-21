@@ -198,12 +198,20 @@ function normalizePartEtag(etag: string) {
   return `"${trimmed.replaceAll("\"", "")}"`;
 }
 
-function validatePartNumbersOrThrow(partNumbers: number[], partCount: number) {
+function validatePartNumbersOrThrow(
+  partNumbers: number[],
+  partCount: number,
+  options?: { maxBatchSize?: number },
+) {
   if (partNumbers.length === 0) {
     throw new Error("At least one part number is required.");
   }
-  if (partNumbers.length > MAX_SIGN_PARTS_BATCH) {
-    throw new Error(`Cannot sign more than ${MAX_SIGN_PARTS_BATCH} parts at once.`);
+  const maxBatchSize = options?.maxBatchSize;
+  if (
+    maxBatchSize !== undefined &&
+    partNumbers.length > maxBatchSize
+  ) {
+    throw new Error(`Cannot sign more than ${maxBatchSize} parts at once.`);
   }
 
   const seen = new Set<number>();
@@ -484,7 +492,9 @@ export const signUploadParts = action({
     }
 
     const partCount = computePartCount(video.fileSize, MULTIPART_PART_SIZE_BYTES);
-    validatePartNumbersOrThrow(args.partNumbers, partCount);
+    validatePartNumbersOrThrow(args.partNumbers, partCount, {
+      maxBatchSize: MAX_SIGN_PARTS_BATCH,
+    });
 
     const parts = await signMultipartUploadParts({
       key: video.s3Key,
