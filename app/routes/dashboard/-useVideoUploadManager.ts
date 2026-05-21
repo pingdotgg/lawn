@@ -9,7 +9,7 @@ import {
   findUploadResumeSessionByFingerprint,
   loadUploadResumeSession,
 } from "@/lib/uploadResumeDb";
-import { uploadVideoFile } from "@/lib/videoUpload";
+import { isResumableUploadError, uploadVideoFile } from "@/lib/videoUpload";
 
 export interface ManagedUploadItem {
   id: string;
@@ -73,7 +73,10 @@ export function useVideoUploadManager() {
           continue;
         }
 
-        const existingResume = await findUploadResumeSessionByFingerprint(fingerprint);
+        const existingResume = await findUploadResumeSessionByFingerprint(
+          fingerprint,
+          projectId,
+        );
 
         setUploads((prev) => [
           ...prev,
@@ -118,6 +121,7 @@ export function useVideoUploadManager() {
 
           await uploadVideoFile({
             file,
+            projectId,
             videoId: createdVideoId,
             actions: uploadActions,
             signal: abortController.signal,
@@ -153,6 +157,7 @@ export function useVideoUploadManager() {
           const errorMessage =
             error instanceof Error ? error.message : "Upload failed";
           const cancelled = errorMessage === "Upload cancelled";
+          const resumable = isResumableUploadError(error);
 
           setUploads((prev) =>
             prev.map((upload) =>
@@ -168,6 +173,8 @@ export function useVideoUploadManager() {
 
           if (cancelled) {
             setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+          } else if (createdVideoId && !resumable) {
+            markUploadFailed({ videoId: createdVideoId }).catch(console.error);
           }
         }
       }
@@ -178,6 +185,7 @@ export function useVideoUploadManager() {
       signUploadParts,
       completeMultipartUpload,
       markUploadComplete,
+      markUploadFailed,
     ],
   );
 

@@ -286,6 +286,16 @@ async function requireVideoMemberAccess(
   }
 }
 
+async function deleteUploadedObject(key: string) {
+  const s3 = getS3Client();
+  await s3.send(
+    new DeleteObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+    }),
+  );
+}
+
 function buildPublicPlaybackSession(
   playbackId: string,
 ): { url: string; posterUrl: string } {
@@ -551,41 +561,58 @@ export const completeMultipartUpload = action({
       parts: normalizedParts,
     });
 
-    const s3 = getS3Client();
-    const head = await s3.send(
-      new HeadObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: video.s3Key,
-      }),
-    );
-    const contentLengthRaw = head.ContentLength;
-    if (
-      typeof contentLengthRaw !== "number" ||
-      !Number.isFinite(contentLengthRaw) ||
-      contentLengthRaw <= 0
-    ) {
-      throw new Error("Uploaded video file not found or empty.");
-    }
-    if (contentLengthRaw > MAX_VIDEO_FILE_SIZE_BYTES) {
-      throw new Error("Video file is too large. Maximum size is 30 GB.");
-    }
+    try {
+      const s3 = getS3Client();
+      const head = await s3.send(
+        new HeadObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: video.s3Key,
+        }),
+      );
+      const contentLengthRaw = head.ContentLength;
+      if (
+        typeof contentLengthRaw !== "number" ||
+        !Number.isFinite(contentLengthRaw) ||
+        contentLengthRaw <= 0
+      ) {
+        throw new Error("Uploaded video file not found or empty.");
+      }
+      if (contentLengthRaw > MAX_VIDEO_FILE_SIZE_BYTES) {
+        throw new Error("Video file is too large. Maximum size is 30 GB.");
+      }
 
-    const normalizedContentType = normalizeContentType(
-      head.ContentType ?? video.contentType,
-    );
-    if (!isAllowedUploadContentType(normalizedContentType)) {
-      throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+      const normalizedContentType = normalizeContentType(
+        head.ContentType ?? video.contentType,
+      );
+      if (!isAllowedUploadContentType(normalizedContentType)) {
+        throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+      }
+
+      await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
+        videoId: args.videoId,
+        fileSize: contentLengthRaw,
+        contentType: normalizedContentType,
+      });
+
+      await ctx.runMutation(internal.videos.clearMultipartUploadId, {
+        videoId: args.videoId,
+      });
+    } catch (error) {
+      try {
+        await deleteUploadedObject(video.s3Key);
+      } catch {
+        // Preserve the original validation or reconciliation failure.
+      }
+
+      await ctx.runMutation(internal.videos.markAsFailed, {
+        videoId: args.videoId,
+        uploadError: error instanceof Error ? error.message : "Upload failed after completion.",
+      });
+      await ctx.runMutation(internal.videos.clearMultipartUploadId, {
+        videoId: args.videoId,
+      });
+      throw error;
     }
-
-    await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
-      videoId: args.videoId,
-      fileSize: contentLengthRaw,
-      contentType: normalizedContentType,
-    });
-
-    await ctx.runMutation(internal.videos.clearMultipartUploadId, {
-      videoId: args.videoId,
-    });
 
     return { success: true };
   },
@@ -728,14 +755,8 @@ export const markUploadComplete = action({
     } catch (error) {
       const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
       if (shouldDeleteObject) {
-        const s3 = getS3Client();
         try {
-          await s3.send(
-            new DeleteObjectCommand({
-              Bucket: BUCKET_NAME,
-              Key: video.s3Key,
-            }),
-          );
+          await deleteUploadedObject(video.s3Key);
         } catch {
           // No-op: preserve original processing failure.
         }

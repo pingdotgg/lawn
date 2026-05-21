@@ -6,6 +6,7 @@ const STORE_NAME = "sessions";
 
 export type MultipartUploadResumeSession = {
   videoId: Id<"videos">;
+  projectId?: Id<"projects">;
   fileName: string;
   fileSize: number;
   fileLastModified: number;
@@ -93,7 +94,10 @@ export async function deleteUploadResumeSession(videoId: Id<"videos">) {
   }
 }
 
-export async function findUploadResumeSessionByFingerprint(fingerprint: string) {
+export async function findUploadResumeSessionByFingerprint(
+  fingerprint: string,
+  projectId: Id<"projects">,
+) {
   try {
     const db = await openDb();
     return await new Promise<MultipartUploadResumeSession | undefined>((resolve, reject) => {
@@ -104,7 +108,9 @@ export async function findUploadResumeSessionByFingerprint(fingerprint: string) 
       request.onerror = () => reject(request.error ?? new Error("Failed to query resume sessions"));
       request.onsuccess = () => {
         const sessions = (request.result as MultipartUploadResumeSession[] | undefined) ?? [];
-        const latest = sessions.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const latest = sessions
+          .filter((session) => session.projectId === projectId)
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
         resolve(latest);
         db.close();
       };

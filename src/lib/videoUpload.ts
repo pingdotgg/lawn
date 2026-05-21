@@ -18,6 +18,18 @@ export type UploadProgressUpdate = {
   estimatedSecondsRemaining?: number | null;
 };
 
+export class ResumableUploadError extends Error {
+  constructor(error: unknown) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    super(message);
+    this.name = "ResumableUploadError";
+  }
+}
+
+export function isResumableUploadError(error: unknown) {
+  return error instanceof ResumableUploadError;
+}
+
 type UploadedPart = { partNumber: number; etag: string };
 
 type InitiateSingle = {
@@ -247,16 +259,15 @@ async function persistResumeSession(session: MultipartUploadResumeSession) {
 
 async function uploadMultipartFile(args: {
   file: File;
+  projectId: Id<"projects">;
   videoId: Id<"videos">;
-  contentType: string;
   initiate: InitiateMultipart;
   actions: VideoUploadActions;
   signal: AbortSignal;
   onProgress: (update: UploadProgressUpdate) => void;
   resumeSession?: MultipartUploadResumeSession;
 }) {
-  const { file, videoId, contentType, initiate, actions, signal, onProgress, resumeSession } =
-    args;
+  const { file, projectId, videoId, initiate, actions, signal, onProgress, resumeSession } = args;
   const canReuseResumeSession =
     !!resumeSession &&
     resumeSession.strategy === "multipart" &&
@@ -317,6 +328,7 @@ async function uploadMultipartFile(args: {
 
   const resumeBase: MultipartUploadResumeSession = {
     videoId,
+    projectId,
     fileName: file.name,
     fileSize: file.size,
     fileLastModified: file.lastModified,
@@ -333,37 +345,41 @@ async function uploadMultipartFile(args: {
   await persistResumeSession(resumeBase);
 
   const signBatches = chunkArray(pendingPartNumbers, MAX_SIGN_PARTS_BATCH);
-  for (const signBatch of signBatches) {
-    if (signBatch.length === 0) continue;
+  try {
+    for (const signBatch of signBatches) {
+      if (signBatch.length === 0) continue;
 
-    const { parts: signedParts } = await actions.signUploadParts({
-      videoId,
-      partNumbers: signBatch,
-    });
-
-    await runWithConcurrency(signedParts, MULTIPART_UPLOAD_CONCURRENCY, async (signedPart) => {
-      const { start, end } = getPartByteRange(
-        file.size,
-        initiate.partSizeBytes,
-        signedPart.partNumber,
-      );
-      const blob = file.slice(start, end);
-      const etag = await uploadPartWithXhr(signedPart.url, blob, signal);
-      completedMap.set(signedPart.partNumber, etag);
-      bytesUploaded += end - start;
-      reportProgress();
-
-      await persistResumeSession({
-        ...resumeBase,
-        completedParts: mergeUploadedParts(
-          [...completedMap.entries()].map(([partNumber, partEtag]) => ({
-            partNumber,
-            etag: partEtag,
-          })),
-        ),
-        updatedAt: Date.now(),
+      const { parts: signedParts } = await actions.signUploadParts({
+        videoId,
+        partNumbers: signBatch,
       });
-    });
+
+      await runWithConcurrency(signedParts, MULTIPART_UPLOAD_CONCURRENCY, async (signedPart) => {
+        const { start, end } = getPartByteRange(
+          file.size,
+          initiate.partSizeBytes,
+          signedPart.partNumber,
+        );
+        const blob = file.slice(start, end);
+        const etag = await uploadPartWithXhr(signedPart.url, blob, signal);
+        completedMap.set(signedPart.partNumber, etag);
+        bytesUploaded += end - start;
+        reportProgress();
+
+        await persistResumeSession({
+          ...resumeBase,
+          completedParts: mergeUploadedParts(
+            [...completedMap.entries()].map(([partNumber, partEtag]) => ({
+              partNumber,
+              etag: partEtag,
+            })),
+          ),
+          updatedAt: Date.now(),
+        });
+      });
+    }
+  } catch (error) {
+    throw new ResumableUploadError(error);
   }
 
   const allParts = mergeUploadedParts(
@@ -383,6 +399,7 @@ async function uploadMultipartFile(args: {
 
 export async function uploadVideoFile(args: {
   file: File;
+  projectId: Id<"projects">;
   videoId: Id<"videos">;
   actions: VideoUploadActions;
   signal: AbortSignal;
@@ -409,8 +426,8 @@ export async function uploadVideoFile(args: {
   } else {
     await uploadMultipartFile({
       file: args.file,
+      projectId: args.projectId,
       videoId: args.videoId,
-      contentType,
       initiate,
       actions: args.actions,
       signal: args.signal,
@@ -421,4 +438,3 @@ export async function uploadVideoFile(args: {
 
   await args.actions.markUploadComplete({ videoId: args.videoId });
 }
-
