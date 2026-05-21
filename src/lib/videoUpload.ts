@@ -70,7 +70,6 @@ function normalizeEtag(etag: string) {
 function uploadPartWithXhr(
   url: string,
   blob: Blob,
-  contentType: string,
   signal: AbortSignal,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -112,7 +111,6 @@ function uploadPartWithXhr(
     });
 
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", contentType);
     xhr.send(blob);
   });
 }
@@ -343,7 +341,7 @@ async function uploadMultipartFile(args: {
         signedPart.partNumber,
       );
       const blob = file.slice(start, end);
-      const etag = await uploadPartWithXhr(signedPart.url, blob, contentType, signal);
+      const etag = await uploadPartWithXhr(signedPart.url, blob, signal);
       completedMap.set(signedPart.partNumber, etag);
       bytesUploaded += end - start;
       reportProgress();
