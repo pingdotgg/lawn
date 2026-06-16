@@ -10,6 +10,12 @@ crons.interval(
 );
 
 crons.interval(
+  "abort orphaned multipart uploads",
+  { hours: 6 },
+  internal.videoActions.sweepOrphanedMultipartUploads,
+);
+
+crons.interval(
   "reconcile processing Mux assets",
   { minutes: 1 },
   internal.videoActions.sweepMuxAssetStatuses,

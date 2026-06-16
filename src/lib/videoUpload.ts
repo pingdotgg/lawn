@@ -47,6 +47,18 @@ export function isProcessingRetryError(error: unknown) {
 }
 
 type UploadedPart = { partNumber: number; etag: string };
+const MAX_PART_UPLOAD_ATTEMPTS = 4;
+const PART_RETRY_BASE_DELAY_MS = 500;
+
+class UploadPartError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "UploadPartError";
+  }
+}
 
 type InitiateSingle = {
   strategy: "single";
@@ -143,11 +155,16 @@ function uploadPartWithXhr(
         resolve(normalizeEtag(etag));
         return;
       }
-      rejectOnce(new Error(`Upload part failed: ${xhr.status} ${xhr.statusText}`));
+      rejectOnce(
+        new UploadPartError(
+          `Upload part failed: ${xhr.status} ${xhr.statusText}`,
+          xhr.status,
+        ),
+      );
     });
 
     xhr.addEventListener("error", () => {
-      rejectOnce(new Error("Upload part failed: Network error"));
+      rejectOnce(new UploadPartError("Upload part failed: Network error"));
     });
 
     xhr.addEventListener("abort", () => {
@@ -157,6 +174,90 @@ function uploadPartWithXhr(
     xhr.open("PUT", url);
     xhr.send(blob);
   });
+}
+
+function waitForRetry(delayMs: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      window.clearTimeout(timeout);
+      reject(new Error("Upload cancelled"));
+    };
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function shouldRetryPartUpload(error: unknown) {
+  if (!(error instanceof UploadPartError)) return false;
+  return (
+    error.status === undefined ||
+    error.status === 403 ||
+    error.status === 408 ||
+    error.status === 429 ||
+    error.status >= 500
+  );
+}
+
+async function uploadPartWithRetry(args: {
+  initialUrl: string;
+  blob: Blob;
+  partNumber: number;
+  videoId: Id<"videos">;
+  actions: VideoUploadActions;
+  signal: AbortSignal;
+  onProgress: (loaded: number) => void;
+}) {
+  let url = args.initialUrl;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_PART_UPLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      return await uploadPartWithXhr(
+        url,
+        args.blob,
+        args.signal,
+        args.onProgress,
+      );
+    } catch (error) {
+      lastError = error;
+      if (
+        args.signal.aborted ||
+        !shouldRetryPartUpload(error) ||
+        attempt === MAX_PART_UPLOAD_ATTEMPTS
+      ) {
+        throw error;
+      }
+
+      args.onProgress(0);
+      if (error instanceof UploadPartError && error.status === 403) {
+        const signed = await args.actions.signUploadParts({
+          videoId: args.videoId,
+          partNumbers: [args.partNumber],
+        });
+        const replacement = signed.parts[0];
+        if (!replacement) {
+          throw new Error("Failed to refresh upload part URL.");
+        }
+        url = replacement.url;
+      }
+
+      const jitter = Math.floor(Math.random() * PART_RETRY_BASE_DELAY_MS);
+      await waitForRetry(
+        PART_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + jitter,
+        args.signal,
+      );
+    }
+  }
+
+  throw lastError;
 }
 
 function uploadSingleWithXhr(
@@ -328,8 +429,21 @@ async function uploadMultipartFile(args: {
   signal: AbortSignal;
   onProgress: (update: UploadProgressUpdate) => void;
   resumeSession?: MultipartUploadResumeSession;
+  onResumingChange?: (resuming: boolean) => void;
+  fileFingerprint?: string;
 }) {
-  const { file, projectId, videoId, initiate, actions, signal, onProgress, resumeSession } = args;
+  const {
+    file,
+    projectId,
+    videoId,
+    initiate,
+    actions,
+    signal,
+    onProgress,
+    resumeSession,
+    onResumingChange,
+    fileFingerprint,
+  } = args;
   const canReuseResumeSession =
     !!resumeSession &&
     resumeSession.strategy === "multipart" &&
@@ -340,6 +454,10 @@ async function uploadMultipartFile(args: {
     resumeSession.fileSize === file.size &&
     resumeSession.fileLastModified === file.lastModified &&
     resumeSession.fileName === file.name;
+  onResumingChange?.(canReuseResumeSession);
+  if (resumeSession && !canReuseResumeSession) {
+    await deleteUploadResumeSession(resumeSession.videoId);
+  }
   const completedParts = mergeUploadedParts(
     initiate.uploadedParts,
     canReuseResumeSession ? resumeSession.completedParts : [],
@@ -407,7 +525,7 @@ async function uploadMultipartFile(args: {
     fileName: file.name,
     fileSize: file.size,
     fileLastModified: file.lastModified,
-    fileFingerprint: buildFileFingerprint(file),
+    fileFingerprint: fileFingerprint ?? await buildFileFingerprint(file),
     strategy: "multipart",
     uploadId: initiate.uploadId,
     s3Key: initiate.key,
@@ -440,16 +558,19 @@ async function uploadMultipartFile(args: {
             signedPart.partNumber,
           );
           const blob = file.slice(start, end);
-          const etag = await uploadPartWithXhr(
-            signedPart.url,
+          const etag = await uploadPartWithRetry({
+            initialUrl: signedPart.url,
             blob,
-            workerSignal,
-            (loaded) => {
+            partNumber: signedPart.partNumber,
+            videoId,
+            actions,
+            signal: workerSignal,
+            onProgress: (loaded) => {
               if (!uploadActive || workerSignal.aborted) return;
               inFlightLoaded.set(signedPart.partNumber, Math.min(loaded, blob.size));
               reportProgress();
             },
-          );
+          });
           if (!uploadActive || workerSignal.aborted) {
             throw new Error("Upload cancelled");
           }
@@ -506,6 +627,8 @@ export async function uploadVideoFile(args: {
   signal: AbortSignal;
   onProgress: (update: UploadProgressUpdate) => void;
   resumeSession?: MultipartUploadResumeSession;
+  onResumingChange?: (resuming: boolean) => void;
+  fileFingerprint?: string;
 }) {
   if (isFileTooLarge(args.file.size)) {
     throw new Error(`Video file is too large. Maximum size is ${formatMaxUploadSize()}.`);
@@ -520,8 +643,10 @@ export async function uploadVideoFile(args: {
   });
 
   if (initiate.strategy === "single") {
+    args.onResumingChange?.(false);
     await uploadSingleWithXhr(initiate.url, args.file, contentType, args.signal, args.onProgress);
   } else if (initiate.strategy === "already_uploaded") {
+    args.onResumingChange?.(false);
     args.onProgress({ progress: 100, bytesPerSecond: 0, estimatedSecondsRemaining: 0 });
   } else {
     await uploadMultipartFile({
@@ -533,6 +658,8 @@ export async function uploadVideoFile(args: {
       signal: args.signal,
       onProgress: args.onProgress,
       resumeSession: args.resumeSession,
+      onResumingChange: args.onResumingChange,
+      fileFingerprint: args.fileFingerprint,
     });
   }
 

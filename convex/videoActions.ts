@@ -24,6 +24,7 @@ import {
   completeMultipartUploadSession,
   createMultipartUploadSession,
   getMultipartPlan,
+  listMultipartUploadsInitiatedBefore,
   listMultipartUploadedParts,
   signMultipartUploadParts,
   type UploadedPartInfo,
@@ -31,6 +32,8 @@ import {
 import {
   MAX_SIGN_PARTS_BATCH,
   MAX_VIDEO_FILE_SIZE_BYTES,
+  ORPHANED_MULTIPART_SWEEP_BATCH_SIZE,
+  ORPHANED_MULTIPART_UPLOAD_THRESHOLD_MS,
   PRESIGN_SINGLE_PUT_EXPIRES_SEC,
   SINGLE_PUT_MAX_BYTES,
   STALE_UPLOAD_SWEEP_BATCH_SIZE,
@@ -44,6 +47,8 @@ const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
   "video/x-matroska",
 ]);
 const MUX_STATUS_SWEEP_BATCH_SIZE = 10;
+const MUX_STATUS_SWEEP_LOCK = "mux-status-sweep";
+const MUX_STATUS_SWEEP_LOCK_TTL_MS = 5 * 60 * 1000;
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
   let source = key;
@@ -949,14 +954,10 @@ export const sweepStaleUploads = internalAction({
       if (!claimed) continue;
 
       try {
-        if (claimed.key && claimed.uploadId) {
-          await abortMultipartUploadSession({
-            key: claimed.key,
-            uploadId: claimed.uploadId,
-          });
-        } else if (claimed.key) {
-          await deleteUploadedObject(claimed.key);
-        }
+        await abortMultipartUploadSession({
+          key: claimed.key,
+          uploadId: claimed.uploadId,
+        });
 
         await ctx.runMutation(internal.videos.clearUploadStorageInfo, {
           videoId: candidate.videoId,
@@ -968,6 +969,35 @@ export const sweepStaleUploads = internalAction({
     }
 
     return { reclaimed };
+  },
+});
+
+export const sweepOrphanedMultipartUploads = internalAction({
+  args: {},
+  returns: v.object({
+    aborted: v.number(),
+  }),
+  handler: async () => {
+    const uploads = await listMultipartUploadsInitiatedBefore({
+      cutoff: Date.now() - ORPHANED_MULTIPART_UPLOAD_THRESHOLD_MS,
+      limit: ORPHANED_MULTIPART_SWEEP_BATCH_SIZE,
+    });
+    let aborted = 0;
+
+    for (const upload of uploads) {
+      try {
+        await abortMultipartUploadSession(upload);
+        aborted += 1;
+      } catch (error) {
+        console.error("Failed to abort orphaned multipart upload", {
+          key: upload.key,
+          uploadId: upload.uploadId,
+          error,
+        });
+      }
+    }
+
+    return { aborted };
   },
 });
 
@@ -1015,32 +1045,49 @@ export const sweepMuxAssetStatuses = internalAction({
     reconciled: v.number(),
   }),
   handler: async (ctx) => {
-    const candidates = await ctx.runQuery(
-      internal.videos.listMuxProcessingCandidates,
-      {
-        limit: MUX_STATUS_SWEEP_BATCH_SIZE,
-      },
-    );
-    let checked = 0;
-    let reconciled = 0;
-
-    for (const candidate of candidates) {
-      try {
-        const result = await reconcileMuxAssetStatus(ctx, candidate);
-        checked += 1;
-        if (result.status === "ready" || result.status === "errored") {
-          reconciled += 1;
-        }
-      } catch (error) {
-        console.error("Failed to reconcile Mux asset status", {
-          videoId: candidate.videoId,
-          muxAssetId: candidate.muxAssetId,
-          error,
-        });
-      }
+    const lockOwner = crypto.randomUUID();
+    const locked = await ctx.runMutation(internal.videos.claimCronLock, {
+      name: MUX_STATUS_SWEEP_LOCK,
+      owner: lockOwner,
+      ttlMs: MUX_STATUS_SWEEP_LOCK_TTL_MS,
+    });
+    if (!locked) {
+      return { checked: 0, reconciled: 0 };
     }
 
-    return { checked, reconciled };
+    try {
+      const candidates = await ctx.runMutation(
+        internal.videos.claimMuxProcessingCandidates,
+        {
+          limit: MUX_STATUS_SWEEP_BATCH_SIZE,
+        },
+      );
+      let checked = 0;
+      let reconciled = 0;
+
+      for (const candidate of candidates) {
+        try {
+          const result = await reconcileMuxAssetStatus(ctx, candidate);
+          checked += 1;
+          if (result.status === "ready" || result.status === "errored") {
+            reconciled += 1;
+          }
+        } catch (error) {
+          console.error("Failed to reconcile Mux asset status", {
+            videoId: candidate.videoId,
+            muxAssetId: candidate.muxAssetId,
+            error,
+          });
+        }
+      }
+
+      return { checked, reconciled };
+    } finally {
+      await ctx.runMutation(internal.videos.releaseCronLock, {
+        name: MUX_STATUS_SWEEP_LOCK,
+        owner: lockOwner,
+      });
+    }
   },
 });
 

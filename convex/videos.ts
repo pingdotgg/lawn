@@ -564,21 +564,13 @@ export const listStaleUploadCandidates = internalQuery({
     limit: v.number(),
   },
   handler: async (ctx, args) => {
-    const statuses = ["uploading", "failed"] as const;
-    const candidates = (
-      await Promise.all(
-        statuses.map((status) =>
-          ctx.db
-            .query("videos")
-            .withIndex("by_status_and_upload_updated_at", (q) =>
-              q.eq("status", status),
-            )
-            .take(args.limit),
-        ),
+    const candidates = (await ctx.db
+      .query("videos")
+      .withIndex("by_status_and_upload_updated_at", (q) =>
+        q.eq("status", "uploading"),
       )
-    )
-      .flat()
-      .filter((video) => video.s3Key || video.s3MultipartUploadId)
+      .take(args.limit))
+      .filter((video) => video.s3Key && video.s3MultipartUploadId)
       .filter(
         (video) =>
           (video.uploadUpdatedAt ?? video._creationTime) < args.cutoff,
@@ -603,9 +595,10 @@ export const claimStaleUpload = internalMutation({
     const video = await ctx.db.get(args.videoId);
     if (
       !video ||
-      (video.status !== "uploading" && video.status !== "failed") ||
+      video.status !== "uploading" ||
       (video.uploadUpdatedAt ?? video._creationTime) >= args.cutoff ||
-      (!video.s3Key && !video.s3MultipartUploadId)
+      !video.s3Key ||
+      !video.s3MultipartUploadId
     ) {
       return null;
     }
@@ -618,8 +611,8 @@ export const claimStaleUpload = internalMutation({
     });
 
     return {
-      key: video.s3Key ?? null,
-      uploadId: video.s3MultipartUploadId ?? null,
+      key: video.s3Key,
+      uploadId: video.s3MultipartUploadId,
     };
   },
 });
@@ -735,26 +728,78 @@ export const getMuxProcessingState = internalQuery({
   },
 });
 
-export const listMuxProcessingCandidates = internalQuery({
+export const claimMuxProcessingCandidates = internalMutation({
   args: {
     limit: v.number(),
   },
   handler: async (ctx, args) => {
     const videos = await ctx.db
       .query("videos")
-      .withIndex("by_status_and_upload_updated_at", (q) =>
+      .withIndex("by_status_and_mux_last_polled_at", (q) =>
         q.eq("status", "processing"),
       )
+      .filter((q) => q.neq(q.field("muxAssetId"), undefined))
       .take(args.limit);
 
-    return videos.flatMap((video) =>
-      video.muxAssetId
-        ? [{
-            videoId: video._id,
-            muxAssetId: video.muxAssetId,
-          }]
-        : [],
-    );
+    const claimedAt = Date.now();
+    const candidates = [];
+    for (const video of videos) {
+      if (!video.muxAssetId) continue;
+      await ctx.db.patch(video._id, { muxLastPolledAt: claimedAt });
+      candidates.push({
+        videoId: video._id,
+        muxAssetId: video.muxAssetId,
+      });
+    }
+    return candidates;
+  },
+});
+
+export const claimCronLock = internalMutation({
+  args: {
+    name: v.string(),
+    owner: v.string(),
+    ttlMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("cronLocks")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .unique();
+    const now = Date.now();
+    if (existing && existing.expiresAt > now) {
+      return false;
+    }
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        owner: args.owner,
+        expiresAt: now + args.ttlMs,
+      });
+    } else {
+      await ctx.db.insert("cronLocks", {
+        name: args.name,
+        owner: args.owner,
+        expiresAt: now + args.ttlMs,
+      });
+    }
+    return true;
+  },
+});
+
+export const releaseCronLock = internalMutation({
+  args: {
+    name: v.string(),
+    owner: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("cronLocks")
+      .withIndex("by_name", (q) => q.eq("name", args.name))
+      .unique();
+    if (existing?.owner === args.owner) {
+      await ctx.db.delete(existing._id);
+    }
   },
 });
 

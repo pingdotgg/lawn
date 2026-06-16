@@ -32,14 +32,20 @@ const teamRoleValidator = v.union(
   v.literal("viewer"),
 );
 
-function getSubscriptionSyncData(subscription: Stripe.Subscription) {
+function getSubscriptionSyncData(
+  subscription: Stripe.Subscription,
+  fallback?: {
+    currentPeriodEnd: number;
+    priceId: string;
+  },
+) {
   const item = subscription.items.data[0];
   const stripeCustomerId =
     typeof subscription.customer === "string"
       ? subscription.customer
       : subscription.customer.id;
 
-  if (!item) {
+  if (!item && !fallback) {
     throw new Error("Subscription has no items.");
   }
 
@@ -47,12 +53,12 @@ function getSubscriptionSyncData(subscription: Stripe.Subscription) {
     stripeSubscriptionId: subscription.id,
     stripeCustomerId,
     status: subscription.status,
-    currentPeriodEnd: item.current_period_end,
-    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    currentPeriodEnd: item?.current_period_end ?? fallback!.currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
     cancelAt: subscription.cancel_at ?? undefined,
-    quantity: item.quantity ?? 1,
-    priceId: item.price.id,
-    metadata: subscription.metadata,
+    quantity: item?.quantity ?? 1,
+    priceId: item?.price.id ?? fallback!.priceId,
+    metadata: subscription.metadata ?? {},
   };
 }
 
@@ -183,10 +189,17 @@ export const reconcileTeamSubscription = action({
     const teamSubscriptions = subscriptions.data.filter(
       (subscription) => subscription.metadata.orgId === team._id,
     );
+    const newestFirst = [...teamSubscriptions].sort(
+      (a, b) => b.created - a.created,
+    );
     const subscription =
-      teamSubscriptions.find((candidate) =>
+      newestFirst.find(
+        (candidate) => candidate.id === team.stripeSubscriptionId,
+      ) ??
+      newestFirst.find((candidate) =>
         hasActiveTeamSubscriptionStatus(candidate.status),
-      ) ?? teamSubscriptions[0];
+      ) ??
+      newestFirst[0];
 
     if (!subscription) {
       return { status: "not_found" as const };
@@ -344,7 +357,10 @@ export const updateTeamSubscriptionPlan = action({
       },
     );
 
-    const syncData = getSubscriptionSyncData(updatedSubscription);
+    const syncData = getSubscriptionSyncData(updatedSubscription, {
+      currentPeriodEnd: 0,
+      priceId: stripePriceId,
+    });
 
     await ctx.runMutation(components.stripe.private.handleSubscriptionUpdated, {
       stripeSubscriptionId: syncData.stripeSubscriptionId,

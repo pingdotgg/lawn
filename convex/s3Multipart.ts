@@ -4,6 +4,7 @@ import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  ListMultipartUploadsCommand,
   ListPartsCommand,
   UploadPartCommand,
   type CompletedPart,
@@ -151,6 +152,46 @@ export async function abortMultipartUploadSession(args: {
     }
     throw error;
   }
+}
+
+export async function listMultipartUploadsInitiatedBefore(args: {
+  cutoff: number;
+  limit: number;
+}) {
+  const s3 = getS3Client();
+  const uploads: Array<{ key: string; uploadId: string }> = [];
+  let keyMarker: string | undefined;
+  let uploadIdMarker: string | undefined;
+
+  while (uploads.length < args.limit) {
+    const result = await s3.send(
+      new ListMultipartUploadsCommand({
+        Bucket: BUCKET_NAME,
+        KeyMarker: keyMarker,
+        UploadIdMarker: uploadIdMarker,
+        MaxUploads: Math.min(1000, args.limit - uploads.length),
+      }),
+    );
+
+    for (const upload of result.Uploads ?? []) {
+      if (
+        upload.Key &&
+        upload.UploadId &&
+        upload.Initiated &&
+        upload.Initiated.getTime() < args.cutoff
+      ) {
+        uploads.push({ key: upload.Key, uploadId: upload.UploadId });
+        if (uploads.length >= args.limit) break;
+      }
+    }
+
+    if (!result.IsTruncated) break;
+    keyMarker = result.NextKeyMarker;
+    uploadIdMarker = result.NextUploadIdMarker;
+    if (!keyMarker) break;
+  }
+
+  return uploads;
 }
 
 export function getMultipartPlan(fileSize: number) {

@@ -60,7 +60,7 @@ export function useVideoUploadManager() {
         const uploadId = createUploadId();
         const title = file.name.replace(/\.[^/.]+$/, "");
         const abortController = new AbortController();
-        const fingerprint = buildFileFingerprint(file);
+        const fingerprint = await buildFileFingerprint(file);
 
         if (isFileTooLarge(file.size)) {
           setUploads((prev) => [
@@ -132,6 +132,14 @@ export function useVideoUploadManager() {
               actions: uploadActions,
               signal: abortController.signal,
               resumeSession,
+              fileFingerprint: fingerprint,
+              onResumingChange: (resuming) => {
+                setUploads((prev) =>
+                  prev.map((upload) =>
+                    upload.id === uploadId ? { ...upload, resuming } : upload,
+                  ),
+                );
+              },
               onProgress: (update) => {
                 setUploads((prev) =>
                   prev.map((upload) =>

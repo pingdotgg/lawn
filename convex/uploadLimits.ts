@@ -10,6 +10,8 @@ export const PRESIGN_PART_EXPIRES_SEC = 86400;
 export const MAX_SIGN_PARTS_BATCH = 20;
 export const STALE_UPLOAD_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 export const STALE_UPLOAD_SWEEP_BATCH_SIZE = 100;
+export const ORPHANED_MULTIPART_UPLOAD_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+export const ORPHANED_MULTIPART_SWEEP_BATCH_SIZE = 100;
 
 export function computePartCount(fileSize: number, partSize = MULTIPART_PART_SIZE_BYTES) {
   if (!Number.isFinite(fileSize) || fileSize <= 0) {
