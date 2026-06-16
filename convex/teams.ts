@@ -475,22 +475,3 @@ export const linkStripeCustomer = internalMutation({
     return null;
   },
 });
-
-export const setLargeUploadsEnabled = internalMutation({
-  args: {
-    teamId: v.id("teams"),
-    enabled: v.boolean(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const team = await ctx.db.get(args.teamId);
-    if (!team) {
-      throw new Error("Team not found");
-    }
-
-    await ctx.db.patch(args.teamId, {
-      largeUploadsEnabled: args.enabled,
-    });
-    return null;
-  },
-});

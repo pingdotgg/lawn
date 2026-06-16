@@ -52,15 +52,3 @@ bun run lint
 Stripe webhook endpoint (for the Convex Stripe component):
 
 - `https://<your-deployment>.convex.site/stripe/webhook`
-
-## Large upload access
-
-Teams default to a 5 GiB maximum video size. Enable the 30 GiB multipart upload
-limit for a specific team with:
-
-```bash
-bunx convex run teams:setLargeUploadsEnabled \
-  '{"teamId":"<team_id>","enabled":true}'
-```
-
-Set `enabled` to `false` to return the team to the 5 GiB limit.
