@@ -14,7 +14,12 @@ import { useMoveActions } from "@/lib/dnd/useMoveActions";
 type MoveVideoDialogProps = {
   teamId: Id<"teams">;
   /** The video being moved, plus its current folder so we can exclude it. */
-  video: { _id: Id<"videos">; title: string; projectId: Id<"projects"> } | null;
+  video: {
+    _id: Id<"videos">;
+    title: string;
+    projectId: Id<"projects">;
+    versionNumber: number;
+  } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -53,8 +58,14 @@ export function MoveVideoDialog({ teamId, video, open, onOpenChange }: MoveVideo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move {video ? `"${video.title}"` : "video"}</DialogTitle>
-          <DialogDescription>Choose which folder this video should live in.</DialogDescription>
+          <DialogTitle>
+            {video ? `Move all versions of "${video.title}"` : "Move video"}
+          </DialogTitle>
+          <DialogDescription>
+            {video
+              ? `Choose a folder for every version of this video, including the latest version (v${video.versionNumber}).`
+              : "Choose which folder this video should live in."}
+          </DialogDescription>
         </DialogHeader>
 
         {error && (

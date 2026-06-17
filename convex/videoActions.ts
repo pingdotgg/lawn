@@ -658,7 +658,7 @@ export const completeMultipartUpload = action({
       });
     } catch (error) {
       try {
-        if (completed && shouldDeleteUploadedObjectOnFailure(error)) {
+        if (completed) {
           await deleteUploadedObject(video.s3Key);
         } else if (!completed) {
           await abortMultipartUploadSession({
@@ -670,12 +670,9 @@ export const completeMultipartUpload = action({
         // Preserve the original completion, validation, or reconciliation failure.
       }
 
-      await ctx.runMutation(internal.videos.markAsFailed, {
+      await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
         videoId: args.videoId,
         uploadError: error instanceof Error ? error.message : "Upload failed after completion.",
-      });
-      await ctx.runMutation(internal.videos.clearMultipartUploadId, {
-        videoId: args.videoId,
       });
       throw error;
     }
@@ -695,19 +692,20 @@ export const abortVideoUpload = action({
     await requireVideoMemberAccess(ctx, args.videoId);
     const video = await getVideoForUpload(ctx, args.videoId);
 
-    if (video.s3Key && video.s3MultipartUploadId) {
-      await abortMultipartUploadSession({
-        key: video.s3Key,
-        uploadId: video.s3MultipartUploadId,
-      });
-    } else if (video.s3Key) {
-      await deleteUploadedObject(video.s3Key);
+    try {
+      if (video.s3Key && video.s3MultipartUploadId) {
+        await abortMultipartUploadSession({
+          key: video.s3Key,
+          uploadId: video.s3MultipartUploadId,
+        });
+      } else if (video.s3Key) {
+        await deleteUploadedObject(video.s3Key);
+      }
+    } catch (error) {
+      console.error("Failed to clean up cancelled upload storage", args.videoId, error);
     }
 
-    await ctx.runMutation(internal.videos.clearUploadStorageInfo, {
-      videoId: args.videoId,
-    });
-    await ctx.runMutation(internal.videos.markAsFailed, {
+    await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
       videoId: args.videoId,
       uploadError: "Upload cancelled.",
     });
@@ -843,13 +841,17 @@ export const markUploadComplete = action({
         shouldDeleteObject && error instanceof Error
           ? error.message
           : "Mux ingest failed after upload.";
+      if (shouldDeleteObject) {
+        await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
+          videoId: args.videoId,
+          uploadError,
+        });
+        throw error;
+      }
       await ctx.runMutation(internal.videos.markAsFailed, {
         videoId: args.videoId,
         uploadError,
       });
-      if (shouldDeleteObject) {
-        throw error;
-      }
       throw new Error("Mux ingest failed after upload. Retry processing without re-uploading.");
     }
 
@@ -868,19 +870,20 @@ export const markUploadFailed = action({
     await requireVideoMemberAccess(ctx, args.videoId);
     const video = await getVideoForUpload(ctx, args.videoId);
 
-    if (video.s3Key && video.s3MultipartUploadId) {
-      await abortMultipartUploadSession({
-        key: video.s3Key,
-        uploadId: video.s3MultipartUploadId,
-      });
-    } else if (video.s3Key) {
-      await deleteUploadedObject(video.s3Key);
+    try {
+      if (video.s3Key && video.s3MultipartUploadId) {
+        await abortMultipartUploadSession({
+          key: video.s3Key,
+          uploadId: video.s3MultipartUploadId,
+        });
+      } else if (video.s3Key) {
+        await deleteUploadedObject(video.s3Key);
+      }
+    } catch (error) {
+      console.error("Failed to clean up permanently failed upload storage", args.videoId, error);
     }
-    await ctx.runMutation(internal.videos.clearUploadStorageInfo, {
-      videoId: args.videoId,
-    });
 
-    await ctx.runMutation(internal.videos.markAsFailed, {
+    await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
       videoId: args.videoId,
       uploadError: "Upload failed before Mux could process the asset.",
     });
@@ -910,14 +913,15 @@ export const sweepStaleUploads = internalAction({
       if (!claimed) continue;
 
       try {
-        await abortMultipartUploadSession({
-          key: claimed.key,
-          uploadId: claimed.uploadId,
-        });
+        if (claimed.storage.kind === "multipart") {
+          await abortMultipartUploadSession({
+            key: claimed.storage.key,
+            uploadId: claimed.storage.uploadId,
+          });
+        } else if (claimed.storage.kind === "object") {
+          await deleteUploadedObject(claimed.storage.key);
+        }
 
-        await ctx.runMutation(internal.videos.clearUploadStorageInfo, {
-          videoId: candidate.videoId,
-        });
         reclaimed += 1;
       } catch (error) {
         console.error("Failed to reclaim stale upload", candidate.videoId, error);

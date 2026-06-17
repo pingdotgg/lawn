@@ -8,8 +8,11 @@ import {
 } from "@/lib/uploadLimits";
 import {
   deleteUploadResumeSession,
+  getUploadResumeIntent,
   saveUploadResumeSession,
   type MultipartUploadResumeSession,
+  type UploadCreationIntent,
+  uploadCreationIntentsMatch,
 } from "@/lib/uploadResumeDb";
 
 export type UploadProgressUpdate = {
@@ -406,7 +409,7 @@ async function persistResumeSession(session: MultipartUploadResumeSession) {
 
 async function uploadMultipartFile(args: {
   file: File;
-  projectId: Id<"projects">;
+  creationIntent: UploadCreationIntent;
   videoId: Id<"videos">;
   initiate: InitiateMultipart;
   actions: VideoUploadActions;
@@ -418,7 +421,7 @@ async function uploadMultipartFile(args: {
 }) {
   const {
     file,
-    projectId,
+    creationIntent,
     videoId,
     initiate,
     actions,
@@ -437,7 +440,8 @@ async function uploadMultipartFile(args: {
     resumeSession.partCount === initiate.partCount &&
     resumeSession.fileSize === file.size &&
     resumeSession.fileLastModified === file.lastModified &&
-    resumeSession.fileName === file.name;
+    resumeSession.fileName === file.name &&
+    uploadCreationIntentsMatch(resumeSession, creationIntent);
   onResumingChange?.(canReuseResumeSession);
   if (resumeSession && !canReuseResumeSession) {
     await deleteUploadResumeSession(resumeSession.videoId);
@@ -500,7 +504,7 @@ async function uploadMultipartFile(args: {
 
   const resumeBase: MultipartUploadResumeSession = {
     videoId,
-    projectId,
+    creationIntent: getUploadResumeIntent(creationIntent),
     fileName: file.name,
     fileSize: file.size,
     fileLastModified: file.lastModified,
@@ -600,11 +604,12 @@ async function uploadMultipartFile(args: {
 
 export async function uploadVideoFile(args: {
   file: File;
-  projectId: Id<"projects">;
+  creationIntent: UploadCreationIntent;
   videoId: Id<"videos">;
   actions: VideoUploadActions;
   signal: AbortSignal;
   onProgress: (update: UploadProgressUpdate) => void;
+  onProcessing?: () => void;
   resumeSession?: MultipartUploadResumeSession;
   onResumingChange?: (resuming: boolean) => void;
   fileFingerprint?: string;
@@ -630,7 +635,7 @@ export async function uploadVideoFile(args: {
   } else {
     await uploadMultipartFile({
       file: args.file,
-      projectId: args.projectId,
+      creationIntent: args.creationIntent,
       videoId: args.videoId,
       initiate,
       actions: args.actions,
@@ -642,6 +647,7 @@ export async function uploadVideoFile(args: {
     });
   }
 
+  args.onProcessing?.();
   try {
     await args.actions.markUploadComplete({ videoId: args.videoId });
   } catch (error) {

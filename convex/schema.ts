@@ -92,8 +92,16 @@ export default defineSchema({
       v.literal("failed"),
     ),
     workflowStatus: v.union(v.literal("review"), v.literal("rework"), v.literal("done")),
+    // Existing rows are implicit v1 videos. These fields are materialized when
+    // the first additional version is created, so no backfill is required.
+    versionStackId: v.optional(v.id("videos")),
+    versionNumber: v.optional(v.number()),
+    supersededByVideoId: v.optional(v.id("videos")),
   })
     .index("by_project", ["projectId"])
+    .index("by_project_and_superseded_by_video_id", ["projectId", "supersededByVideoId"])
+    .index("by_version_stack_id_and_version_number", ["versionStackId", "versionNumber"])
+    .index("by_superseded_by_video_id", ["supersededByVideoId"])
     .index("by_public_id", ["publicId"])
     .index("by_mux_upload_id", ["muxUploadId"])
     .index("by_mux_asset_id", ["muxAssetId"])

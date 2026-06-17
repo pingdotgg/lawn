@@ -35,6 +35,7 @@ test("dashboard route data contracts expose expected essential queries", () => {
     "comments:getThreaded",
     "comments:list",
     "videos:get",
+    "videos:listVersions",
     "workspace:resolveContext",
   ]);
 });

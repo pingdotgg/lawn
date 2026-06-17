@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -136,6 +137,16 @@ function VideoIntentTarget({
       ref={dragRef}
       className={cn(className, isDragging && "opacity-50")}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.currentTarget !== event.target) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      role="link"
+      tabIndex={0}
+      aria-label={dragPayload.kind === "video" ? `Open video ${dragPayload.title}` : "Open video"}
       {...prewarmIntentHandlers}
     >
       {children}
@@ -191,6 +202,7 @@ export default function ProjectPage({
     _id: Id<"videos">;
     title: string;
     projectId: Id<"projects">;
+    versionNumber: number;
   } | null>(null);
   const [dndError, setDndError] = useState<string | null>(null);
 
@@ -244,8 +256,13 @@ export default function ProjectPage({
     [requestUpload, resolvedProjectId],
   );
 
-  const handleDeleteVideo = async (videoId: Id<"videos">) => {
-    if (!confirm("Are you sure you want to delete this video?")) return;
+  const handleDeleteVideo = async (videoId: Id<"videos">, versionNumber: number) => {
+    if (
+      !confirm(
+        `Delete the latest version (v${versionNumber})? Its comments and share links will be deleted. The previous version will become latest.`,
+      )
+    )
+      return;
     try {
       await deleteVideo({ videoId });
     } catch (error) {
@@ -368,6 +385,7 @@ export default function ProjectPage({
   }
 
   const canUpload = project?.role !== "viewer";
+  const canDeleteVideo = project?.role === "owner" || project?.role === "admin";
   const hasChildFolders = (childFolders?.length ?? 0) > 0;
   const hasVideos = (videos?.length ?? 0) > 0;
   const showEmptyDropzone = !isLoadingData && !hasVideos && !hasChildFolders;
@@ -430,6 +448,9 @@ export default function ProjectPage({
           {/* View toggle */}
           <div className="flex items-center border-2 border-[#1a1a1a] p-0.5">
             <button
+              type="button"
+              aria-label="Show grid view"
+              aria-pressed={viewMode === "grid"}
               onClick={() => setViewMode("grid")}
               className={cn(
                 "p-1.5 transition-colors",
@@ -441,6 +462,9 @@ export default function ProjectPage({
               <Grid3X3 className="h-4 w-4" />
             </button>
             <button
+              type="button"
+              aria-label="Show list view"
+              aria-pressed={viewMode === "list"}
               onClick={() => setViewMode("list")}
               className={cn(
                 "p-1.5 transition-colors",
@@ -517,6 +541,7 @@ export default function ProjectPage({
                 const canDownload =
                   Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
                 const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
+                const isVersionStack = video.versionNumber > 1;
 
                 return (
                   <VideoIntentTarget
@@ -540,7 +565,14 @@ export default function ProjectPage({
                       })
                     }
                   >
-                    <div className="relative aspect-video overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]">
+                    <div
+                      className={cn(
+                        "relative aspect-video overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px]",
+                        isVersionStack
+                          ? "shadow-[3px_3px_0px_0px_#c8c8c0,6px_6px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_#c8c8c0,4px_4px_0px_0px_var(--shadow-color)]"
+                          : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
+                      )}
+                    >
                       {thumbnailSrc ? (
                         <img
                           src={thumbnailSrc}
@@ -558,6 +590,14 @@ export default function ProjectPage({
                           {formatDuration(video.duration)}
                         </div>
                       )}
+                      {isVersionStack && (
+                        <Badge
+                          variant="default"
+                          className="absolute top-2 left-2 z-10 px-1.5 py-0 text-[10px] text-[#f0f0e8]"
+                        >
+                          Version {video.versionNumber}
+                        </Badge>
+                      )}
                       {video.status !== "ready" && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                           <span className="text-xs font-bold tracking-wider text-white uppercase">
@@ -568,14 +608,15 @@ export default function ProjectPage({
                         </div>
                       )}
                       {/* Hover menu */}
-                      <div className="absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="absolute top-2 right-2 opacity-100 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               className="inline-flex h-8 w-8 cursor-pointer items-center justify-center bg-black/60 text-white hover:bg-black/80"
+                              aria-label={`Open actions for ${video.title}`}
                             >
-                              <MoreVertical className="h-4 w-4" />
+                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -607,23 +648,24 @@ export default function ProjectPage({
                                     _id: video._id,
                                     title: video.title,
                                     projectId: project._id,
+                                    versionNumber: video.versionNumber,
                                   });
                                 }}
                               >
                                 <FolderInput className="mr-2 h-4 w-4" />
-                                Move
+                                Move all versions
                               </DropdownMenuItem>
                             )}
-                            {canUpload && (
+                            {canDeleteVideo && (
                               <DropdownMenuItem
                                 className="text-[#dc2626] focus:text-[#dc2626]"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDeleteVideo(video._id);
+                                  handleDeleteVideo(video._id, video.versionNumber);
                                 }}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
+                                Delete latest version (v{video.versionNumber})
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -680,6 +722,7 @@ export default function ProjectPage({
               const canDownload =
                 Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
               const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
+              const isVersionStack = video.versionNumber > 1;
 
               return (
                 <VideoIntentTarget
@@ -704,7 +747,14 @@ export default function ProjectPage({
                   }
                 >
                   {/* Thumbnail */}
-                  <div className="relative aspect-video w-44 shrink-0 overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] shadow-[4px_4px_0px_0px_var(--shadow-color)] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]">
+                  <div
+                    className={cn(
+                      "relative aspect-video w-44 shrink-0 overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px]",
+                      isVersionStack
+                        ? "shadow-[3px_3px_0px_0px_#c8c8c0,6px_6px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_#c8c8c0,4px_4px_0px_0px_var(--shadow-color)]"
+                        : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
+                    )}
+                  >
                     {thumbnailSrc ? (
                       <img
                         src={thumbnailSrc}
@@ -730,6 +780,14 @@ export default function ProjectPage({
                       <div className="absolute right-1 bottom-1 bg-black/70 px-1 py-0.5 font-mono text-[10px] text-white">
                         {formatDuration(video.duration)}
                       </div>
+                    )}
+                    {isVersionStack && (
+                      <Badge
+                        variant="default"
+                        className="absolute top-1 left-1 z-10 px-1 py-0 text-[9px] text-[#f0f0e8]"
+                      >
+                        Version {video.versionNumber}
+                      </Badge>
                     )}
                   </div>
 
@@ -767,14 +825,15 @@ export default function ProjectPage({
                   </div>
 
                   {/* Actions */}
-                  <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="opacity-100 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           className="inline-flex h-8 w-8 cursor-pointer items-center justify-center text-[#888] hover:text-[#1a1a1a]"
+                          aria-label={`Open actions for ${video.title}`}
                         >
-                          <MoreVertical className="h-4 w-4" />
+                          <MoreVertical className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -806,23 +865,24 @@ export default function ProjectPage({
                                 _id: video._id,
                                 title: video.title,
                                 projectId: project._id,
+                                versionNumber: video.versionNumber,
                               });
                             }}
                           >
                             <FolderInput className="mr-2 h-4 w-4" />
-                            Move
+                            Move all versions
                           </DropdownMenuItem>
                         )}
-                        {canUpload && (
+                        {canDeleteVideo && (
                           <DropdownMenuItem
                             className="text-[#dc2626] focus:text-[#dc2626]"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteVideo(video._id);
+                              handleDeleteVideo(video._id, video.versionNumber);
                             }}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                            Delete latest version (v{video.versionNumber})
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>

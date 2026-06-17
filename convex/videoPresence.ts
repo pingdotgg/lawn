@@ -205,7 +205,9 @@ export const listProjectOnlineCounts = query({
 
     const videos = await ctx.db
       .query("videos")
-      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .withIndex("by_project_and_superseded_by_video_id", (q) =>
+        q.eq("projectId", args.projectId).eq("supersededByVideoId", undefined),
+      )
       .collect();
 
     const counts: Record<string, number> = {};

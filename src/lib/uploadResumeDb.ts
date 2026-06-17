@@ -5,8 +5,32 @@ const DB_VERSION = 1;
 const STORE_NAME = "sessions";
 const RESUME_SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
+export type UploadCreationIntent =
+  | {
+      kind: "standalone";
+      projectId: Id<"projects">;
+    }
+  | {
+      kind: "version";
+      sourceVideoId: Id<"videos">;
+      versionStackId: Id<"videos">;
+    };
+
+type UploadResumeIntent =
+  | {
+      kind: "standalone";
+      projectId: Id<"projects">;
+    }
+  | {
+      kind: "version";
+      versionStackId?: Id<"videos">;
+      sourceVideoId?: Id<"videos">;
+    };
+
 export type MultipartUploadResumeSession = {
   videoId: Id<"videos">;
+  creationIntent?: UploadResumeIntent;
+  // Legacy sessions predate explicit creation intents and are standalone.
   projectId?: Id<"projects">;
   fileName: string;
   fileSize: number;
@@ -20,6 +44,48 @@ export type MultipartUploadResumeSession = {
   completedParts: Array<{ partNumber: number; etag: string }>;
   updatedAt: number;
 };
+
+function getSessionCreationIntent(
+  session: MultipartUploadResumeSession,
+): UploadResumeIntent | undefined {
+  if (session.creationIntent) {
+    return session.creationIntent;
+  }
+  if (session.projectId) {
+    return { kind: "standalone", projectId: session.projectId };
+  }
+  return undefined;
+}
+
+export function uploadCreationIntentsMatch(
+  session: MultipartUploadResumeSession,
+  intent: UploadCreationIntent,
+) {
+  const sessionIntent = getSessionCreationIntent(session);
+  if (!sessionIntent || sessionIntent.kind !== intent.kind) {
+    return false;
+  }
+  if (intent.kind === "standalone") {
+    return sessionIntent.kind === "standalone" && sessionIntent.projectId === intent.projectId;
+  }
+  if (sessionIntent.kind !== "version") {
+    return false;
+  }
+  if (sessionIntent.versionStackId) {
+    return sessionIntent.versionStackId === intent.versionStackId;
+  }
+  return sessionIntent.sourceVideoId === intent.sourceVideoId;
+}
+
+export function getUploadResumeIntent(intent: UploadCreationIntent): UploadResumeIntent {
+  if (intent.kind === "standalone") {
+    return intent;
+  }
+  return {
+    kind: "version",
+    versionStackId: intent.versionStackId,
+  };
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -111,7 +177,7 @@ export async function deleteUploadResumeSession(videoId: Id<"videos">) {
 
 export async function findUploadResumeSessionByFingerprint(
   fingerprint: string,
-  projectId: Id<"projects">,
+  intent: UploadCreationIntent,
 ) {
   try {
     const allSessions = await runTransaction<MultipartUploadResumeSession[]>("readonly", (store) =>
@@ -128,7 +194,7 @@ export async function findUploadResumeSessionByFingerprint(
     );
     return sessions
       .filter((session) => session.updatedAt >= cutoff)
-      .filter((session) => session.projectId === projectId)
+      .filter((session) => uploadCreationIntentsMatch(session, intent))
       .sort((a, b) => b.updatedAt - a.updatedAt)[0];
   } catch {
     return undefined;

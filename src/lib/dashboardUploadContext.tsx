@@ -4,10 +4,27 @@ import type { UploadStatus } from "@/components/upload/UploadProgress";
 
 export type DashboardUploadContextValue = {
   requestUpload: (files: File[], preferredProjectId?: Id<"projects">) => void;
+  requestVersionUpload: (
+    sourceVideoId: Id<"videos">,
+    versionStackId: Id<"videos">,
+    projectId: Id<"projects">,
+    file: File,
+  ) => void;
   uploads: {
     id: string;
     projectId: Id<"projects">;
+    creationIntent:
+      | {
+          kind: "standalone";
+          projectId: Id<"projects">;
+        }
+      | {
+          kind: "version";
+          sourceVideoId: Id<"videos">;
+          versionStackId: Id<"videos">;
+        };
     file: File;
+    videoId?: Id<"videos">;
     progress: number;
     status: UploadStatus;
     error?: string;

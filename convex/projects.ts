@@ -128,7 +128,9 @@ async function folderCounts(
 ): Promise<{ videoCount: number; subfolderCount: number }> {
   const videos = await ctx.db
     .query("videos")
-    .withIndex("by_project", (q) => q.eq("projectId", project._id))
+    .withIndex("by_project_and_superseded_by_video_id", (q) =>
+      q.eq("projectId", project._id).eq("supersededByVideoId", undefined),
+    )
     .collect();
   const subfolders = await ctx.db
     .query("projects")
