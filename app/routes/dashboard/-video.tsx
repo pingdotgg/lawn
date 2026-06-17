@@ -13,7 +13,7 @@ import {
   VideoWorkflowStatusControl,
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
-import { formatDuration } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
@@ -51,6 +51,14 @@ import { prewarmProject } from "./-project.data";
 import { prewarmTeam } from "./-team.data";
 import { prewarmVideo, useVideoData } from "./-video.data";
 
+type VideoVersion = {
+  _id: Id<"videos">;
+  projectId: Id<"projects">;
+  versionNumber: number;
+  status: string;
+  isLatestVersion: boolean;
+};
+
 function versionStatusLabel(status: string) {
   switch (status) {
     case "uploading":
@@ -64,24 +72,43 @@ function versionStatusLabel(status: string) {
   }
 }
 
+function focusNearestSurvivingVersion(deleteItem: HTMLElement) {
+  const deletingRow = deleteItem.closest<HTMLElement>("[data-version-row]");
+  const rowContainer = deletingRow?.parentElement;
+  if (!deletingRow || !rowContainer) return;
+
+  const versionRows = Array.from(rowContainer.children).filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement && child.dataset.versionRow !== undefined,
+  );
+  const deletingIndex = versionRows.indexOf(deletingRow);
+  if (deletingIndex === -1) return;
+
+  const nearestRow = versionRows[deletingIndex + 1] ?? versionRows[deletingIndex - 1];
+  nearestRow?.querySelector<HTMLElement>("[data-version-radio-item]")?.focus();
+}
+
 function VersionSelectorOption({
   version,
   teamSlug,
   currentVideoId,
   onSelect,
+  canDelete,
+  deletingVideoId,
+  onDelete,
 }: {
-  version: {
-    _id: Id<"videos">;
-    projectId: Id<"projects">;
-    versionNumber: number;
-    status: string;
-    isLatestVersion: boolean;
-  };
+  version: VideoVersion;
   teamSlug: string;
   currentVideoId: Id<"videos">;
   onSelect: (videoId: Id<"videos">) => void;
+  canDelete: boolean;
+  deletingVideoId: Id<"videos"> | null;
+  onDelete: (version: VideoVersion, beforeDelete: () => void) => void;
 }) {
   const convex = useConvex();
+  const isDeleting = deletingVideoId === version._id;
+  const deletionPending = deletingVideoId !== null;
+  const selectionDisabled = isDeleting || deletingVideoId === currentVideoId;
   const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
     prewarmVideo(convex, {
       teamSlug,
@@ -91,20 +118,51 @@ function VersionSelectorOption({
   );
 
   return (
-    <DropdownMenuRadioItem
-      value={version._id}
-      onSelect={() => onSelect(version._id)}
-      {...prewarmIntentHandlers}
+    <div
+      role="presentation"
+      data-version-row
+      className={cn(
+        "grid max-h-12 grid-cols-[minmax(0,1fr)_auto] overflow-hidden opacity-100 transition-[max-height,opacity,transform] duration-[180ms] motion-reduce:transition-none",
+        isDeleting && "max-h-0 -translate-x-4 opacity-0",
+      )}
     >
-      <span className="font-bold">v{version.versionNumber}</span>
-      <span className="ml-2 text-xs text-[#888]">
-        {version._id === currentVideoId
-          ? `${version.isLatestVersion ? "Viewing latest" : "Viewing"} · ${versionStatusLabel(version.status)}`
-          : version.isLatestVersion
-            ? `Latest · ${versionStatusLabel(version.status)}`
-            : versionStatusLabel(version.status)}
-      </span>
-    </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem
+        value={version._id}
+        disabled={selectionDisabled}
+        data-version-radio-item
+        className="min-w-0"
+        onSelect={() => onSelect(version._id)}
+        {...prewarmIntentHandlers}
+      >
+        <span className="font-bold">v{version.versionNumber}</span>
+        <span className="ml-2 truncate text-xs text-[#888]">
+          {version._id === currentVideoId
+            ? `${version.isLatestVersion ? "Viewing latest" : "Viewing"} · ${versionStatusLabel(version.status)}`
+            : version.isLatestVersion
+              ? `Latest · ${versionStatusLabel(version.status)}`
+              : versionStatusLabel(version.status)}
+        </span>
+      </DropdownMenuRadioItem>
+      {canDelete && (
+        <DropdownMenuItem
+          disabled={deletionPending}
+          aria-label={`Delete version v${version.versionNumber}`}
+          className="h-10 w-10 justify-center p-0 text-[#dc2626] focus:text-[#dc2626]"
+          onSelect={(event) => {
+            event.preventDefault();
+            const deleteItem = event.currentTarget;
+            onDelete(version, () => {
+              if (deleteItem instanceof HTMLElement) {
+                focusNearestSurvivingVersion(deleteItem);
+              }
+            });
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          <span className="sr-only">Delete version v{version.versionNumber}</span>
+        </DropdownMenuItem>
+      )}
+    </div>
   );
 }
 
@@ -114,62 +172,89 @@ function VersionSelector({
   currentVersionNumber,
   teamSlug,
   onSelect,
+  canDelete,
+  deletingVideoId,
+  onDelete,
   compact = false,
 }: {
-  versions:
-    | Array<{
-        _id: Id<"videos">;
-        projectId: Id<"projects">;
-        versionNumber: number;
-        status: string;
-        isLatestVersion: boolean;
-      }>
-    | undefined;
+  versions: Array<VideoVersion> | undefined;
   currentVideoId: Id<"videos">;
   currentVersionNumber: number;
   teamSlug: string;
   onSelect: (videoId: Id<"videos">) => void;
+  canDelete: boolean;
+  deletingVideoId: Id<"videos"> | null;
+  onDelete: (version: VideoVersion, beforeDelete: () => void) => void;
   compact?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const lastSettledVersionsRef = useRef(versions);
+  useEffect(() => {
+    if (!deletingVideoId) {
+      lastSettledVersionsRef.current = versions;
+    }
+  }, [deletingVideoId, versions]);
+  const displayedVersions = deletingVideoId ? lastSettledVersionsRef.current : versions;
+  const deletingVersionNumber = displayedVersions?.find(
+    (version) => version._id === deletingVideoId,
+  )?.versionNumber;
+  const deletionPending = deletingVideoId !== null;
+  const triggerLabel = deletionPending
+    ? deletingVersionNumber
+      ? `Deleting version v${deletingVersionNumber}`
+      : "Deleting video version"
+    : `Select video version, currently v${currentVersionNumber}`;
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size={compact ? "icon" : "default"}
-          className={compact ? "h-8 w-8" : undefined}
-          aria-label={`Select video version, currently v${currentVersionNumber}`}
-        >
-          {versions === undefined ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+    <>
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size={compact ? "icon" : "default"}
+            className={compact ? "h-8 w-8" : undefined}
+            aria-label={triggerLabel}
+            aria-busy={deletionPending}
+          >
+            {deletionPending || displayedVersions === undefined ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Layers3 className="h-4 w-4" aria-hidden="true" />
+            )}
+            {!compact && <span>v{currentVersionNumber}</span>}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52" aria-busy={deletionPending}>
+          <DropdownMenuLabel>Video versions</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {displayedVersions === undefined ? (
+            <DropdownMenuItem disabled>Loading versions…</DropdownMenuItem>
+          ) : displayedVersions.length === 0 ? (
+            <DropdownMenuItem disabled>No versions available</DropdownMenuItem>
           ) : (
-            <Layers3 className="h-4 w-4" aria-hidden="true" />
+            <DropdownMenuRadioGroup value={currentVideoId}>
+              {displayedVersions.map((version) => (
+                <VersionSelectorOption
+                  key={version._id}
+                  version={version}
+                  teamSlug={teamSlug}
+                  currentVideoId={currentVideoId}
+                  onSelect={onSelect}
+                  canDelete={canDelete}
+                  deletingVideoId={deletingVideoId}
+                  onDelete={onDelete}
+                />
+              ))}
+            </DropdownMenuRadioGroup>
           )}
-          {!compact && <span>v{currentVersionNumber}</span>}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
-        <DropdownMenuLabel>Video versions</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {versions === undefined ? (
-          <DropdownMenuItem disabled>Loading versions…</DropdownMenuItem>
-        ) : versions.length === 0 ? (
-          <DropdownMenuItem disabled>No versions available</DropdownMenuItem>
-        ) : (
-          <DropdownMenuRadioGroup value={currentVideoId}>
-            {versions.map((version) => (
-              <VersionSelectorOption
-                key={version._id}
-                version={version}
-                teamSlug={teamSlug}
-                currentVideoId={currentVideoId}
-                onSelect={onSelect}
-              />
-            ))}
-          </DropdownMenuRadioGroup>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {deletionPending && (
+        <span className="sr-only" role="status" aria-live="polite">
+          {triggerLabel}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -221,8 +306,14 @@ export default function VideoPage() {
   const [isLoadingOriginalPlayback, setIsLoadingOriginalPlayback] = useState(false);
   const [isRetryingFailedProcessing, setIsRetryingFailedProcessing] = useState(false);
   const [retryFailedProcessingError, setRetryFailedProcessingError] = useState<string | null>(null);
+  const [deletingVideoId, setDeletingVideoId] = useState<Id<"videos"> | null>(null);
+  const [deleteNotice, setDeleteNotice] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
   const [preferredSource, setPreferredSource] = useState<"mux720" | "original">("original");
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+  const deletePendingRef = useRef(false);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const playbackUrl = playbackSession?.url ?? null;
   const activePlaybackUrl =
@@ -425,33 +516,88 @@ export default function VideoPage() {
     [requestVersionUpload, resolvedProjectId, resolvedVideoId, video?.versionStackId],
   );
 
-  const handleDeleteVersion = useCallback(async () => {
-    if (!video || !resolvedVideoId || !resolvedProjectId) return;
-    if (
-      !window.confirm(
-        `Delete ${video.isLatestVersion ? "the latest" : "the current"} version (v${video.versionNumber})? Its comments and share links will be deleted.${video.isLatestVersion ? " The previous version will become latest." : ""}`,
-      )
-    ) {
-      return;
-    }
-
-    try {
-      const result = await deleteVideo({ videoId: resolvedVideoId });
-      if (result.replacementVideoId) {
-        navigate({
-          to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
-          replace: true,
-        });
-      } else {
-        navigate({
-          to: projectPath(resolvedTeamSlug, resolvedProjectId),
-          replace: true,
-        });
+  const handleDeleteVersion = useCallback(
+    async (versionToDelete: VideoVersion, animateSelectorRow = true, beforeDelete?: () => void) => {
+      if (deletePendingRef.current || !resolvedVideoId || !resolvedProjectId) return;
+      const isCurrentVersion = versionToDelete._id === resolvedVideoId;
+      const versionChangeCopy = animateSelectorRow
+        ? versionToDelete.isLatestVersion
+          ? " The previous version will become latest."
+          : " Later versions will be renumbered."
+        : "";
+      const destinationCopy = isCurrentVersion
+        ? animateSelectorRow
+          ? " You will be taken to the nearest remaining version."
+          : " You will return to the project."
+        : "";
+      if (
+        !window.confirm(
+          `Delete ${versionToDelete.isLatestVersion ? "latest " : ""}version v${versionToDelete.versionNumber}? Its comments and share links will be deleted.${versionChangeCopy}${destinationCopy} This can't be undone.`,
+        )
+      ) {
+        return;
       }
-    } catch (error) {
-      console.error("Failed to delete video version:", error);
-    }
-  }, [deleteVideo, navigate, resolvedProjectId, resolvedTeamSlug, resolvedVideoId, video]);
+
+      beforeDelete?.();
+      deletePendingRef.current = true;
+      setDeletingVideoId(versionToDelete._id);
+      setDeleteNotice(null);
+
+      try {
+        const deleteRequest = deleteVideo({ videoId: versionToDelete._id }).then(
+          (result) => ({ ok: true as const, result }),
+          (error: unknown) => ({ ok: false as const, error }),
+        );
+
+        if (animateSelectorRow) {
+          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          if (!reduceMotion) {
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+          }
+        }
+
+        const outcome = await deleteRequest;
+        if (outcome.ok === false) {
+          throw outcome.error;
+        }
+
+        const result = outcome.result;
+        const successMessage = animateSelectorRow
+          ? versionToDelete.isLatestVersion
+            ? `Version v${versionToDelete.versionNumber} deleted. The previous version is now latest.`
+            : `Version v${versionToDelete.versionNumber} deleted. Later versions were renumbered.`
+          : "Video deleted. Returning to the project.";
+        setDeleteNotice({
+          tone: "success",
+          message: successMessage,
+        });
+
+        if (isCurrentVersion) {
+          if (result.replacementVideoId) {
+            navigate({
+              to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
+              replace: true,
+            });
+          } else {
+            navigate({
+              to: projectPath(resolvedTeamSlug, resolvedProjectId),
+              replace: true,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to delete video version:", error);
+        setDeleteNotice({
+          tone: "error",
+          message: "Couldn't delete that video version. Please try again.",
+        });
+      } finally {
+        deletePendingRef.current = false;
+        setDeletingVideoId(null);
+      }
+    },
+    [deleteVideo, navigate, resolvedProjectId, resolvedTeamSlug, resolvedVideoId],
+  );
 
   const handleRetryFailedProcessing = useCallback(async () => {
     if (!resolvedVideoId) return;
@@ -581,6 +727,11 @@ export default function VideoPage() {
               currentVersionNumber={video.versionNumber}
               teamSlug={resolvedTeamSlug}
               onSelect={handleVersionSelected}
+              canDelete={canDelete}
+              deletingVideoId={deletingVideoId}
+              onDelete={(versionToDelete, beforeDelete) =>
+                void handleDeleteVersion(versionToDelete, true, beforeDelete)
+              }
             />
           )}
           {canEdit && (
@@ -616,10 +767,22 @@ export default function VideoPage() {
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
               </DropdownMenuItem>
-              {canDelete && (
+              {canDelete && !showVersionSelector && (
                 <DropdownMenuItem
                   className="text-[#dc2626] focus:text-[#dc2626]"
-                  onSelect={() => void handleDeleteVersion()}
+                  disabled={deletingVideoId !== null}
+                  onSelect={() =>
+                    void handleDeleteVersion(
+                      {
+                        _id: resolvedVideoId,
+                        projectId: resolvedProjectId,
+                        versionNumber: video.versionNumber,
+                        status: video.status,
+                        isLatestVersion: video.isLatestVersion,
+                      },
+                      false,
+                    )
+                  }
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {`Delete ${video.isLatestVersion ? "latest" : "current"} version (v${video.versionNumber})`}
@@ -638,6 +801,11 @@ export default function VideoPage() {
               currentVersionNumber={video.versionNumber}
               teamSlug={resolvedTeamSlug}
               onSelect={handleVersionSelected}
+              canDelete={canDelete}
+              deletingVideoId={deletingVideoId}
+              onDelete={(versionToDelete, beforeDelete) =>
+                void handleDeleteVersion(versionToDelete, true, beforeDelete)
+              }
               compact
             />
           )}
@@ -681,10 +849,22 @@ export default function VideoPage() {
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
               </DropdownMenuItem>
-              {canDelete && (
+              {canDelete && !showVersionSelector && (
                 <DropdownMenuItem
                   className="text-[#dc2626] focus:text-[#dc2626]"
-                  onSelect={() => void handleDeleteVersion()}
+                  disabled={deletingVideoId !== null}
+                  onSelect={() =>
+                    void handleDeleteVersion(
+                      {
+                        _id: resolvedVideoId,
+                        projectId: resolvedProjectId,
+                        versionNumber: video.versionNumber,
+                        status: video.status,
+                        isLatestVersion: video.isLatestVersion,
+                      },
+                      false,
+                    )
+                  }
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {`Delete ${video.isLatestVersion ? "latest" : "current"} version (v${video.versionNumber})`}
@@ -900,6 +1080,29 @@ export default function VideoPage() {
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
       />
+      {deleteNotice ? (
+        <div
+          className={cn(
+            "fixed top-4 right-4 z-50 flex items-center gap-3 border-2 px-3 py-2 text-sm font-bold shadow-[4px_4px_0px_0px_var(--shadow-color)]",
+            deleteNotice.tone === "error"
+              ? "border-[#dc2626] bg-[#fef2f2] text-[#dc2626]"
+              : "border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a]",
+          )}
+          role={deleteNotice.tone === "error" ? "alert" : "status"}
+          aria-live={deleteNotice.tone === "error" ? "assertive" : "polite"}
+          aria-atomic="true"
+        >
+          <span>{deleteNotice.message}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteNotice(null)}
+            className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center"
+            aria-label="Dismiss deletion notice"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

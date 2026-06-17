@@ -23,10 +23,13 @@ const workflowStatusValidator = v.union(
 
 const visibilityValidator = v.union(v.literal("public"), v.literal("private"));
 
-const VIDEO_DELETE_BATCH_DOCS = 500;
+const VIDEO_DEPENDENT_DELETE_BATCH_DOCS = 8;
 export const MAX_VIDEO_STACK_SIZE = 100;
 const VIDEO_STACK_LIMIT_ERROR = `A video can have at most ${MAX_VIDEO_STACK_SIZE} versions.`;
 const VIDEO_STACK_HEAD_ERROR = "A video version stack must have exactly one latest version.";
+const VIDEO_STACK_CHAIN_ERROR =
+  "A video version stack must be one connected acyclic chain within a single project.";
+const VIDEO_STACK_PROJECT_ERROR = "All versions of a video must belong to the same project";
 
 type WorkflowStatus = "review" | "rework" | "done";
 type StackReadCtx = Pick<QueryCtx, "db">;
@@ -39,10 +42,13 @@ function normalizeVersionNumber(video: Doc<"videos">) {
   return video.versionNumber ?? 1;
 }
 
-async function getStackVersions(ctx: StackReadCtx, video: Doc<"videos">) {
+async function getOrderedStackVersions(ctx: StackReadCtx, video: Doc<"videos">) {
   if (!video.versionStackId) {
+    if (video.supersededByVideoId !== undefined) {
+      throw new Error(VIDEO_STACK_CHAIN_ERROR);
+    }
     return {
-      versions: [video],
+      oldestToNewest: [video],
       latest: video,
     };
   }
@@ -59,19 +65,65 @@ async function getStackVersions(ctx: StackReadCtx, video: Doc<"videos">) {
     throw new Error(VIDEO_STACK_LIMIT_ERROR);
   }
 
-  const latestVersions = versions.filter(
-    (stackVersion) => stackVersion.supersededByVideoId === undefined,
-  );
-  if (latestVersions.length !== 1) {
+  if (!versions.some((stackVersion) => stackVersion._id === video._id)) {
+    throw new Error(VIDEO_STACK_CHAIN_ERROR);
+  }
+  if (!versions.every((stackVersion) => stackVersion.projectId === video.projectId)) {
+    throw new Error(VIDEO_STACK_PROJECT_ERROR);
+  }
+
+  const heads = versions.filter((stackVersion) => stackVersion.supersededByVideoId === undefined);
+  if (heads.length !== 1) {
     throw new Error(VIDEO_STACK_HEAD_ERROR);
   }
 
+  const byId = new Map(versions.map((stackVersion) => [stackVersion._id, stackVersion]));
+  const predecessorCounts = new Map(versions.map((stackVersion) => [stackVersion._id, 0]));
+
+  for (const stackVersion of versions) {
+    if (!stackVersion.supersededByVideoId) continue;
+    if (!byId.has(stackVersion.supersededByVideoId)) {
+      throw new Error(VIDEO_STACK_CHAIN_ERROR);
+    }
+    const predecessorCount = predecessorCounts.get(stackVersion.supersededByVideoId);
+    if (predecessorCount === undefined || predecessorCount > 0) {
+      throw new Error(VIDEO_STACK_CHAIN_ERROR);
+    }
+    predecessorCounts.set(stackVersion.supersededByVideoId, predecessorCount + 1);
+  }
+
+  const roots = versions.filter((stackVersion) => predecessorCounts.get(stackVersion._id) === 0);
+  if (roots.length !== 1) {
+    throw new Error(VIDEO_STACK_CHAIN_ERROR);
+  }
+
+  const oldestToNewest: Doc<"videos">[] = [];
+  const visited = new Set<Id<"videos">>();
+  let current: Doc<"videos"> | undefined = roots[0];
+  while (current) {
+    if (visited.has(current._id)) {
+      throw new Error(VIDEO_STACK_CHAIN_ERROR);
+    }
+    visited.add(current._id);
+    oldestToNewest.push(current);
+    current = current.supersededByVideoId ? byId.get(current.supersededByVideoId) : undefined;
+  }
+
+  if (oldestToNewest.length !== versions.length || oldestToNewest.at(-1)?._id !== heads[0]._id) {
+    throw new Error(VIDEO_STACK_CHAIN_ERROR);
+  }
+
   return {
-    versions: [...versions].sort(
-      (a, b) =>
-        normalizeVersionNumber(b) - normalizeVersionNumber(a) || b._creationTime - a._creationTime,
-    ),
-    latest: latestVersions[0],
+    oldestToNewest,
+    latest: heads[0],
+  };
+}
+
+async function getStackVersions(ctx: StackReadCtx, video: Doc<"videos">) {
+  const { oldestToNewest, latest } = await getOrderedStackVersions(ctx, video);
+  return {
+    versions: [...oldestToNewest].reverse(),
+    latest,
   };
 }
 
@@ -100,7 +152,17 @@ async function failOrRollbackUpload(ctx: MutationCtx, video: Doc<"videos">, uplo
     video.status !== "ready" &&
     !video.muxAssetId
   ) {
-    await deleteVideoAndDependents(ctx, video._id);
+    await deleteVersionAndRenumberStack(ctx, video);
+    const result = await deleteVideoDependentsBatch(
+      ctx,
+      video._id,
+      VIDEO_DEPENDENT_DELETE_BATCH_DOCS,
+    );
+    if (!result.done) {
+      await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, {
+        videoId: video._id,
+      });
+    }
     return true;
   }
 
@@ -243,6 +305,78 @@ export async function deleteVideoAndDependentsBatch(
   await rewireStackBeforeDelete(ctx, video);
   await ctx.db.delete(videoId);
   return { deleted: deleted + 1, done: true };
+}
+
+async function deleteVideoDependentsBatch(
+  ctx: MutationCtx,
+  videoId: Id<"videos">,
+  maxDocuments: number,
+) {
+  let remaining = maxDocuments;
+  let deleted = 0;
+
+  const comments = await ctx.db
+    .query("comments")
+    .withIndex("by_video", (q) => q.eq("videoId", videoId))
+    .take(remaining);
+  for (const comment of comments) {
+    await ctx.db.delete(comment._id);
+  }
+  deleted += comments.length;
+  remaining -= comments.length;
+  if (remaining === 0) return { deleted, done: false };
+
+  while (remaining > 0) {
+    const link = await ctx.db
+      .query("shareLinks")
+      .withIndex("by_video", (q) => q.eq("videoId", videoId))
+      .first();
+    if (!link) {
+      return { deleted, done: true };
+    }
+
+    const grants = await ctx.db
+      .query("shareAccessGrants")
+      .withIndex("by_share_link", (q) => q.eq("shareLinkId", link._id))
+      .take(remaining);
+    for (const grant of grants) {
+      await ctx.db.delete(grant._id);
+    }
+    deleted += grants.length;
+    remaining -= grants.length;
+    if (remaining === 0) return { deleted, done: false };
+
+    await ctx.db.delete(link._id);
+    deleted++;
+    remaining--;
+  }
+
+  return { deleted, done: false };
+}
+
+async function deleteVersionAndRenumberStack(ctx: MutationCtx, video: Doc<"videos">) {
+  const { oldestToNewest } = await getOrderedStackVersions(ctx, video);
+  const targetIndex = oldestToNewest.findIndex((stackVersion) => stackVersion._id === video._id);
+  if (targetIndex === -1) {
+    throw new Error(VIDEO_STACK_CHAIN_ERROR);
+  }
+
+  const replacementVideoId =
+    oldestToNewest[targetIndex + 1]?._id ?? oldestToNewest[targetIndex - 1]?._id ?? null;
+  const survivors = oldestToNewest.filter((stackVersion) => stackVersion._id !== video._id);
+
+  if (video.versionStackId) {
+    for (const [index, survivor] of survivors.entries()) {
+      await ctx.db.patch(survivor._id, {
+        versionStackId: video.versionStackId,
+        versionNumber: index + 1,
+        supersededByVideoId: survivors[index + 1]?._id,
+      });
+    }
+  }
+
+  await ctx.db.delete(video._id);
+  return replacementVideoId;
 }
 
 async function insertVersionRecord(
@@ -666,10 +800,12 @@ export const remove = mutation({
   }),
   handler: async (ctx, args) => {
     const { video } = await requireVideoAccess(ctx, args.videoId, "admin");
-    await getStackVersions(ctx, video);
-    const predecessor = await getPredecessor(ctx, args.videoId);
-    const replacementVideoId = video.supersededByVideoId ?? predecessor?._id ?? null;
-    const result = await deleteVideoAndDependentsBatch(ctx, args.videoId, VIDEO_DELETE_BATCH_DOCS);
+    const replacementVideoId = await deleteVersionAndRenumberStack(ctx, video);
+    const result = await deleteVideoDependentsBatch(
+      ctx,
+      args.videoId,
+      VIDEO_DEPENDENT_DELETE_BATCH_DOCS,
+    );
     if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, {
         videoId: args.videoId,
@@ -682,7 +818,11 @@ export const remove = mutation({
 export const continueVideoDelete = internalMutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
-    const result = await deleteVideoAndDependentsBatch(ctx, args.videoId, VIDEO_DELETE_BATCH_DOCS);
+    const result = await deleteVideoDependentsBatch(
+      ctx,
+      args.videoId,
+      VIDEO_DEPENDENT_DELETE_BATCH_DOCS,
+    );
     if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, args);
     }

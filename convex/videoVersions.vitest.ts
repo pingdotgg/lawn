@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from "convex-test";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { getTeamStorageUsedBytes } from "./billingHelpers";
 import { createVersionRecord, MAX_VIDEO_STACK_SIZE } from "./videos";
@@ -220,6 +220,127 @@ test("rejects a stack with more than one head", async () => {
   ).rejects.toThrow("exactly one latest version");
 });
 
+test("rejects deletion when the stack is not one connected chain", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await t.run(async (ctx) => {
+    const teamId = await ctx.db.insert("teams", {
+      name: "Garden",
+      slug: "garden",
+      ownerClerkId: "owner",
+      plan: "basic",
+    });
+    await ctx.db.insert("teamMembers", {
+      teamId,
+      userClerkId: "owner",
+      userEmail: "owner@example.com",
+      userName: "Owner",
+      role: "owner",
+    });
+    const projectId = await ctx.db.insert("projects", {
+      teamId,
+      name: "Campaign",
+    });
+    const v1 = await ctx.db.insert("videos", {
+      projectId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      title: "Cut",
+      visibility: "public",
+      publicId: "disconnected-v1",
+      status: "ready",
+      workflowStatus: "review",
+      versionNumber: 1,
+    });
+    await ctx.db.patch(v1, { versionStackId: v1 });
+    const v2 = await ctx.db.insert("videos", {
+      projectId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      title: "Cut",
+      visibility: "public",
+      publicId: "disconnected-v2",
+      status: "ready",
+      workflowStatus: "review",
+      versionStackId: v1,
+      versionNumber: 2,
+    });
+    const v3 = await ctx.db.insert("videos", {
+      projectId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      title: "Cut",
+      visibility: "public",
+      publicId: "disconnected-v3",
+      status: "ready",
+      workflowStatus: "review",
+      versionStackId: v1,
+      versionNumber: 3,
+    });
+    await ctx.db.patch(v1, { supersededByVideoId: v2 });
+    await ctx.db.patch(v3, { supersededByVideoId: v3 });
+    return { v1 };
+  });
+
+  await expect(
+    t.withIdentity({ subject: "owner" }).mutation(api.videos.remove, {
+      videoId: seeded.v1,
+    }),
+  ).rejects.toThrow("one connected acyclic chain");
+});
+
+test("rejects deletion when stack versions cross projects", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await t.run(async (ctx) => {
+    const teamId = await ctx.db.insert("teams", {
+      name: "Garden",
+      slug: "garden",
+      ownerClerkId: "owner",
+      plan: "basic",
+    });
+    await ctx.db.insert("teamMembers", {
+      teamId,
+      userClerkId: "owner",
+      userEmail: "owner@example.com",
+      userName: "Owner",
+      role: "owner",
+    });
+    const projectId = await ctx.db.insert("projects", {
+      teamId,
+      name: "Campaign",
+    });
+    const otherProjectId = await ctx.db.insert("projects", {
+      teamId,
+      name: "Other",
+    });
+    const v1 = await ctx.db.insert("videos", {
+      projectId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      title: "Cut",
+      visibility: "public",
+      publicId: "cross-project-v1",
+      status: "ready",
+      workflowStatus: "review",
+    });
+    return { otherProjectId, v1 };
+  });
+  const { videoId: v2 } = await t.run((ctx) =>
+    createVersionRecord(ctx, {
+      sourceVideoId: seeded.v1,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      publicId: "cross-project-v2",
+    }),
+  );
+  await t.run((ctx) => ctx.db.patch(v2, { projectId: seeded.otherProjectId }));
+
+  await expect(
+    t.withIdentity({ subject: "owner" }).mutation(api.videos.remove, {
+      videoId: seeded.v1,
+    }),
+  ).rejects.toThrow("must belong to the same project");
+});
+
 test("moves the whole stack and rewires middle and latest deletions", async () => {
   const t = convexTest(schema, modules);
   const seeded = await t.run(async (ctx) => {
@@ -296,13 +417,23 @@ test("moves the whole stack and rewires middle and latest deletions", async () =
     v3: await ctx.db.get(v3),
   }));
   expect(afterMiddleDelete.v2).toBeNull();
-  expect(afterMiddleDelete.v1?.supersededByVideoId).toBe(v3);
+  expect(afterMiddleDelete.v1).toMatchObject({
+    versionNumber: 1,
+    supersededByVideoId: v3,
+  });
+  expect(afterMiddleDelete.v3).toMatchObject({
+    versionNumber: 2,
+  });
   expect(afterMiddleDelete.v3?.supersededByVideoId).toBeUndefined();
 
   const latestDelete = await authed.mutation(api.videos.remove, { videoId: v3 });
   expect(latestDelete.replacementVideoId).toBe(seeded.v1);
 
   const promoted = await t.run((ctx) => ctx.db.get(seeded.v1));
+  expect(promoted).toMatchObject({
+    versionStackId: seeded.v1,
+    versionNumber: 1,
+  });
   expect(promoted?.supersededByVideoId).toBeUndefined();
 
   const visible = await authed.query(api.videos.list, {
@@ -369,7 +500,7 @@ test("refuses to move a stack whose versions do not share the source project", a
   ).rejects.toThrow("must belong to the same project");
 });
 
-test("deleting the first version preserves the remaining stack", async () => {
+test("deleting v1 preserves stable identities and supports creating the next version", async () => {
   const t = convexTest(schema, modules);
   const seeded = await t.run(async (ctx) => {
     const teamId = await ctx.db.insert("teams", {
@@ -418,6 +549,16 @@ test("deleting the first version preserves the remaining stack", async () => {
       publicId: "first-v3",
     }),
   );
+  const survivorShareLinkId = await t.run((ctx) =>
+    ctx.db.insert("shareLinks", {
+      videoId: v2,
+      token: "survivor-share-link",
+      createdByClerkId: "user_1",
+      createdByName: "Owner",
+      allowDownload: true,
+      viewCount: 0,
+    }),
+  );
 
   const authed = t.withIdentity({ subject: "user_1" });
   const result = await authed.mutation(api.videos.remove, { videoId: seeded.v1 });
@@ -425,12 +566,198 @@ test("deleting the first version preserves the remaining stack", async () => {
 
   const versions = await authed.query(api.videos.listVersions, { videoId: v2 });
   expect(versions.map((version) => [version._id, version.versionNumber])).toEqual([
-    [v3, 3],
-    [v2, 2],
+    [v3, 2],
+    [v2, 1],
   ]);
 
+  const preserved = await t.run(async (ctx) => ({
+    v2: await ctx.db.get(v2),
+    v3: await ctx.db.get(v3),
+    survivorShareLink: await ctx.db.get(survivorShareLinkId),
+  }));
+  expect(preserved.v2).toMatchObject({
+    publicId: "first-v2",
+    versionStackId: seeded.v1,
+    versionNumber: 1,
+    supersededByVideoId: v3,
+  });
+  expect(preserved.v3).toMatchObject({
+    publicId: "first-v3",
+    versionStackId: seeded.v1,
+    versionNumber: 2,
+  });
+  expect(preserved.survivorShareLink).toMatchObject({
+    videoId: v2,
+    token: "survivor-share-link",
+  });
+
+  const {
+    videoId: v4,
+    versionStackId,
+    versionNumber,
+  } = await t.run((ctx) =>
+    createVersionRecord(ctx, {
+      sourceVideoId: v2,
+      uploadedByClerkId: "user_1",
+      uploaderName: "Owner",
+      publicId: "first-v4",
+    }),
+  );
+  expect({ versionStackId, versionNumber }).toEqual({
+    versionStackId: seeded.v1,
+    versionNumber: 3,
+  });
+  const appended = await t.run((ctx) => ctx.db.get(v4));
+  expect(appended).toMatchObject({
+    publicId: "first-v4",
+    versionStackId: seeded.v1,
+    versionNumber: 3,
+  });
+
   const visible = await authed.query(api.videos.list, { projectId: seeded.projectId });
-  expect(visible.map((video) => video._id)).toEqual([v3]);
+  expect(visible.map((video) => video._id)).toEqual([v4]);
+});
+
+test("deletes dependents in resumable batches after removing the version row", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const teamId = await ctx.db.insert("teams", {
+        name: "Garden",
+        slug: "garden",
+        ownerClerkId: "owner",
+        plan: "basic",
+      });
+      await ctx.db.insert("teamMembers", {
+        teamId,
+        userClerkId: "owner",
+        userEmail: "owner@example.com",
+        userName: "Owner",
+        role: "owner",
+      });
+      const projectId = await ctx.db.insert("projects", {
+        teamId,
+        name: "Campaign",
+      });
+      const v1 = await ctx.db.insert("videos", {
+        projectId,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        title: "Cut",
+        visibility: "public",
+        publicId: "batch-v1",
+        status: "ready",
+        workflowStatus: "review",
+      });
+      return { projectId, v1 };
+    });
+    const { videoId: v2 } = await t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: seeded.v1,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "batch-v2",
+      }),
+    );
+    const { videoId: v3 } = await t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: v2,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "batch-v3",
+      }),
+    );
+    const dependents = await t.run(async (ctx) => {
+      for (let index = 0; index < 26; index += 1) {
+        await ctx.db.insert("comments", {
+          videoId: v2,
+          userClerkId: "owner",
+          userName: "Owner",
+          text: `Comment ${index}`,
+          timestampSeconds: index,
+          resolved: false,
+        });
+      }
+      const shareLinkId = await ctx.db.insert("shareLinks", {
+        videoId: v2,
+        token: "batch-link",
+        createdByClerkId: "owner",
+        createdByName: "Owner",
+        allowDownload: true,
+        viewCount: 0,
+      });
+      const grantId = await ctx.db.insert("shareAccessGrants", {
+        shareLinkId,
+        token: "batch-grant",
+        expiresAt: Date.now() + 60_000,
+        createdAt: Date.now(),
+      });
+      return { shareLinkId, grantId };
+    });
+
+    const result = await t
+      .withIdentity({ subject: "owner" })
+      .mutation(api.videos.remove, { videoId: v2 });
+    expect(result.replacementVideoId).toBe(v3);
+
+    const immediate = await t.run(async (ctx) => ({
+      target: await ctx.db.get(v2),
+      v1: await ctx.db.get(seeded.v1),
+      v3: await ctx.db.get(v3),
+      remainingComments: await ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+    }));
+    expect(immediate.target).toBeNull();
+    expect(immediate.v1).toMatchObject({
+      versionNumber: 1,
+      supersededByVideoId: v3,
+    });
+    expect(immediate.v3).toMatchObject({
+      versionNumber: 2,
+    });
+    expect(immediate.remainingComments).toHaveLength(18);
+
+    vi.runOnlyPendingTimers();
+    await t.finishInProgressScheduledFunctions();
+    const afterFirstContinuation = await t.run((ctx) =>
+      ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+    );
+    expect(afterFirstContinuation).toHaveLength(10);
+
+    vi.runOnlyPendingTimers();
+    await t.finishInProgressScheduledFunctions();
+    const afterSecondContinuation = await t.run((ctx) =>
+      ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+    );
+    expect(afterSecondContinuation).toHaveLength(2);
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    const completed = await t.run(async (ctx) => ({
+      comments: await ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+      shareLink: await ctx.db.get(dependents.shareLinkId),
+      grant: await ctx.db.get(dependents.grantId),
+    }));
+    expect(completed).toEqual({
+      comments: [],
+      shareLink: null,
+      grant: null,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("deletes an unstacked legacy video with no replacement", async () => {
@@ -572,6 +899,11 @@ test("public version paths enforce authentication and member authorization", asy
       contentType: "video/mp4",
     }),
   ).rejects.toThrow("Requires member role or higher");
+  await expect(
+    t.withIdentity({ subject: "member" }).mutation(api.videos.remove, {
+      videoId: seeded.videoId,
+    }),
+  ).rejects.toThrow("Requires admin role or higher");
 
   const versions = await t
     .withIdentity({ subject: "member" })
@@ -637,6 +969,129 @@ test("abandoned version uploads atomically restore the previous head", async () 
     .withIdentity({ subject: "owner" })
     .query(api.videos.list, { projectId: seeded.projectId });
   expect(visible.map((video) => video._id)).toEqual([seeded.v1]);
+});
+
+test("rolling back a provisional middle version renumbers and remains appendable", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const seeded = await t.run(async (ctx) => {
+      const teamId = await ctx.db.insert("teams", {
+        name: "Garden",
+        slug: "garden",
+        ownerClerkId: "owner",
+        plan: "basic",
+      });
+      await ctx.db.insert("teamMembers", {
+        teamId,
+        userClerkId: "owner",
+        userEmail: "owner@example.com",
+        userName: "Owner",
+        role: "owner",
+      });
+      const projectId = await ctx.db.insert("projects", {
+        teamId,
+        name: "Campaign",
+      });
+      const v1 = await ctx.db.insert("videos", {
+        projectId,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        title: "Cut",
+        visibility: "public",
+        publicId: "middle-rollback-v1",
+        status: "ready",
+        workflowStatus: "review",
+      });
+      return { v1 };
+    });
+    const { videoId: v2 } = await t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: seeded.v1,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "middle-rollback-v2",
+      }),
+    );
+    const { videoId: v3 } = await t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: v2,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "middle-rollback-v3",
+      }),
+    );
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 10; index += 1) {
+        await ctx.db.insert("comments", {
+          videoId: v2,
+          userClerkId: "owner",
+          userName: "Owner",
+          text: `Rollback comment ${index}`,
+          timestampSeconds: index,
+          resolved: false,
+        });
+      }
+    });
+
+    const result = await t.mutation(internal.videos.finalizeAbandonedUpload, {
+      videoId: v2,
+      uploadError: "Upload cancelled.",
+    });
+    expect(result.removedVersion).toBe(true);
+
+    const immediate = await t.run(async (ctx) => ({
+      v1: await ctx.db.get(seeded.v1),
+      v2: await ctx.db.get(v2),
+      v3: await ctx.db.get(v3),
+      remainingComments: await ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+    }));
+    expect(immediate.v2).toBeNull();
+    expect(immediate.v1).toMatchObject({
+      versionNumber: 1,
+      supersededByVideoId: v3,
+    });
+    expect(immediate.v3).toMatchObject({
+      versionNumber: 2,
+    });
+    expect(immediate.remainingComments).toHaveLength(2);
+
+    const appended = await t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: seeded.v1,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "middle-rollback-v4",
+      }),
+    );
+    expect(appended).toMatchObject({
+      versionStackId: seeded.v1,
+      versionNumber: 3,
+    });
+
+    const versions = await t
+      .withIdentity({ subject: "owner" })
+      .query(api.videos.listVersions, { videoId: appended.videoId });
+    expect(versions.map((version) => [version._id, version.versionNumber])).toEqual([
+      [appended.videoId, 3],
+      [v3, 2],
+      [seeded.v1, 1],
+    ]);
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    const remainingComments = await t.run((ctx) =>
+      ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", v2))
+        .collect(),
+    );
+    expect(remainingComments).toEqual([]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("hard failure after promotion rolls back a version before a Mux asset exists", async () => {
@@ -936,6 +1391,77 @@ test("concurrent version creation serializes into one ordered chain", async () =
   expect(chain[0]?.[1]).toBeTruthy();
   expect(chain[1]?.[1]).toBeTruthy();
   expect(chain[2]?.[1]).toBeNull();
+});
+
+test("concurrent version creation and deletion preserve a contiguous chain", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await t.run(async (ctx) => {
+    const teamId = await ctx.db.insert("teams", {
+      name: "Garden",
+      slug: "garden",
+      ownerClerkId: "owner",
+      plan: "basic",
+    });
+    await ctx.db.insert("teamMembers", {
+      teamId,
+      userClerkId: "owner",
+      userEmail: "owner@example.com",
+      userName: "Owner",
+      role: "owner",
+    });
+    const projectId = await ctx.db.insert("projects", {
+      teamId,
+      name: "Campaign",
+    });
+    const v1 = await ctx.db.insert("videos", {
+      projectId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      title: "Cut",
+      visibility: "public",
+      publicId: "concurrent-delete-v1",
+      status: "ready",
+      workflowStatus: "review",
+    });
+    return { v1 };
+  });
+  const { videoId: v2 } = await t.run((ctx) =>
+    createVersionRecord(ctx, {
+      sourceVideoId: seeded.v1,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      publicId: "concurrent-delete-v2",
+    }),
+  );
+  await t.run((ctx) =>
+    createVersionRecord(ctx, {
+      sourceVideoId: v2,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      publicId: "concurrent-delete-v3",
+    }),
+  );
+
+  const [created] = await Promise.all([
+    t.run((ctx) =>
+      createVersionRecord(ctx, {
+        sourceVideoId: seeded.v1,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        publicId: "concurrent-delete-v4",
+      }),
+    ),
+    t.withIdentity({ subject: "owner" }).mutation(api.videos.remove, {
+      videoId: v2,
+    }),
+  ]);
+
+  const versions = await t
+    .withIdentity({ subject: "owner" })
+    .query(api.videos.listVersions, { videoId: created.videoId });
+  expect(versions.map((version) => version.versionNumber)).toEqual([3, 2, 1]);
+  expect(versions.map((version) => version._id)).toContain(created.videoId);
+  await expect(t.run((ctx) => ctx.db.get(v2))).resolves.toBeNull();
 });
 
 test("version stack operations enforce the explicit stack limit", async () => {

@@ -94,6 +94,8 @@ export default defineSchema({
     workflowStatus: v.union(v.literal("review"), v.literal("rework"), v.literal("done")),
     // Existing rows are implicit v1 videos. These fields are materialized when
     // the first additional version is created, so no backfill is required.
+    // versionStackId is an opaque stable identity and can keep referencing a
+    // deleted original v1 row.
     versionStackId: v.optional(v.id("videos")),
     versionNumber: v.optional(v.number()),
     supersededByVideoId: v.optional(v.id("videos")),
