@@ -85,21 +85,14 @@ export function useFolderDropTarget<T extends HTMLElement>(
     const element = ref.current;
     if (!element || disabled) return;
 
-    // Per-drag memo of descendant sets (a drag re-invokes canDrop repeatedly).
-    let descendantCache = new Map<Id<"projects">, Set<Id<"projects">>>();
+    // Recompute descendants on each canDrop call (cheap for these small folder
+    // lists) so the guard always reflects the latest folder tree — it changes as
+    // items are moved, so caching across drags would go stale.
     const ctx = (): CanDropContext => ({
       targetProjectId: stateRef.current.targetProjectId,
       teamId: stateRef.current.teamId,
-      descendantsOf: (folderId) => {
-        const cached = descendantCache.get(folderId);
-        if (cached) return cached;
-        const computed = collectDescendantIds(
-          folderId,
-          stateRef.current.folders ?? [],
-        );
-        descendantCache.set(folderId, computed);
-        return computed;
-      },
+      descendantsOf: (folderId) =>
+        collectDescendantIds(folderId, stateRef.current.folders ?? []),
     });
 
     return dropTargetForElements({
@@ -123,8 +116,6 @@ export function useFolderDropTarget<T extends HTMLElement>(
       onDrop: ({ source }) => {
         setIsDraggedOver(false);
         setCanDropHere(false);
-        // Reset the per-drag cache for the next drag.
-        descendantCache = new Map();
         const payload = readDragPayload(source.data);
         if (!payload) return;
         if (!computeCanDrop(payload, ctx())) return;

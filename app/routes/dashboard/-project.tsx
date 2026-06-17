@@ -543,11 +543,11 @@ export default function ProjectPage({
                     projectId={project._id}
                     videoId={video._id}
                     muxPlaybackId={video.muxPlaybackId}
-                    dragDisabled={!canUpload || !teamId}
+                    dragDisabled={!canUpload || !teamId || !resolvedProjectId}
                     dragPayload={{
                       kind: "video",
                       videoId: video._id,
-                      sourceProjectId: project._id,
+                      sourceProjectId: resolvedProjectId as Id<"projects">,
                       teamId: teamId as Id<"teams">,
                       title: video.title,
                     }}
@@ -710,11 +710,11 @@ export default function ProjectPage({
                   projectId={project._id}
                   videoId={video._id}
                   muxPlaybackId={video.muxPlaybackId}
-                  dragDisabled={!canUpload || !teamId}
+                  dragDisabled={!canUpload || !teamId || !resolvedProjectId}
                   dragPayload={{
                     kind: "video",
                     videoId: video._id,
-                    sourceProjectId: project._id,
+                    sourceProjectId: resolvedProjectId as Id<"projects">,
                     teamId: teamId as Id<"teams">,
                     title: video.title,
                   }}
