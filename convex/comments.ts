@@ -267,6 +267,33 @@ export const getThreadedForPublic = query({
   },
 });
 
+export const getThreadedForProjectShare = query({
+  args: { shareToken: v.string(), videoId: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!project) return [];
+
+    const normalizedVideoId = ctx.db.normalizeId("videos", args.videoId);
+    if (!normalizedVideoId) return [];
+
+    const video = await ctx.db.get(normalizedVideoId);
+    if (!video || video.projectId !== project._id || video.status !== "ready") {
+      return [];
+    }
+
+    const comments = await ctx.db
+      .query("comments")
+      .withIndex("by_video", (q) => q.eq("videoId", video._id))
+      .collect();
+
+    return toThreadedComments(comments.map(toPublicCommentPayload));
+  },
+});
+
 export const getThreadedForShareGrant = query({
   args: { grantToken: v.string() },
   handler: async (ctx, args) => {

@@ -1222,6 +1222,34 @@ export const getSharedPlaybackSession = action({
   },
 });
 
+export const getProjectSharePlaybackSession = action({
+  args: { shareToken: v.string(), videoId: v.string() },
+  returns: v.object({
+    url: v.string(),
+    posterUrl: v.string(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ url: string; posterUrl: string }> => {
+    const result = await ctx.runQuery(api.videos.getForProjectShare, {
+      shareToken: args.shareToken,
+      videoId: args.videoId,
+    });
+
+    if (!result?.muxPlaybackId) {
+      throw new Error("Video not found or not ready");
+    }
+
+    const playbackId = await ensurePublicPlaybackId(ctx, {
+      videoId: result._id,
+      muxAssetId: result.muxAssetId,
+      muxPlaybackId: result.muxPlaybackId,
+    });
+    return buildPublicPlaybackSession(playbackId);
+  },
+});
+
 export const getDownloadUrl = action({
   args: { videoId: v.id("videos") },
   returns: v.object({

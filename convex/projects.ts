@@ -2,6 +2,15 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
+import { generateUniqueToken } from "./security";
+
+function omitShareToken<T extends { shareToken?: string }>(
+  project: T,
+): Omit<T, "shareToken"> {
+  const copy = { ...project } as Record<string, unknown>;
+  delete copy.shareToken;
+  return copy as Omit<T, "shareToken">;
+}
 
 export const create = mutation({
   args: {
@@ -38,8 +47,9 @@ export const list = query({
           .query("videos")
           .withIndex("by_project", (q) => q.eq("projectId", project._id))
           .collect();
+        const projectWithoutToken = omitShareToken(project);
         return {
-          ...project,
+          ...projectWithoutToken,
           videoCount: videos.length,
         };
       })
@@ -101,7 +111,16 @@ export const get = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { project, membership } = await requireProjectAccess(ctx, args.projectId);
-    return { ...project, role: membership.role };
+    const projectWithoutToken = omitShareToken(project);
+    return { ...projectWithoutToken, role: membership.role };
+  },
+});
+
+export const getShareToken = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const { project } = await requireProjectAccess(ctx, args.projectId, "member");
+    return { shareToken: project.shareToken ?? null };
   },
 });
 
@@ -119,6 +138,52 @@ export const update = mutation({
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.projectId, updates);
+  },
+});
+
+export const generateShareToken = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await requireProjectAccess(ctx, args.projectId, "member");
+
+    const token = await generateUniqueToken(
+      32,
+      async (candidate) =>
+        (await ctx.db
+          .query("projects")
+          .withIndex("by_share_token", (q) => q.eq("shareToken", candidate))
+          .unique()) !== null,
+      5,
+    );
+
+    await ctx.db.patch(args.projectId, { shareToken: token });
+    return { token };
+  },
+});
+
+export const revokeShareToken = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    await requireProjectAccess(ctx, args.projectId, "member");
+    await ctx.db.patch(args.projectId, { shareToken: undefined });
+  },
+});
+
+export const getByShareToken = query({
+  args: { shareToken: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!project) return null;
+
+    return {
+      _id: project._id,
+      name: project.name,
+      description: project.description,
+    };
   },
 });
 

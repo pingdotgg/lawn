@@ -830,6 +830,66 @@ export const incrementViewCount = mutation({
   },
 });
 
+export const listForProjectShare = query({
+  args: { shareToken: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!project) return [];
+
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_project", (q) => q.eq("projectId", project._id))
+      .order("desc")
+      .collect();
+
+    return videos
+      .filter((v) => v.status === "ready")
+      .map((video) => ({
+        _id: video._id,
+        title: video.title,
+        duration: video.duration,
+        thumbnailUrl: video.thumbnailUrl,
+        muxPlaybackId: video.muxPlaybackId,
+        workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
+      }));
+  },
+});
+
+export const getForProjectShare = query({
+  args: { shareToken: v.string(), videoId: v.string() },
+  handler: async (ctx, args) => {
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!project) return null;
+
+    const normalizedVideoId = ctx.db.normalizeId("videos", args.videoId);
+    if (!normalizedVideoId) return null;
+
+    const video = await ctx.db.get(normalizedVideoId);
+    if (!video || video.projectId !== project._id || video.status !== "ready") {
+      return null;
+    }
+
+    return {
+      _id: video._id,
+      title: video.title,
+      description: video.description,
+      duration: video.duration,
+      thumbnailUrl: video.thumbnailUrl,
+      muxPlaybackId: video.muxPlaybackId,
+      muxAssetId: video.muxAssetId,
+      workflowStatus: normalizeWorkflowStatus(video.workflowStatus),
+    };
+  },
+});
+
 export const updateDuration = mutation({
   args: {
     videoId: v.id("videos"),
