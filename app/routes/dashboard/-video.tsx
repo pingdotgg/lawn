@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Id } from "@convex/_generated/dataModel";
 import { projectPath, teamHomePath, videoPath } from "@/lib/routes";
+import { findPreferredReplacementVideoId } from "@/lib/videoVersionDeletion";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { prewarmProject } from "./-project.data";
 import { prewarmTeam } from "./-team.data";
@@ -544,10 +545,12 @@ export default function VideoPage() {
       setDeleteNotice(null);
 
       try {
-        const deleteRequest = deleteVideo({ videoId: versionToDelete._id }).then(
-          (result) => ({ ok: true as const, result }),
-          (error: unknown) => ({ ok: false as const, error }),
-        );
+        const requestDelete = () =>
+          deleteVideo({ videoId: versionToDelete._id }).then(
+            (result) => ({ ok: true as const, result }),
+            (error: unknown) => ({ ok: false as const, error }),
+          );
+        const nonCurrentDeleteRequest = isCurrentVersion ? null : requestDelete();
 
         if (animateSelectorRow) {
           const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -556,7 +559,31 @@ export default function VideoPage() {
           }
         }
 
-        const outcome = await deleteRequest;
+        const preferredReplacementVideoId =
+          isCurrentVersion && animateSelectorRow
+            ? findPreferredReplacementVideoId(versions, versionToDelete._id)
+            : null;
+
+        if (isCurrentVersion) {
+          if (preferredReplacementVideoId) {
+            prewarmVideo(convex, {
+              teamSlug: resolvedTeamSlug,
+              projectId: resolvedProjectId,
+              videoId: preferredReplacementVideoId,
+            });
+            await navigate({
+              to: videoPath(resolvedTeamSlug, resolvedProjectId, preferredReplacementVideoId),
+              replace: true,
+            });
+          } else {
+            await navigate({
+              to: projectPath(resolvedTeamSlug, resolvedProjectId),
+              replace: true,
+            });
+          }
+        }
+
+        const outcome = await (nonCurrentDeleteRequest ?? requestDelete());
         if (outcome.ok === false) {
           throw outcome.error;
         }
@@ -573,30 +600,41 @@ export default function VideoPage() {
         });
 
         if (isCurrentVersion) {
-          if (result.replacementVideoId) {
-            navigate({
-              to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
-              replace: true,
-            });
-          } else {
-            navigate({
-              to: projectPath(resolvedTeamSlug, resolvedProjectId),
-              replace: true,
-            });
+          if (result.replacementVideoId !== preferredReplacementVideoId) {
+            if (result.replacementVideoId) {
+              prewarmVideo(convex, {
+                teamSlug: resolvedTeamSlug,
+                projectId: resolvedProjectId,
+                videoId: result.replacementVideoId,
+              });
+              await navigate({
+                to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
+                replace: true,
+              });
+            } else {
+              await navigate({
+                to: projectPath(resolvedTeamSlug, resolvedProjectId),
+                replace: true,
+              });
+            }
           }
         }
       } catch (error) {
         console.error("Failed to delete video version:", error);
-        setDeleteNotice({
-          tone: "error",
-          message: "Couldn't delete that video version. Please try again.",
-        });
+        if (isCurrentVersion) {
+          window.alert("Couldn't delete that video version. Please try again.");
+        } else {
+          setDeleteNotice({
+            tone: "error",
+            message: "Couldn't delete that video version. Please try again.",
+          });
+        }
       } finally {
         deletePendingRef.current = false;
         setDeletingVideoId(null);
       }
     },
-    [deleteVideo, navigate, resolvedProjectId, resolvedTeamSlug, resolvedVideoId],
+    [convex, deleteVideo, navigate, resolvedProjectId, resolvedTeamSlug, resolvedVideoId, versions],
   );
 
   const handleRetryFailedProcessing = useCallback(async () => {
