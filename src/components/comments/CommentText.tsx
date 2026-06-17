@@ -12,7 +12,7 @@ export function CommentText({ text }: CommentTextProps) {
         href={part.href}
         target="_blank"
         rel="noopener noreferrer"
-        className="break-all text-[#2d5a2d] underline underline-offset-2 hover:text-[#1a1a1a]"
+        className="break-all text-[#2d5a2d] underline underline-offset-2 hover:text-[#3a6a3a]"
       >
         {part.value}
       </a>
