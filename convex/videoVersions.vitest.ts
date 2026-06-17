@@ -760,6 +760,74 @@ test("deletes dependents in resumable batches after removing the version row", a
   }
 });
 
+test("finishes deletion jobs queued before version rows were removed eagerly", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const videoId = await t.run(async (ctx) => {
+      const teamId = await ctx.db.insert("teams", {
+        name: "Garden",
+        slug: "garden",
+        ownerClerkId: "owner",
+        plan: "basic",
+      });
+      const projectId = await ctx.db.insert("projects", {
+        teamId,
+        name: "Campaign",
+      });
+      const legacyVideoId = await ctx.db.insert("videos", {
+        projectId,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        title: "Legacy queued deletion",
+        visibility: "public",
+        publicId: "legacy-queued-delete",
+        status: "ready",
+        workflowStatus: "review",
+      });
+      for (let index = 0; index < 10; index += 1) {
+        await ctx.db.insert("comments", {
+          videoId: legacyVideoId,
+          userClerkId: "owner",
+          userName: "Owner",
+          text: `Legacy comment ${index}`,
+          timestampSeconds: index,
+          resolved: false,
+        });
+      }
+      return legacyVideoId;
+    });
+
+    await t.mutation(internal.videos.continueVideoDelete, { videoId });
+
+    const immediate = await t.run(async (ctx) => ({
+      video: await ctx.db.get(videoId),
+      comments: await ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", videoId))
+        .collect(),
+    }));
+    expect(immediate.video).not.toBeNull();
+    expect(immediate.comments).toHaveLength(2);
+
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+    const completed = await t.run(async (ctx) => ({
+      video: await ctx.db.get(videoId),
+      comments: await ctx.db
+        .query("comments")
+        .withIndex("by_video", (q) => q.eq("videoId", videoId))
+        .collect(),
+    }));
+    expect(completed).toEqual({
+      video: null,
+      comments: [],
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 test("deletes an unstacked legacy video with no replacement", async () => {
   const t = convexTest(schema, modules);
   const videoId = await t.run(async (ctx) => {

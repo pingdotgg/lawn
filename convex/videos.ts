@@ -818,6 +818,19 @@ export const remove = mutation({
 export const continueVideoDelete = internalMutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
+    const existingVideo = await ctx.db.get(args.videoId);
+    if (existingVideo) {
+      const legacyResult = await deleteVideoAndDependentsBatch(
+        ctx,
+        args.videoId,
+        VIDEO_DEPENDENT_DELETE_BATCH_DOCS,
+      );
+      if (!legacyResult.done) {
+        await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, args);
+      }
+      return;
+    }
+
     const result = await deleteVideoDependentsBatch(
       ctx,
       args.videoId,
