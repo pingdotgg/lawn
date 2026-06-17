@@ -12,6 +12,7 @@ import { triggerDownload } from "@/lib/download";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
+import { CommentText } from "@/components/comments/CommentText";
 import { Lock, Video, AlertCircle, MessageSquare, Clock, Download } from "lucide-react";
 import { useShareData } from "./-share.data";
 
@@ -415,7 +416,9 @@ export default function SharePage() {
                       {formatTimestamp(comment.timestampSeconds)}
                     </button>
                   </div>
-                  <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                  <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap break-words">
+                    <CommentText text={comment.text} />
+                  </p>
                   <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
 
                   {comment.replies.length > 0 ? (
@@ -432,7 +435,9 @@ export default function SharePage() {
                               {formatTimestamp(reply.timestampSeconds)}
                             </button>
                           </div>
-                          <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
+                          <p className="text-[#1a1a1a] whitespace-pre-wrap break-words">
+                            <CommentText text={reply.text} />
+                          </p>
                         </div>
                       ))}
                     </div>

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 import { CommentInput } from "./CommentInput";
+import { CommentText } from "./CommentText";
 
 interface Comment {
   _id: Id<"comments">;
@@ -131,7 +132,7 @@ export function CommentItem({
             </DropdownMenu>
           </div>
           <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap break-words">
-            {comment.text}
+            <CommentText text={comment.text} />
           </p>
           <p className="text-[11px] text-[#888] mt-1">
             {formatRelativeTime(comment._creationTime)}

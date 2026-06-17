@@ -7,6 +7,7 @@ import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/V
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { CommentText } from "@/components/comments/CommentText";
 import { triggerDownload } from "@/lib/download";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import { AlertCircle, MessageSquare, Clock, Download, X } from "lucide-react";
@@ -281,7 +282,9 @@ export default function WatchPage() {
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap break-words">
+                      <CommentText text={comment.text} />
+                    </p>
                     <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
 
                     {comment.replies.length > 0 ? (
@@ -298,7 +301,9 @@ export default function WatchPage() {
                                 {formatTimestamp(reply.timestampSeconds)}
                               </button>
                             </div>
-                            <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
+                            <p className="text-[#1a1a1a] whitespace-pre-wrap break-words">
+                              <CommentText text={reply.text} />
+                            </p>
                           </div>
                         ))}
                       </div>
@@ -387,7 +392,9 @@ export default function WatchPage() {
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap">{comment.text}</p>
+                    <p className="text-sm text-[#1a1a1a] mt-1 whitespace-pre-wrap break-words">
+                      <CommentText text={comment.text} />
+                    </p>
                     <p className="text-[11px] text-[#888] mt-1">{formatRelativeTime(comment._creationTime)}</p>
 
                     {comment.replies.length > 0 ? (
@@ -407,7 +414,9 @@ export default function WatchPage() {
                                 {formatTimestamp(reply.timestampSeconds)}
                               </button>
                             </div>
-                            <p className="text-[#1a1a1a] whitespace-pre-wrap">{reply.text}</p>
+                            <p className="text-[#1a1a1a] whitespace-pre-wrap break-words">
+                              <CommentText text={reply.text} />
+                            </p>
                           </div>
                         ))}
                       </div>
