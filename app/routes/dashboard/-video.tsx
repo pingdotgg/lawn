@@ -15,6 +15,11 @@ import {
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { formatDuration } from "@/lib/utils";
+import {
+  buildCommentsCsv,
+  buildCommentsCsvFilename,
+} from "@/lib/commentCsv";
+import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { DashboardHeader } from "@/components/DashboardHeader";
@@ -25,6 +30,7 @@ import {
   Link as LinkIcon,
   MessageSquare,
   MoreVertical,
+  Download,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -241,6 +247,15 @@ export default function VideoPage() {
     },
     [playerRef, setHighlightedCommentId]
   );
+
+  const handleExportComments = useCallback(() => {
+    if (!video || !commentsThreaded?.length) return;
+
+    triggerTextDownload(
+      buildCommentsCsv(commentsThreaded),
+      buildCommentsCsvFilename(video.title),
+    );
+  }, [commentsThreaded, video]);
 
   const handleSaveTitle = async () => {
     if (!editedTitle.trim() || !video || !resolvedVideoId) return;
@@ -500,11 +515,23 @@ export default function VideoPage() {
             <h2 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-[#1a1a1a] dark:text-[#f0f0e8]">
               Discussion
             </h2>
-            {comments && comments.length > 0 && (
-              <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
-                {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {comments && comments.length > 0 && (
+                <span className="text-[11px] font-medium text-[#888] bg-[#1a1a1a]/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
+                  {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px]"
+                onClick={handleExportComments}
+                disabled={!commentsThreaded?.length}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </Button>
+            </div>
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
@@ -540,14 +567,26 @@ export default function VideoPage() {
                 </span>
               )}
             </h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setMobileCommentsOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-[10px]"
+                onClick={handleExportComments}
+                disabled={!commentsThreaded?.length}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setMobileCommentsOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
