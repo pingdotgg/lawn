@@ -1,6 +1,40 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/tanstack-react-start";
 import { Link } from "@tanstack/react-router";
 import { MarketingFooter } from "@/components/MarketingFooter";
+import { dashboardHomePath } from "@/lib/routes";
+
+function HomeNavActions({ scrolled }: { scrolled: boolean }) {
+  const { isLoaded, userId } = useAuth();
+  const startPath = userId ? dashboardHomePath() : "/sign-up";
+  const loginPlaceholder = (
+    <span aria-hidden="true" className="invisible">
+      Log in
+    </span>
+  );
+  const startClassName = `px-4 py-2 border-2 transition-colors ${scrolled ? "border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]" : "border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]"}`;
+
+  return (
+    <div className="grid grid-cols-[auto_auto] items-center gap-6">
+      {isLoaded && !userId ? (
+        <Link to="/sign-in" className="hover:underline underline-offset-4">
+          Log in
+        </Link>
+      ) : (
+        loginPlaceholder
+      )}
+      {isLoaded ? (
+        <Link to={startPath} className={startClassName}>
+          Start
+        </Link>
+      ) : (
+        <span aria-hidden="true" className={`${startClassName} invisible`}>
+          Start
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function Homepage() {
   const [scrolled, setScrolled] = useState(false);
@@ -47,8 +81,7 @@ export default function Homepage() {
         <div className="flex gap-6 items-center text-sm font-bold uppercase tracking-wide">
           <a href="#pricing" className="hover:underline underline-offset-4">Pricing</a>
           <Link to="/compare/frameio" className={`hover:underline underline-offset-4 hidden sm:block`}>Compare</Link>
-          <Link to="/sign-in" className="hover:underline underline-offset-4">Log in</Link>
-          <Link to="/sign-up" className={`px-4 py-2 border-2 transition-colors ${scrolled ? 'border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]' : 'border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]'}`}>Start</Link>
+          <HomeNavActions scrolled={scrolled} />
         </div>
       </nav>
 
