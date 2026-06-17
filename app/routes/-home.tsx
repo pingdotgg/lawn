@@ -40,7 +40,7 @@ export default function Homepage() {
       style={{ ...lightModeVars, backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
     >
       {/* Minimal nav */}
-      <nav className={`fixed w-full top-0 z-50 px-6 py-4 flex justify-between items-center transition-all duration-200 ${scrolled ? 'bg-[#f0f0e8] text-[#1a1a1a] border-b-2 border-[#1a1a1a]' : 'bg-transparent text-[#f0f0e8] drop-shadow-md'}`}>
+      <nav className={`fixed w-full top-0 z-50 px-6 py-4 flex justify-between items-center border-b-2 transition-all duration-200 ${scrolled ? 'bg-[#f0f0e8] text-[#1a1a1a] border-[#1a1a1a]' : 'bg-transparent text-[#f0f0e8] border-[#1a1a1a]/0 drop-shadow-md'}`}>
         <div className="flex items-center gap-4">
           <span className={`text-xl font-black tracking-tighter transition-opacity duration-200 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>lawn.</span>
         </div>
