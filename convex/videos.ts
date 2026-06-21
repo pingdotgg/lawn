@@ -1465,13 +1465,15 @@ export const claimMuxProcessingCandidates = internalMutation({
     limit: v.number(),
   },
   handler: async (ctx, args) => {
-    // by_status_and_mux_asset_id excludes videos whose muxAssetId is undefined
-    // (Convex drops undefined fields from indexes), so this naturally returns
-    // only processing videos that actually have a Mux asset to poll.
+    // Order by muxLastPolledAt so the oldest-polled processing videos are
+    // checked first, giving fair round-robin distribution across the queue.
+    // Take extra headroom because some processing videos may not have a
+    // muxAssetId yet (the brief window between markAsProcessing and
+    // setMuxAssetReference); those are skipped by the guard below.
     const videos = await ctx.db
       .query("videos")
-      .withIndex("by_status_and_mux_asset_id", (q) => q.eq("status", "processing"))
-      .take(args.limit);
+      .withIndex("by_status_and_mux_last_polled_at", (q) => q.eq("status", "processing"))
+      .take(args.limit * 3);
 
     const claimedAt = Date.now();
     const candidates = [];
@@ -1482,6 +1484,7 @@ export const claimMuxProcessingCandidates = internalMutation({
         videoId: video._id,
         muxAssetId: video.muxAssetId,
       });
+      if (candidates.length === args.limit) break;
     }
     return candidates;
   },

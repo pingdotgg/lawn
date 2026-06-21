@@ -113,8 +113,7 @@ export default defineSchema({
     .index("by_mux_asset_id", ["muxAssetId"])
     .index("by_mux_playback_id", ["muxPlaybackId"])
     .index("by_status_and_upload_updated_at", ["status", "uploadUpdatedAt"])
-    .index("by_status_and_mux_last_polled_at", ["status", "muxLastPolledAt"])
-    .index("by_status_and_mux_asset_id", ["status", "muxAssetId"]),
+    .index("by_status_and_mux_last_polled_at", ["status", "muxLastPolledAt"]),
 
   cronLocks: defineTable({
     name: v.string(),
