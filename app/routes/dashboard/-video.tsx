@@ -5,7 +5,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/VideoPlayer";
+import {
+  VideoPlayer,
+  type VideoPlaybackIssue,
+  type VideoPlayerHandle,
+} from "@/components/video-player/VideoPlayer";
 import { CommentList } from "@/components/comments/CommentList";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { ShareDialog } from "@/components/ShareDialog";
@@ -59,6 +63,8 @@ type VideoVersion = {
   status: string;
   isLatestVersion: boolean;
 };
+
+const MAX_AUTOMATIC_PLAYBACK_ATTEMPTS = 3;
 
 function versionStatusLabel(status: string) {
   switch (status) {
@@ -303,6 +309,11 @@ export default function VideoPage() {
     posterUrl: string;
   } | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
+  const [playbackLoadError, setPlaybackLoadError] = useState<string | null>(null);
+  const [playbackRequest, setPlaybackRequest] = useState<{
+    videoId: Id<"videos">;
+    attempt: number;
+  } | null>(null);
   const [originalPlaybackUrl, setOriginalPlaybackUrl] = useState<string | null>(null);
   const [isLoadingOriginalPlayback, setIsLoadingOriginalPlayback] = useState(false);
   const [isRetryingFailedProcessing, setIsRetryingFailedProcessing] = useState(false);
@@ -312,19 +323,53 @@ export default function VideoPage() {
     tone: "success" | "error";
     message: string;
   } | null>(null);
-  const [preferredSource, setPreferredSource] = useState<"mux720" | "original">("original");
+  const [sourcePreference, setSourcePreference] = useState<{
+    videoId: Id<"videos">;
+    source: "mux720" | "original";
+  } | null>(null);
+  const [failedOriginalVideoId, setFailedOriginalVideoId] = useState<Id<"videos"> | null>(null);
+  const [originalPlaybackIssue, setOriginalPlaybackIssue] = useState<{
+    videoId: Id<"videos">;
+    type: VideoPlaybackIssue["type"];
+  } | null>(null);
+  const [playbackResume, setPlaybackResume] = useState<{
+    videoId: Id<"videos">;
+    currentTime: number;
+    wasPlaying: boolean;
+  } | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const deletePendingRef = useRef(false);
+  const muxRecoveryVideoIdRef = useRef<Id<"videos"> | null>(null);
+  const playbackRetryTimeoutRef = useRef<number | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const playbackUrl = playbackSession?.url ?? null;
-  const activePlaybackUrl =
-    preferredSource === "mux720"
-      ? (playbackUrl ?? originalPlaybackUrl)
-      : (originalPlaybackUrl ?? playbackUrl);
+  const playbackRequestAttempt =
+    playbackRequest?.videoId === resolvedVideoId ? playbackRequest.attempt : 0;
+  const processingFailed = video?.status === "failed";
+  const preferredSource =
+    sourcePreference?.videoId === resolvedVideoId ? sourcePreference.source : "original";
+  const originalPlaybackFailed = !processingFailed && failedOriginalVideoId === resolvedVideoId;
+  const usableOriginalPlaybackUrl = originalPlaybackFailed ? null : originalPlaybackUrl;
+  const activePlaybackUrl = processingFailed
+    ? null
+    : preferredSource === "mux720"
+      ? (playbackUrl ?? usableOriginalPlaybackUrl)
+      : (usableOriginalPlaybackUrl ?? playbackUrl);
   const activeQualityId =
     activePlaybackUrl && playbackUrl && activePlaybackUrl === playbackUrl ? "mux720" : "original";
   const isUsingOriginalFallback = Boolean(
     activePlaybackUrl && activePlaybackUrl === originalPlaybackUrl && !playbackUrl,
+  );
+  const isWaitingForMuxAfterOriginalFailure = originalPlaybackFailed && !playbackUrl;
+  const activePlaybackResume = playbackResume?.videoId === resolvedVideoId ? playbackResume : null;
+  const activeOriginalPlaybackIssue =
+    !processingFailed && originalPlaybackIssue?.videoId === resolvedVideoId
+      ? originalPlaybackIssue
+      : null;
+  const isAutomaticPlaybackRetryPending = Boolean(
+    activeOriginalPlaybackIssue &&
+    playbackLoadError &&
+    playbackRequestAttempt < MAX_AUTOMATIC_PLAYBACK_ATTEMPTS - 1,
   );
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -342,6 +387,35 @@ export default function VideoPage() {
     videoId: resolvedVideoId,
     enabled: Boolean(resolvedVideoId),
   });
+
+  useEffect(() => {
+    setSourcePreference(null);
+    setFailedOriginalVideoId(null);
+    setOriginalPlaybackIssue(null);
+    setPlaybackResume(null);
+    setPlaybackLoadError(null);
+    setPlaybackRequest(null);
+    muxRecoveryVideoIdRef.current = null;
+    if (playbackRetryTimeoutRef.current !== null) {
+      window.clearTimeout(playbackRetryTimeoutRef.current);
+      playbackRetryTimeoutRef.current = null;
+    }
+  }, [resolvedVideoId]);
+
+  useEffect(() => {
+    if (video?.status !== "failed") return;
+    setSourcePreference(null);
+    setFailedOriginalVideoId(null);
+    setOriginalPlaybackIssue(null);
+    setPlaybackResume(null);
+    setPlaybackLoadError(null);
+    setPlaybackRequest(null);
+    muxRecoveryVideoIdRef.current = null;
+    if (playbackRetryTimeoutRef.current !== null) {
+      window.clearTimeout(playbackRetryTimeoutRef.current);
+      playbackRetryTimeoutRef.current = null;
+    }
+  }, [video?.status]);
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
@@ -388,6 +462,7 @@ export default function VideoPage() {
 
     let cancelled = false;
     setIsLoadingPlayback(true);
+    setPlaybackLoadError(null);
 
     void getPlaybackSession({ videoId: resolvedVideoId })
       .then((session) => {
@@ -397,6 +472,22 @@ export default function VideoPage() {
       .catch(() => {
         if (cancelled) return;
         setPlaybackSession(null);
+        setPlaybackLoadError("The 720p stream could not be loaded.");
+        if (
+          muxRecoveryVideoIdRef.current === resolvedVideoId &&
+          playbackRequestAttempt < MAX_AUTOMATIC_PLAYBACK_ATTEMPTS - 1
+        ) {
+          playbackRetryTimeoutRef.current = window.setTimeout(
+            () => {
+              playbackRetryTimeoutRef.current = null;
+              setPlaybackRequest((request) => ({
+                videoId: resolvedVideoId,
+                attempt: request?.videoId === resolvedVideoId ? request.attempt + 1 : 1,
+              }));
+            },
+            1_000 * (playbackRequestAttempt + 1),
+          );
+        }
       })
       .finally(() => {
         if (cancelled) return;
@@ -405,8 +496,18 @@ export default function VideoPage() {
 
     return () => {
       cancelled = true;
+      if (playbackRetryTimeoutRef.current !== null) {
+        window.clearTimeout(playbackRetryTimeoutRef.current);
+        playbackRetryTimeoutRef.current = null;
+      }
     };
-  }, [getPlaybackSession, isPlayable, resolvedVideoId, video?.muxPlaybackId]);
+  }, [
+    getPlaybackSession,
+    isPlayable,
+    playbackRequestAttempt,
+    resolvedVideoId,
+    video?.muxPlaybackId,
+  ]);
 
   useEffect(() => {
     if (!resolvedVideoId || !video || video.status === "uploading" || video.status === "failed") {
@@ -440,6 +541,56 @@ export default function VideoPage() {
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
   }, []);
+
+  const handleOriginalPlaybackIssue = useCallback(
+    (issue: VideoPlaybackIssue) => {
+      if (!resolvedVideoId) return;
+      setPlaybackResume({
+        videoId: resolvedVideoId,
+        currentTime: issue.currentTime,
+        wasPlaying: issue.wasPlaying,
+      });
+      muxRecoveryVideoIdRef.current = resolvedVideoId;
+      setFailedOriginalVideoId(resolvedVideoId);
+      setOriginalPlaybackIssue({ videoId: resolvedVideoId, type: issue.type });
+      setSourcePreference({ videoId: resolvedVideoId, source: "mux720" });
+      if (isPlayable && !playbackUrl && !isLoadingPlayback) {
+        setPlaybackRequest((request) => ({
+          videoId: resolvedVideoId,
+          attempt: request?.videoId === resolvedVideoId ? request.attempt + 1 : 1,
+        }));
+      }
+    },
+    [isLoadingPlayback, isPlayable, playbackUrl, resolvedVideoId],
+  );
+
+  const handleSelectQuality = useCallback(
+    (id: string) => {
+      if (!resolvedVideoId || (id !== "mux720" && id !== "original")) return;
+      if (id === "original") {
+        muxRecoveryVideoIdRef.current = null;
+        if (playbackRetryTimeoutRef.current !== null) {
+          window.clearTimeout(playbackRetryTimeoutRef.current);
+          playbackRetryTimeoutRef.current = null;
+        }
+        setFailedOriginalVideoId((failedVideoId) =>
+          failedVideoId === resolvedVideoId ? null : failedVideoId,
+        );
+        setOriginalPlaybackIssue((issue) => (issue?.videoId === resolvedVideoId ? null : issue));
+      }
+      setSourcePreference({ videoId: resolvedVideoId, source: id });
+    },
+    [resolvedVideoId],
+  );
+
+  const handleRetryPlaybackSession = useCallback(() => {
+    if (!resolvedVideoId || !isPlayable || isLoadingPlayback) return;
+    muxRecoveryVideoIdRef.current = resolvedVideoId;
+    setPlaybackRequest((request) => ({
+      videoId: resolvedVideoId,
+      attempt: request?.videoId === resolvedVideoId ? request.attempt + 1 : 1,
+    }));
+  }, [isLoadingPlayback, isPlayable, resolvedVideoId]);
 
   const handleMarkerClick = useCallback((comment: { _id: string }) => {
     setHighlightedCommentId(comment._id as Id<"comments">);
@@ -925,10 +1076,36 @@ export default function VideoPage() {
             </div>
           ) : null}
 
+          {activeOriginalPlaybackIssue ? (
+            <div
+              className="flex flex-shrink-0 items-center gap-2 bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#f0b45d]" />
+              <span className="font-semibold">
+                {activeOriginalPlaybackIssue.type === "frozen-video"
+                  ? "Original playback stalled."
+                  : "Original playback was unavailable."}
+              </span>
+              <span className="text-[#d8c6a8]">
+                {playbackUrl
+                  ? "Switched to 720p."
+                  : playbackLoadError && !isAutomaticPlaybackRetryPending
+                    ? "720p needs another try."
+                    : "Preparing 720p…"}
+              </span>
+            </div>
+          ) : null}
+
           {activePlaybackUrl ? (
             <VideoPlayer
+              key={resolvedVideoId}
               ref={playerRef}
               src={activePlaybackUrl}
+              initialTime={activePlaybackResume?.currentTime}
+              initialPlay={activePlaybackResume?.wasPlaying}
               poster={playbackSession?.posterUrl}
               comments={comments || []}
               onTimeUpdate={handleTimeUpdate}
@@ -950,20 +1127,32 @@ export default function VideoPage() {
                 },
               ]}
               selectedQualityId={activeQualityId}
-              onSelectQuality={(id) => {
-                if (id === "mux720" || id === "original") {
-                  setPreferredSource(id);
-                }
-              }}
+              onSelectQuality={handleSelectQuality}
+              onPlaybackIssue={
+                activeQualityId === "original" ? handleOriginalPlaybackIssue : undefined
+              }
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
-              {video.status === "ready" && !playbackUrl ? (
+              {isWaitingForMuxAfterOriginalFailure || (video.status === "ready" && !playbackUrl) ? (
                 <div className="flex flex-col items-center gap-3 text-white">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-                  <p className="text-sm font-medium text-white/85">
-                    {isLoadingPlayback ? "Loading stream..." : "Preparing stream..."}
-                  </p>
+                  {playbackLoadError && !isLoadingPlayback && !isAutomaticPlaybackRetryPending ? (
+                    <>
+                      <p className="text-sm font-medium text-white/85">{playbackLoadError}</p>
+                      <Button variant="primary" onClick={handleRetryPlaybackSession}>
+                        Retry 720p
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                      <p className="text-sm font-medium text-white/85">
+                        {isLoadingPlayback || isAutomaticPlaybackRetryPending
+                          ? "Loading 720p stream..."
+                          : "Preparing stream..."}
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="text-center">

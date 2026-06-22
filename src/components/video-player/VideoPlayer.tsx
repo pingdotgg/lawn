@@ -27,6 +27,12 @@ import {
 } from "lucide-react";
 import { cn, formatDuration, formatTimestamp } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
+import {
+  createVideoPlaybackHealthState,
+  markVideoPlaybackIssueReported,
+  observeVideoPlayback,
+  resetVideoPlaybackHealthWindow,
+} from "@/lib/videoPlaybackHealth";
 
 interface Comment {
   _id: string;
@@ -46,6 +52,8 @@ interface VideoPlayerProps {
   onTimeUpdate?: (currentTime: number) => void;
   onMarkerClick?: (comment: Comment) => void;
   initialTime?: number;
+  initialPlay?: boolean;
+  onPlaybackIssue?: (issue: VideoPlaybackIssue) => void;
   className?: string;
   allowDownload?: boolean;
   downloadUrl?: string;
@@ -65,6 +73,20 @@ interface VideoPlayerProps {
   /** Render controls below the video frame instead of overlaid. Ideal for mobile. */
   controlsBelow?: boolean;
 }
+
+export type VideoPlaybackIssue =
+  | {
+      type: "frozen-video";
+      currentTime: number;
+      wasPlaying: boolean;
+    }
+  | {
+      type: "media-error";
+      currentTime: number;
+      wasPlaying: boolean;
+      code: number;
+      message: string;
+    };
 
 export interface VideoPlayerHandle {
   seekTo: (time: number, options?: { play?: boolean }) => void;
@@ -94,6 +116,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     onTimeUpdate,
     onMarkerClick,
     initialTime,
+    initialPlay = false,
+    onPlaybackIssue,
     className,
     allowDownload = false,
     downloadUrl,
@@ -139,6 +163,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const isPlayingRef = useRef(false);
   const isScrubbingRef = useRef(false);
   const resumeTimeOnSourceChangeRef = useRef<number | null>(null);
+  const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
+  const hasAttachedSourceRef = useRef(false);
+  const onPlaybackIssueRef = useRef(onPlaybackIssue);
+
+  useEffect(() => {
+    onPlaybackIssueRef.current = onPlaybackIssue;
+  }, [onPlaybackIssue]);
 
   const groupedMarkers = useMemo(() => {
     if (!duration || comments.length === 0) return [] as { position: number; comment: Comment }[];
@@ -440,16 +471,86 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (!video) return;
 
     let cancelled = false;
+    let waitingForResumeSeek = false;
+    let metadataLoaded = false;
+    let frameCallbackId: number | null = null;
+    let healthIntervalId: number | null = null;
+    let healthMonitoringActive = false;
+    let latestPresentedFrames = 0;
+    let playbackHealth = createVideoPlaybackHealthState();
+
+    const reportPlaybackIssue = (issue: VideoPlaybackIssue) => {
+      if (playbackHealth.issueReported) return;
+      resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
+      playbackHealth = markVideoPlaybackIssueReported(playbackHealth);
+      onPlaybackIssueRef.current?.(issue);
+      stopPlaybackHealthMonitor();
+    };
+
+    const resetPlaybackHealth = () => {
+      playbackHealth = resetVideoPlaybackHealthWindow(
+        playbackHealth,
+        video.currentTime,
+        latestPresentedFrames,
+      );
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        resetPlaybackHealth();
+      }
+    };
+
+    function stopPlaybackHealthMonitor() {
+      healthMonitoringActive = false;
+      if (frameCallbackId !== null) {
+        video.cancelVideoFrameCallback(frameCallbackId);
+        frameCallbackId = null;
+      }
+      if (healthIntervalId !== null) {
+        window.clearInterval(healthIntervalId);
+        healthIntervalId = null;
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    const resumePlaybackIfReady = () => {
+      if (
+        cancelled ||
+        !metadataLoaded ||
+        waitingForResumeSeek ||
+        !resumePlaybackOnSourceChangeRef.current ||
+        video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+      ) {
+        return;
+      }
+
+      resumePlaybackOnSourceChangeRef.current = false;
+      const playPromise = video.play();
+      if (playPromise) {
+        playPromise.catch(() => {
+          // A browser may still reject resumed playback after a source swap.
+        });
+      }
+    };
 
     const handleLoadedMetadata = () => {
       if (cancelled) return;
+      metadataLoaded = true;
       setDuration(video.duration || 0);
       updateBuffered();
-      const resumeTime = initialTime ?? resumeTimeOnSourceChangeRef.current ?? undefined;
-      if (resumeTime && resumeTime > 0) {
-        video.currentTime = clamp(resumeTime, 0, video.duration || resumeTime);
+      const isFirstSource = !hasAttachedSourceRef.current;
+      const resumeTime =
+        resumeTimeOnSourceChangeRef.current ?? (isFirstSource ? initialTime : undefined);
+      hasAttachedSourceRef.current = true;
+      if (resumeTime !== undefined && resumeTime > 0) {
+        const nextTime = clamp(resumeTime, 0, video.duration || resumeTime);
+        waitingForResumeSeek = Math.abs(video.currentTime - nextTime) > 0.01;
+        video.currentTime = nextTime;
+        setCurrentTime(nextTime);
       }
       resumeTimeOnSourceChangeRef.current = null;
+      resumePlaybackIfReady();
     };
 
     const handleLoadedData = () => {
@@ -479,6 +580,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     const handlePause = () => {
       if (cancelled) return;
+      resetPlaybackHealth();
       setIsPlaying(false);
       setIsBuffering(false);
       setControlsVisible(true);
@@ -498,12 +600,33 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handleCanPlay = () => {
       if (cancelled) return;
       setIsMediaReady(true);
+      resumePlaybackIfReady();
     };
 
     const handleError = () => {
       if (cancelled) return;
       setIsMediaReady(true);
       setIsBuffering(false);
+      const mediaError = video.error;
+      reportPlaybackIssue({
+        type: "media-error",
+        currentTime: video.currentTime,
+        wasPlaying: isPlayingRef.current || (!video.paused && !video.ended),
+        code: mediaError?.code ?? 0,
+        message: mediaError?.message ?? "The browser could not play this video source.",
+      });
+    };
+
+    const handleSeeking = () => {
+      if (cancelled) return;
+      resetPlaybackHealth();
+    };
+
+    const handleSeeked = () => {
+      if (cancelled) return;
+      waitingForResumeSeek = false;
+      resetPlaybackHealth();
+      resumePlaybackIfReady();
     };
 
     const handleVolumeChange = () => {
@@ -526,6 +649,47 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setIsPlaying(false);
       setControlsVisible(true);
+    };
+
+    const startPlaybackHealthMonitor = () => {
+      if (isHlsSource(src) || typeof video.requestVideoFrameCallback !== "function") return;
+      healthMonitoringActive = true;
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      const recordPresentedFrame: VideoFrameRequestCallback = (_now, metadata) => {
+        if (cancelled || !healthMonitoringActive) return;
+        latestPresentedFrames = metadata.presentedFrames;
+        frameCallbackId = video.requestVideoFrameCallback(recordPresentedFrame);
+      };
+
+      frameCallbackId = video.requestVideoFrameCallback(recordPresentedFrame);
+      healthIntervalId = window.setInterval(() => {
+        if (cancelled) return;
+        const result = observeVideoPlayback(playbackHealth, {
+          nowMs: performance.now(),
+          mediaTime: video.currentTime,
+          presentedFrames: latestPresentedFrames,
+          playing: !video.paused && !video.ended,
+          seeking: video.seeking,
+          buffering: video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA,
+          visible: document.visibilityState === "visible",
+        });
+        playbackHealth = result.state;
+        if (playbackHealth.monitoringComplete) {
+          stopPlaybackHealthMonitor();
+          return;
+        }
+        if (result.issueDetected) {
+          const issue = {
+            type: "frozen-video",
+            currentTime: video.currentTime,
+            wasPlaying: !video.paused && !video.ended,
+          } as const;
+          resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
+          onPlaybackIssueRef.current?.(issue);
+          stopPlaybackHealthMonitor();
+        }
+      }, 500);
     };
 
     const attachSource = async () => {
@@ -594,6 +758,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       } else {
         video.src = src;
       }
+
+      startPlaybackHealthMonitor();
     };
 
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -606,6 +772,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("error", handleError);
+    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("seeked", handleSeeked);
     video.addEventListener("volumechange", handleVolumeChange);
     video.addEventListener("ratechange", handleRateChange);
     video.addEventListener("progress", handleProgress);
@@ -624,6 +792,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (ct > 0) {
         resumeTimeOnSourceChangeRef.current = ct;
       }
+      resumePlaybackOnSourceChangeRef.current =
+        resumePlaybackOnSourceChangeRef.current ||
+        isPlayingRef.current ||
+        (!video.paused && !video.ended);
+
+      stopPlaybackHealthMonitor();
 
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("loadeddata", handleLoadedData);
@@ -635,6 +809,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
+      video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("seeked", handleSeeked);
       video.removeEventListener("volumechange", handleVolumeChange);
       video.removeEventListener("ratechange", handleRateChange);
       video.removeEventListener("progress", handleProgress);
