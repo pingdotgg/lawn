@@ -481,10 +481,12 @@ export default function ProjectPage({
       <div className="relative flex-1 overflow-auto">
         {videosSortPending && (
           <div
-            className="absolute top-2 right-3 z-20 bg-[#f0f0e8] px-2 py-1 text-xs font-bold text-[#888]"
+            className="pointer-events-none sticky top-2 z-20 mr-3 ml-auto h-0 w-fit"
             role="status"
           >
-            Sorting videos…
+            <span className="block bg-[#f0f0e8] px-2 py-1 text-xs font-bold text-[#888]">
+              Sorting videos…
+            </span>
           </div>
         )}
         {hasChildFolders && (
