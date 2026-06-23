@@ -59,6 +59,7 @@ import {
 import { prewarmProject } from "./-project.data";
 import { prewarmTeam } from "./-team.data";
 import { prewarmVideo, useVideoData } from "./-video.data";
+import { ExpandableTitle } from "@/components/ExpandableTitle";
 
 type VideoVersion = {
   _id: Id<"videos">;
@@ -881,7 +882,7 @@ export default function VideoPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="max-w-[150px] truncate sm:max-w-[300px]">{video.title}</span>
+                <ExpandableTitle title={video.title} className="max-w-[150px] sm:max-w-[300px]" />
                 {canEdit && (
                   <Button
                     size="icon"

@@ -23,13 +23,20 @@ test("dashboard route data contracts expose expected essential queries", () => {
 
   assert.deepEqual(names(getSettingsEssentialSpecs({ teamSlug })), ["workspace:resolveContext"]);
 
-  assert.deepEqual(names(getProjectEssentialSpecs({ teamSlug, projectId })), [
+  const projectSpecs = getProjectEssentialSpecs({ teamSlug, projectId });
+  assert.deepEqual(names(projectSpecs), [
     "projects:breadcrumb",
     "projects:get",
     "projects:listChildren",
     "videos:list",
     "workspace:resolveContext",
   ]);
+  const videoListSpec = projectSpecs.find((spec) => getFunctionName(spec.query) === "videos:list");
+  assert.deepEqual(videoListSpec?.args, {
+    projectId,
+    sort: "last-uploaded",
+    paginationOpts: { cursor: null, numItems: 40 },
+  });
 
   assert.deepEqual(names(getVideoEssentialSpecs({ teamSlug, projectId, videoId })), [
     "comments:getThreaded",

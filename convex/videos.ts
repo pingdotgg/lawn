@@ -15,6 +15,11 @@ import { generateUniqueToken } from "./security";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { assertTeamCanStoreBytes, assertTeamHasActiveSubscription } from "./billingHelpers";
 import { assertVideoFileSizeAllowed } from "./uploadLimits";
+import { isAlphabeticalSortReady, normalizeDashboardSortText } from "./dashboardSort";
+import {
+  propagateProjectUploadRecency,
+  recomputeProjectUploadRecencyThroughAncestors,
+} from "./projectRecency";
 
 const workflowStatusValidator = v.union(
   v.literal("review"),
@@ -23,6 +28,7 @@ const workflowStatusValidator = v.union(
 );
 
 const visibilityValidator = v.union(v.literal("public"), v.literal("private"));
+const dashboardSortValidator = v.union(v.literal("last-uploaded"), v.literal("alphabetical"));
 
 const VIDEO_DEPENDENT_DELETE_BATCH_DOCS = 8;
 export const MAX_VIDEO_STACK_SIZE = 100;
@@ -168,6 +174,7 @@ async function failOrRollbackUpload(ctx: MutationCtx, video: Doc<"videos">, uplo
     !video.muxAssetId
   ) {
     await deleteVersionAndRenumberStack(ctx, video);
+    await recomputeProjectUploadRecencyThroughAncestors(ctx, video.projectId);
     const result = await deleteVideoDependentsBatch(
       ctx,
       video._id,
@@ -421,6 +428,7 @@ async function insertVersionRecord(
     uploadedByClerkId: args.uploadedByClerkId,
     uploaderName: args.uploaderName,
     title: latest.title,
+    sortTitle: normalizeDashboardSortText(latest.title),
     description: latest.description,
     visibility: latest.visibility,
     publicId: args.publicId,
@@ -439,6 +447,11 @@ async function insertVersionRecord(
     versionNumber: normalizeVersionNumber(latest),
     supersededByVideoId: videoId,
   });
+
+  const createdVideo = await ctx.db.get(videoId);
+  if (createdVideo) {
+    await propagateProjectUploadRecency(ctx, latest.projectId, createdVideo._creationTime);
+  }
 
   return {
     videoId,
@@ -494,6 +507,7 @@ export const create = mutation({
       uploadedByClerkId: user.subject,
       uploaderName: identityName(user),
       title: args.title,
+      sortTitle: normalizeDashboardSortText(args.title),
       description: args.description,
       fileSize: args.fileSize,
       contentType: args.contentType,
@@ -504,6 +518,11 @@ export const create = mutation({
       publicId,
       uploadUpdatedAt: Date.now(),
     });
+
+    const createdVideo = await ctx.db.get(videoId);
+    if (createdVideo) {
+      await propagateProjectUploadRecency(ctx, args.projectId, createdVideo._creationTime);
+    }
 
     return videoId;
   },
@@ -545,17 +564,28 @@ export const list = query({
   args: {
     projectId: v.id("projects"),
     paginationOpts: paginationOptsValidator,
+    sort: v.optional(dashboardSortValidator),
   },
   handler: async (ctx, args) => {
     await requireProjectAccess(ctx, args.projectId);
 
-    const result = await ctx.db
-      .query("videos")
-      .withIndex("by_project_and_superseded_by_video_id", (q) =>
-        q.eq("projectId", args.projectId).eq("supersededByVideoId", undefined),
-      )
-      .order("desc")
-      .paginate(args.paginationOpts);
+    const useAlphabeticalSort =
+      args.sort === "alphabetical" && (await isAlphabeticalSortReady(ctx));
+    const result = useAlphabeticalSort
+      ? await ctx.db
+          .query("videos")
+          .withIndex("by_project_id_and_superseded_by_video_id_and_sort_title", (q) =>
+            q.eq("projectId", args.projectId).eq("supersededByVideoId", undefined),
+          )
+          .order("asc")
+          .paginate(args.paginationOpts)
+      : await ctx.db
+          .query("videos")
+          .withIndex("by_project_and_superseded_by_video_id", (q) =>
+            q.eq("projectId", args.projectId).eq("supersededByVideoId", undefined),
+          )
+          .order("desc")
+          .paginate(args.paginationOpts);
 
     const page = await Promise.all(
       result.page.map(async (video) => {
@@ -905,8 +935,11 @@ export const update = mutation({
   handler: async (ctx, args) => {
     await requireVideoAccess(ctx, args.videoId, "member");
 
-    const updates: Partial<{ title: string; description: string }> = {};
-    if (args.title !== undefined) updates.title = args.title;
+    const updates: Partial<{ title: string; sortTitle: string; description: string }> = {};
+    if (args.title !== undefined) {
+      updates.title = args.title;
+      updates.sortTitle = normalizeDashboardSortText(args.title);
+    }
     if (args.description !== undefined) updates.description = args.description;
 
     await ctx.db.patch(args.videoId, updates);
@@ -922,7 +955,7 @@ export const move = mutation({
     // Validate access to the SOURCE: `requireVideoAccess` loads the video and its
     // current (source) project, and requires `member` on the source folder's team.
     const { project: sourceProject, video } = await requireVideoAccess(ctx, args.videoId, "member");
-    const { versions } = await getStackVersions(ctx, video);
+    const { versions, latest } = await getStackVersions(ctx, video);
 
     if (!versions.every((version) => version.projectId === sourceProject._id)) {
       throw new Error("All versions of a video must belong to the same project");
@@ -942,6 +975,8 @@ export const move = mutation({
     await Promise.all(
       versions.map((version) => ctx.db.patch(version._id, { projectId: args.projectId })),
     );
+    await recomputeProjectUploadRecencyThroughAncestors(ctx, sourceProject._id);
+    await propagateProjectUploadRecency(ctx, dest._id, latest._creationTime);
   },
 });
 
@@ -1010,6 +1045,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const { video } = await requireVideoAccess(ctx, args.videoId, "admin");
     const replacementVideoId = await deleteVersionAndRenumberStack(ctx, video);
+    await recomputeProjectUploadRecencyThroughAncestors(ctx, video.projectId);
     const result = await deleteVideoDependentsBatch(
       ctx,
       args.videoId,

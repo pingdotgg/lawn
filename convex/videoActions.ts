@@ -31,13 +31,13 @@ import {
 } from "./s3Multipart";
 import {
   MAX_SIGN_PARTS_BATCH,
-  MAX_VIDEO_FILE_SIZE_BYTES,
   ORPHANED_MULTIPART_SWEEP_BATCH_SIZE,
   ORPHANED_MULTIPART_UPLOAD_THRESHOLD_MS,
   PRESIGN_SINGLE_PUT_EXPIRES_SEC,
   SINGLE_PUT_MAX_BYTES,
   STALE_UPLOAD_SWEEP_BATCH_SIZE,
   STALE_UPLOAD_THRESHOLD_MS,
+  assertVideoFileSizeAllowed,
   usesMultipartUpload,
 } from "./uploadLimits";
 const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
@@ -166,9 +166,7 @@ function validateUploadRequestOrThrow(args: { fileSize: number; contentType: str
     throw new Error("Video file size must be greater than zero.");
   }
 
-  if (args.fileSize > MAX_VIDEO_FILE_SIZE_BYTES) {
-    throw new Error("Video file is too large. Maximum size is 30 GB.");
-  }
+  assertVideoFileSizeAllowed(args.fileSize);
 
   const normalizedContentType = normalizeContentType(args.contentType);
   if (!isAllowedUploadContentType(normalizedContentType)) {
@@ -263,7 +261,6 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
   return (
     error.message.includes("Unsupported video format") ||
     error.message.includes("Video file is too large") ||
-    error.message.includes("Maximum size is 30 GB") ||
     error.message.includes("Uploaded video file not found") ||
     error.message.includes("Storage limit reached")
   );
@@ -638,9 +635,7 @@ export const completeMultipartUpload = action({
       ) {
         throw new Error("Uploaded video file not found or empty.");
       }
-      if (contentLengthRaw > MAX_VIDEO_FILE_SIZE_BYTES) {
-        throw new Error("Video file is too large. Maximum size is 30 GB.");
-      }
+      assertVideoFileSizeAllowed(contentLengthRaw);
 
       const normalizedContentType = normalizeContentType(head.ContentType ?? video.contentType);
       if (!isAllowedUploadContentType(normalizedContentType)) {
@@ -798,9 +793,7 @@ export const markUploadComplete = action({
         throw new Error("Uploaded video file not found or empty.");
       }
       const contentLength = contentLengthRaw;
-      if (contentLength > MAX_VIDEO_FILE_SIZE_BYTES) {
-        throw new Error("Video file is too large. Maximum size is 30 GB.");
-      }
+      assertVideoFileSizeAllowed(contentLength);
 
       const normalizedContentType = normalizeContentType(head.ContentType ?? video.contentType);
       if (!isAllowedUploadContentType(normalizedContentType)) {

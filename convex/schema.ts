@@ -51,18 +51,28 @@ export default defineSchema({
     // folder). Existing rows have no parentId, so they are already roots and no
     // backfill is needed.
     parentId: v.optional(v.id("projects")),
+    // Optional during the online backfill. New uploads maintain this for the
+    // folder and every ancestor so dashboard recency never requires recursion.
+    latestDescendantUploadAt: v.optional(v.number()),
   })
     // Kept: team-wide flat listing (storage usage, team deletion).
     .index("by_team", ["teamId"])
     // Lists the children of a folder, or — with parentId == undefined — the
     // roots of a team.
-    .index("by_team_and_parent", ["teamId", "parentId"]),
+    .index("by_team_and_parent", ["teamId", "parentId"])
+    .index("by_team_id_and_parent_id_and_latest_descendant_upload_at", [
+      "teamId",
+      "parentId",
+      "latestDescendantUploadAt",
+    ]),
 
   videos: defineTable({
     projectId: v.id("projects"),
     uploadedByClerkId: v.string(),
     uploaderName: v.string(),
     title: v.string(),
+    // Optional for a zero-downtime backfill; all new writes populate it.
+    sortTitle: v.optional(v.string()),
     description: v.optional(v.string()),
     visibility: v.union(v.literal("public"), v.literal("private")),
     publicId: v.string(),
@@ -106,6 +116,12 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_superseded_by_video_id", ["projectId", "supersededByVideoId"])
+    .index("by_project_id_and_superseded_by_video_id_and_sort_title", [
+      "projectId",
+      "supersededByVideoId",
+      "sortTitle",
+    ])
+    .index("by_sort_title", ["sortTitle"])
     .index("by_version_stack_id_and_version_number", ["versionStackId", "versionNumber"])
     .index("by_superseded_by_video_id", ["supersededByVideoId"])
     .index("by_public_id", ["publicId"])

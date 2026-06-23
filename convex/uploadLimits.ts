@@ -1,7 +1,7 @@
 export const GIBIBYTE = 1024 ** 3;
 export const MEBIBYTE = 1024 ** 2;
 
-export const MAX_VIDEO_FILE_SIZE_BYTES = 30 * GIBIBYTE;
+export const MAX_VIDEO_FILE_SIZE_BYTES = 50 * GIBIBYTE;
 export const SINGLE_PUT_MAX_BYTES = 5 * GIBIBYTE;
 export const MULTIPART_PART_SIZE_BYTES = 64 * MEBIBYTE;
 
@@ -26,6 +26,6 @@ export function usesMultipartUpload(fileSize: number) {
 
 export function assertVideoFileSizeAllowed(fileSize: number) {
   if (fileSize > MAX_VIDEO_FILE_SIZE_BYTES) {
-    throw new Error("Video file is too large. Maximum size is 30 GiB.");
+    throw new Error("Video file is too large. Maximum size is 50 GiB.");
   }
 }

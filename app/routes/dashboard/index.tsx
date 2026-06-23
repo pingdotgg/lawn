@@ -14,6 +14,10 @@ import { useDashboardIndexData } from "./-index.data";
 import { Id } from "@convex/_generated/dataModel";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { formatProjectMeta } from "@/components/projects/ProjectCard";
+import { ExpandableTitle } from "@/components/ExpandableTitle";
+import { sortDashboardItems } from "@/lib/dashboardSort";
+import type { DashboardSort } from "@/lib/dashboardSort";
+import { DashboardSortControl } from "@/components/DashboardSortControl";
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
@@ -28,6 +32,7 @@ type DashboardProjectCardProps = {
     subfolderCount: number;
     videoCountIsCapped: boolean;
     subfolderCountIsCapped: boolean;
+    lastUploadedAt?: number;
   };
   onOpen: () => void;
 };
@@ -60,13 +65,24 @@ function DashboardProjectCard({ teamSlug, project, onOpen }: DashboardProjectCar
 
   return (
     <Card
-      className="group cursor-pointer transition-colors hover:bg-[#e8e8e0]"
+      className="group relative cursor-pointer transition-colors hover:bg-[#e8e8e0]"
       onClick={onOpen}
       {...prewarmIntentHandlers}
     >
+      <button
+        type="button"
+        className="pointer-events-none absolute inset-0 z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d5a2d]"
+        aria-label={`Open project ${project.name}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+      />
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
         <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-base">{project.name}</CardTitle>
+          <CardTitle className="text-base">
+            <ExpandableTitle title={project.name} />
+          </CardTitle>
           <CardDescription className="mt-1">
             {formatProjectMeta(
               project.videoCount,
@@ -91,6 +107,7 @@ export default function DashboardPage() {
   const { teams } = useDashboardIndexData();
   const navigate = useNavigate({});
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [sort, setSort] = useState<DashboardSort>("last-uploaded");
 
   const isLoading = teams === undefined;
 
@@ -128,6 +145,7 @@ export default function DashboardPage() {
   return (
     <div className="flex h-full flex-col">
       <DashboardHeader paths={[{ label: "dashboard" }]}>
+        <DashboardSortControl value={sort} onChange={setSort} />
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="mr-1.5 h-4 w-4" />
           New team
@@ -192,7 +210,7 @@ export default function DashboardPage() {
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {team.projects.map((project) => (
+                    {sortDashboardItems(team.projects, sort).map((project) => (
                       <DashboardProjectCard
                         key={project._id}
                         teamSlug={team.slug}

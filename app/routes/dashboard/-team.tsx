@@ -1,7 +1,7 @@
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,8 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { useMoveActions } from "@/lib/dnd/useMoveActions";
 import { useFolderDropTarget } from "@/lib/dnd/useFolderDropTarget";
 import type { DragPayload } from "@/lib/dnd/payload";
+import { DashboardSortControl } from "@/components/DashboardSortControl";
+import { sortDashboardItems, type DashboardSort } from "@/lib/dashboardSort";
 
 export default function TeamPage() {
   const params = useParams({ strict: false });
@@ -37,6 +39,8 @@ export default function TeamPage() {
   const deleteProject = useMutation(api.projects.remove);
   const { moveFromDrop } = useMoveActions();
   const [dndError, setDndError] = useState<string | null>(null);
+  const [sort, setSort] = useState<DashboardSort>("last-uploaded");
+  const sortedProjects = useMemo(() => sortDashboardItems(projects ?? [], sort), [projects, sort]);
 
   const handleDropMove = (payload: DragPayload, destProjectId?: Id<"projects">) => {
     void moveFromDrop(payload, destProjectId).then((result) => {
@@ -139,6 +143,7 @@ export default function TeamPage() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <DashboardHeader paths={[{ label: team?.slug ?? "team" }]}>
+        <DashboardSortControl value={sort} onChange={setSort} />
         {canAccessBilling && team && (
           <Button
             variant="outline"
@@ -235,7 +240,7 @@ export default function TeamPage() {
                 "outline-2 outline-offset-4 outline-[#2d5a2d] outline-dashed",
             )}
           >
-            {projects?.map((project) => (
+            {sortedProjects.map((project) => (
               <ProjectCard
                 key={project._id}
                 teamSlug={team.slug}

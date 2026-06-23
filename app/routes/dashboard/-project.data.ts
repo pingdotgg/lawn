@@ -1,7 +1,9 @@
 import { usePaginatedQuery, useQuery, type ConvexReactClient } from "convex/react";
+import { useRef } from "react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
+import type { DashboardSort } from "@/lib/dashboardSort";
 
 const VIDEO_PAGE_SIZE = 40;
 
@@ -22,12 +24,17 @@ export function getProjectEssentialSpecs(params: { teamSlug: string; projectId: 
     }),
     makeRouteQuerySpec(api.videos.list, {
       projectId: params.projectId,
+      sort: "last-uploaded",
       paginationOpts: { cursor: null, numItems: VIDEO_PAGE_SIZE },
     }),
   ];
 }
 
-export function useProjectData(params: { teamSlug: string; projectId: Id<"projects"> }) {
+export function useProjectData(params: {
+  teamSlug: string;
+  projectId: Id<"projects">;
+  sort: DashboardSort;
+}) {
   const context = useQuery(api.workspace.resolveContext, {
     teamSlug: params.teamSlug,
     projectId: params.projectId,
@@ -44,7 +51,7 @@ export function useProjectData(params: { teamSlug: string; projectId: Id<"projec
     loadMore,
   } = usePaginatedQuery(
     api.videos.list,
-    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+    resolvedProjectId ? { projectId: resolvedProjectId, sort: params.sort } : "skip",
     { initialNumItems: VIDEO_PAGE_SIZE },
   );
   // usePaginatedQuery deliberately cache-busts its first request. Read the
@@ -55,13 +62,25 @@ export function useProjectData(params: { teamSlug: string; projectId: Id<"projec
     resolvedProjectId && videosStatus === "LoadingFirstPage"
       ? {
           projectId: resolvedProjectId,
+          sort: params.sort,
           paginationOpts: { cursor: null, numItems: VIDEO_PAGE_SIZE },
         }
       : "skip",
   );
+  const lastSettledVideosRef = useRef({
+    projectId: resolvedProjectId,
+    videos: paginatedVideos,
+  });
+  if (lastSettledVideosRef.current.projectId !== resolvedProjectId) {
+    lastSettledVideosRef.current = { projectId: resolvedProjectId, videos: [] };
+  }
+  if (videosStatus !== "LoadingFirstPage") {
+    lastSettledVideosRef.current = { projectId: resolvedProjectId, videos: paginatedVideos };
+  }
+  const videosSortPending = videosStatus === "LoadingFirstPage" && !prewarmedVideoPage;
   const videos =
-    videosStatus === "LoadingFirstPage" && prewarmedVideoPage
-      ? prewarmedVideoPage.page
+    videosStatus === "LoadingFirstPage"
+      ? (prewarmedVideoPage?.page ?? lastSettledVideosRef.current.videos)
       : paginatedVideos;
   const childFolders = useQuery(
     api.projects.listChildren,
@@ -79,6 +98,7 @@ export function useProjectData(params: { teamSlug: string; projectId: Id<"projec
     project,
     videos,
     videosStatus,
+    videosSortPending,
     loadMoreVideos: () => loadMore(VIDEO_PAGE_SIZE),
     childFolders,
     breadcrumb,

@@ -86,7 +86,7 @@ function BreadcrumbSegment({
           {path.label}
         </Link>
       ) : (
-        <div className="flex items-center gap-3 truncate">{path.label}</div>
+        <div className="mr-2 flex min-w-0 items-center gap-3 py-2">{path.label}</div>
       )}
     </div>
   );
@@ -105,7 +105,7 @@ export function DashboardHeader({
   return (
     <header className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center border-b-2 border-[#1a1a1a] bg-[#f0f0e8] px-4 sm:grid-cols-[auto_1fr_auto] sm:px-6">
       {/* Breadcrumb */}
-      <div className="flex h-11 min-w-0 items-center text-xl font-black tracking-tighter text-[#1a1a1a] sm:h-14">
+      <div className="flex min-h-11 min-w-0 items-center text-xl font-black tracking-tighter text-[#1a1a1a] sm:min-h-14">
         <Link
           to="/dashboard"
           preload="intent"
@@ -146,7 +146,7 @@ export function DashboardHeader({
 
       {/* Children — second row on mobile, middle column on desktop */}
       {children && (
-        <div className="col-span-full flex min-w-0 items-center gap-2 pb-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:h-14 sm:justify-end sm:gap-3 sm:pb-0 sm:pl-4">
+        <div className="col-span-full flex min-w-0 items-center gap-2 overflow-x-auto pb-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:h-14 sm:gap-3 sm:pb-0 sm:pl-4 [&>*]:shrink-0 sm:[&>*:first-child]:ml-auto">
           {children}
         </div>
       )}

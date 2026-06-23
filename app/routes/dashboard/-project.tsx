@@ -1,7 +1,7 @@
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
@@ -58,6 +58,9 @@ import { prewarmVideo } from "./-video.data";
 import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { createRequestEpoch } from "@/lib/requestEpoch";
+import { DashboardSortControl } from "@/components/DashboardSortControl";
+import { ExpandableTitle } from "@/components/ExpandableTitle";
+import { sortDashboardItems, type DashboardSort } from "@/lib/dashboardSort";
 
 type ViewMode = "grid" | "list";
 type ShareToastState = {
@@ -109,20 +112,19 @@ function VideoIntentTarget({
   return (
     <div
       ref={dragRef}
-      className={cn(className, isDragging && "opacity-50")}
+      className={cn("relative", className, isDragging && "opacity-50")}
       onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.currentTarget !== event.target) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
-      role="link"
-      tabIndex={0}
-      aria-label={dragPayload.kind === "video" ? `Open video ${dragPayload.title}` : "Open video"}
       {...prewarmIntentHandlers}
     >
+      <button
+        type="button"
+        className="pointer-events-none absolute inset-0 z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d5a2d]"
+        aria-label={dragPayload.kind === "video" ? `Open video ${dragPayload.title}` : "Open video"}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+      />
       {children}
     </div>
   );
@@ -138,6 +140,7 @@ export default function ProjectPage({
   const navigate = useNavigate({});
   const pathname = useLocation().pathname;
   const convex = useConvex();
+  const [sort, setSort] = useState<DashboardSort>("last-uploaded");
 
   const {
     context,
@@ -146,10 +149,11 @@ export default function ProjectPage({
     project,
     videos,
     videosStatus,
+    videosSortPending,
     loadMoreVideos,
     childFolders,
     breadcrumb,
-  } = useProjectData({ teamSlug, projectId });
+  } = useProjectData({ teamSlug, projectId, sort });
   const projectPresenceCounts = useQuery(
     api.videoPresence.listProjectOnlineCounts,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
@@ -184,6 +188,10 @@ export default function ProjectPage({
     versionNumber: number;
   } | null>(null);
   const [dndError, setDndError] = useState<string | null>(null);
+  const sortedChildFolders = useMemo(
+    () => sortDashboardItems(childFolders ?? [], sort),
+    [childFolders, sort],
+  );
 
   const handleDropMove = (payload: DragPayload, destProjectId?: Id<"projects">) => {
     void moveFromDrop(payload, destProjectId).then((result) => {
@@ -223,7 +231,6 @@ export default function ProjectPage({
   const isLoadingData =
     context === undefined ||
     project === undefined ||
-    (videosStatus === "LoadingFirstPage" && videos.length === 0) ||
     childFolders === undefined ||
     breadcrumb === undefined ||
     shouldCanonicalize;
@@ -377,7 +384,7 @@ export default function ProjectPage({
   const activeProjectId = project?._id ?? resolvedProjectId ?? projectId;
   const hasChildFolders = (childFolders?.length ?? 0) > 0;
   const hasVideos = (videos?.length ?? 0) > 0;
-  const showEmptyDropzone = !isLoadingData && !hasVideos && !hasChildFolders;
+  const showEmptyDropzone = !isLoadingData && !videosSortPending && !hasVideos && !hasChildFolders;
   const breadcrumbSegments =
     breadcrumb ??
     (project ? [{ _id: activeProjectId, name: project.name }] : [{ _id: projectId, name: " " }]);
@@ -428,6 +435,7 @@ export default function ProjectPage({
             isLoadingData ? "opacity-0" : "opacity-100",
           )}
         >
+          <DashboardSortControl value={sort} onChange={setSort} />
           {canUpload && (
             <Button variant="outline" onClick={() => setCreateFolderOpen(true)}>
               <FolderPlus className="h-4 w-4 sm:mr-1.5" />
@@ -470,7 +478,15 @@ export default function ProjectPage({
       </DashboardHeader>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="relative flex-1 overflow-auto">
+        {videosSortPending && (
+          <div
+            className="absolute top-2 right-3 z-20 bg-[#f0f0e8] px-2 py-1 text-xs font-bold text-[#888]"
+            role="status"
+          >
+            Sorting videos…
+          </div>
+        )}
         {hasChildFolders && (
           <div
             className={cn(
@@ -483,7 +499,7 @@ export default function ProjectPage({
               Folders
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {childFolders?.map((child) => (
+              {sortedChildFolders.map((child) => (
                 <ProjectCard
                   key={child._id}
                   teamSlug={resolvedTeamSlug}
@@ -663,9 +679,10 @@ export default function ProjectPage({
                       </div>
                     </div>
                     <div className="mt-2.5">
-                      <p className="truncate text-[15px] leading-tight font-black text-[#1a1a1a]">
-                        {video.title}
-                      </p>
+                      <ExpandableTitle
+                        title={video.title}
+                        className="text-[15px] leading-tight font-black text-[#1a1a1a]"
+                      />
                       <div className="mt-1.5 flex items-center gap-3">
                         <VideoWorkflowStatusControl
                           status={video.workflowStatus}
@@ -784,7 +801,7 @@ export default function ProjectPage({
 
                   {/* Info */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-black text-[#1a1a1a]">{video.title}</p>
+                    <ExpandableTitle title={video.title} className="font-black text-[#1a1a1a]" />
                     <div className="mt-1 flex items-center gap-3">
                       <VideoWorkflowStatusControl
                         status={video.workflowStatus}

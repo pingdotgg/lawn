@@ -10,6 +10,7 @@ import {
 } from "./auth";
 import { getTeamSubscriptionState } from "./billingHelpers";
 import { deleteVideoAndDependents } from "./videos";
+import { latestProjectUploadAt } from "./projectRecency";
 
 function normalizedEmail(value: string) {
   return value.trim().toLowerCase();
@@ -136,6 +137,7 @@ export const listWithProjects = query({
               .withIndex("by_project_and_superseded_by_video_id", (q) =>
                 q.eq("projectId", project._id).eq("supersededByVideoId", undefined),
               )
+              .order("desc")
               .take(101);
             const subfolderPage = await ctx.db
               .query("projects")
@@ -146,6 +148,7 @@ export const listWithProjects = query({
             return {
               ...project,
               videoCount: videoPage.length === 101 ? 100 : videoPage.length,
+              lastUploadedAt: latestProjectUploadAt(project, videoPage[0]?._creationTime),
               subfolderCount: subfolderPage.length === 101 ? 100 : subfolderPage.length,
               videoCountIsCapped: videoPage.length === 101,
               subfolderCountIsCapped: subfolderPage.length === 101,

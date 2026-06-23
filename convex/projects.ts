@@ -5,6 +5,11 @@ import { Doc, Id } from "./_generated/dataModel";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
 import { deleteVideoAndDependentsBatch } from "./videos";
+import {
+  propagateProjectUploadRecency,
+  recomputeProjectUploadRecencyThroughAncestors,
+  latestProjectUploadAt,
+} from "./projectRecency";
 
 // Maximum folder nesting. depth(root) == 0; a folder may be created/moved under
 // a parent only when parentDepth + 1 <= MAX_FOLDER_DEPTH, so the deepest folder
@@ -131,6 +136,7 @@ async function folderCounts(ctx: QueryCtx, project: Doc<"projects">) {
       .withIndex("by_project_and_superseded_by_video_id", (q) =>
         q.eq("projectId", project._id).eq("supersededByVideoId", undefined),
       )
+      .order("desc")
       .take(101),
     ctx.db
       .query("projects")
@@ -141,6 +147,7 @@ async function folderCounts(ctx: QueryCtx, project: Doc<"projects">) {
   ]);
   return {
     videoCount: videoPage.length === 101 ? 100 : videoPage.length,
+    lastUploadedAt: latestProjectUploadAt(project, videoPage[0]?._creationTime),
     subfolderCount: subfolderPage.length === 101 ? 100 : subfolderPage.length,
     videoCountIsCapped: videoPage.length === 101,
     subfolderCountIsCapped: subfolderPage.length === 101,
@@ -411,7 +418,14 @@ export const move = mutation({
     }
 
     if (project.parentId === args.newParentId) return; // no-op
+    const previousParentId = project.parentId;
     await ctx.db.patch(args.projectId, { parentId: args.newParentId });
+    await recomputeProjectUploadRecencyThroughAncestors(ctx, previousParentId);
+    if (project.latestDescendantUploadAt !== undefined) {
+      await propagateProjectUploadRecency(ctx, project._id, project.latestDescendantUploadAt);
+    } else {
+      await recomputeProjectUploadRecencyThroughAncestors(ctx, project._id);
+    }
   },
 });
 
@@ -425,7 +439,7 @@ async function runSubtreeDeleteBatch(
   ctx: MutationCtx,
   teamId: Id<"teams">,
   rootProjectId: Id<"projects">,
-): Promise<{ done: boolean }> {
+): Promise<{ done: boolean; rootParentId?: Id<"projects"> }> {
   const root = await ctx.db.get(rootProjectId);
   if (!root) return { done: true }; // already gone
   if (root.teamId !== teamId) {
@@ -468,14 +482,14 @@ async function runSubtreeDeleteBatch(
     const result = await deleteVideoAndDependentsBatch(ctx, video._id, budget);
     budget -= result.deleted;
     if (!result.done || budget === 0) {
-      return { done: false };
+      return { done: false, rootParentId: root.parentId };
     }
   }
 
-  if (budget === 0) return { done: false };
+  if (budget === 0) return { done: false, rootParentId: root.parentId };
 
   await ctx.db.delete(leaf._id);
-  return { done: leaf._id === rootProjectId };
+  return { done: leaf._id === rootProjectId, rootParentId: root.parentId };
 }
 
 export const remove = mutation({
@@ -488,7 +502,13 @@ export const remove = mutation({
       await ctx.scheduler.runAfter(0, internal.projects.continueSubtreeDelete, {
         teamId: project.teamId,
         rootProjectId: args.projectId,
+        previousParentId: project.parentId,
       });
+    } else {
+      await recomputeProjectUploadRecencyThroughAncestors(ctx, project.parentId);
+      if (result.rootParentId !== project.parentId) {
+        await recomputeProjectUploadRecencyThroughAncestors(ctx, result.rootParentId);
+      }
     }
   },
 });
@@ -497,11 +517,17 @@ export const continueSubtreeDelete = internalMutation({
   args: {
     teamId: v.id("teams"),
     rootProjectId: v.id("projects"),
+    previousParentId: v.optional(v.id("projects")),
   },
   handler: async (ctx, args) => {
     const result = await runSubtreeDeleteBatch(ctx, args.teamId, args.rootProjectId);
     if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.projects.continueSubtreeDelete, args);
+    } else {
+      await recomputeProjectUploadRecencyThroughAncestors(ctx, args.previousParentId);
+      if (result.rootParentId !== args.previousParentId) {
+        await recomputeProjectUploadRecencyThroughAncestors(ctx, result.rootParentId);
+      }
     }
   },
 });

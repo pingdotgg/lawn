@@ -16,6 +16,7 @@ import { useDraggableCard } from "@/lib/dnd/useDraggableCard";
 import { useFolderDropTarget } from "@/lib/dnd/useFolderDropTarget";
 import type { FolderNode } from "@/lib/folderTree";
 import type { DragPayload } from "@/lib/dnd/payload";
+import { ExpandableTitle } from "@/components/ExpandableTitle";
 
 export type ProjectCardProject = {
   _id: Id<"projects">;
@@ -24,6 +25,7 @@ export type ProjectCardProject = {
   subfolderCount: number;
   videoCountIsCapped: boolean;
   subfolderCountIsCapped: boolean;
+  lastUploadedAt?: number;
 };
 
 export function formatProjectMeta(
@@ -112,7 +114,7 @@ export function ProjectCard({
     <Card
       ref={setCardRef}
       className={cn(
-        "group cursor-pointer transition-colors hover:bg-[#e8e8e0]",
+        "group relative cursor-pointer transition-colors hover:bg-[#e8e8e0]",
         isDragging && "border-dashed opacity-50",
         isDraggedOver && canDropHere && "border-[#2d5a2d] bg-[#2d5a2d]/10",
         isDraggedOver && !canDropHere && "[cursor:no-drop] border-[#dc2626]",
@@ -120,9 +122,20 @@ export function ProjectCard({
       onClick={onOpen}
       {...prewarmIntentHandlers}
     >
+      <button
+        type="button"
+        className="pointer-events-none absolute inset-0 z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d5a2d]"
+        aria-label={`Open project ${project.name}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+      />
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
         <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-base">{project.name}</CardTitle>
+          <CardTitle className="text-base">
+            <ExpandableTitle title={project.name} />
+          </CardTitle>
           <CardDescription className="mt-1">
             {formatProjectMeta(
               project.videoCount,

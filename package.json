@@ -27,6 +27,7 @@
     "@aws-sdk/client-s3": "^3.991.0",
     "@aws-sdk/s3-request-presigner": "^3.991.0",
     "@clerk/tanstack-react-start": "^0.27.14",
+    "@convex-dev/migrations": "^0.3.5",
     "@convex-dev/presence": "^0.3.1",
     "@convex-dev/rate-limiter": "^0.3.2",
     "@convex-dev/stripe": "^0.1.4",
