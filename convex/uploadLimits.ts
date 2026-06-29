@@ -2,7 +2,7 @@ export const GIBIBYTE = 1024 ** 3;
 export const MEBIBYTE = 1024 ** 2;
 
 export const MAX_VIDEO_FILE_SIZE_BYTES = 50 * GIBIBYTE;
-export const SINGLE_PUT_MAX_BYTES = 5 * GIBIBYTE;
+export const SINGLE_PUT_MAX_BYTES = 256 * MEBIBYTE;
 export const MULTIPART_PART_SIZE_BYTES = 64 * MEBIBYTE;
 
 export const PRESIGN_SINGLE_PUT_EXPIRES_SEC = 3600;
