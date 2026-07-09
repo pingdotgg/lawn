@@ -294,11 +294,13 @@ export default function WatchPage() {
             className="hidden h-8 lg:inline-flex"
             onClick={toggleSidebarCollapsed}
             aria-label={sidebarCollapsed ? "Show discussion sidebar" : "Hide discussion sidebar"}
+            aria-controls="public-discussion-sidebar"
+            aria-expanded={!sidebarCollapsed}
           >
             {sidebarCollapsed ? (
-              <PanelRightOpen className="h-4 w-4" />
+              <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <PanelRightClose className="h-4 w-4" />
+              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
             )}
           </Button>
         </div>
@@ -344,9 +346,10 @@ export default function WatchPage() {
 
         {/* Comments sidebar — desktop */}
         <aside
+          id="public-discussion-sidebar"
           className={cn(
-            "hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] transition-[margin,transform] duration-300 lg:flex xl:w-96",
-            sidebarCollapsed && "pointer-events-none -mr-80 translate-x-full xl:-mr-96",
+            "hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] transition-[margin] duration-300 motion-reduce:transition-none lg:flex xl:w-96",
+            sidebarCollapsed && "pointer-events-none -mr-80 xl:-mr-96",
           )}
           aria-hidden={sidebarCollapsed}
           inert={sidebarCollapsed}
