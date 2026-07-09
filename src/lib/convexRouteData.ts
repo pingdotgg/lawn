@@ -11,6 +11,7 @@ export type RouteQuerySpec<Query extends FunctionReference<"query">> = {
   query: Query;
   args: FunctionArgs<Query>;
   key: string;
+  redactErrorDetails?: boolean;
 };
 
 export function buildQueryKey(queryName: string, args: unknown): string {
@@ -20,11 +21,13 @@ export function buildQueryKey(queryName: string, args: unknown): string {
 export function makeRouteQuerySpec<Query extends FunctionReference<"query">>(
   query: Query,
   args: FunctionArgs<Query>,
+  dedupeKey?: string,
 ): RouteQuerySpec<Query> {
   return {
     query,
     args,
-    key: buildQueryKey(getFunctionName(query), args),
+    key: dedupeKey ?? buildQueryKey(getFunctionName(query), args),
+    redactErrorDetails: dedupeKey !== undefined,
   };
 }
 
@@ -60,10 +63,10 @@ export function prewarmSpecs(
       });
     } catch (error) {
       // Prewarm failures should never block navigation.
-      console.warn("Convex prewarm failed", {
-        key: spec.key,
-        error,
-      });
+      console.warn(
+        "Convex prewarm failed",
+        spec.redactErrorDetails ? { key: spec.key } : { key: spec.key, error },
+      );
     }
   }
 }

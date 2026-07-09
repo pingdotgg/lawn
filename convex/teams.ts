@@ -9,6 +9,7 @@ import {
   requireTeamAccess,
 } from "./auth";
 import { getTeamSubscriptionState } from "./billingHelpers";
+import { deleteFolderShareLink } from "./folderShares";
 import { deleteVideoAndDependents } from "./videos";
 
 function normalizedEmail(value: string) {
@@ -461,6 +462,7 @@ export const deleteTeam = mutation({
         await deleteVideoAndDependents(ctx, video._id);
       }
 
+      await deleteFolderShareLink(ctx, project._id);
       await ctx.db.delete(project._id);
     }
 

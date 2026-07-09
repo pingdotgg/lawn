@@ -30,6 +30,43 @@ test("prewarmSpecs dedupes within the dedupe window", () => {
   assert.equal(calls[0].name, "teams:list");
 });
 
+test("custom prewarm keys can redact bearer arguments", () => {
+  const spec = makeRouteQuerySpec(
+    api.folderShares.getFolder,
+    { grantToken: "sensitive-grant", folderId: "folder-id" },
+    "folder-share:folder:folder-id:metadata",
+  );
+
+  assert.equal(spec.key, "folder-share:folder:folder-id:metadata");
+  assert.equal(spec.key.includes("sensitive-grant"), false);
+  assert.equal(spec.redactErrorDetails, true);
+});
+
+test("custom-key prewarm warnings do not expose bearer arguments", () => {
+  resetPrewarmDedupeForTests();
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args);
+  try {
+    const convex = {
+      prewarmQuery: () => {
+        throw new Error("sensitive-grant");
+      },
+    } as unknown as ConvexReactClient;
+    prewarmSpecs(convex, [
+      makeRouteQuerySpec(
+        api.folderShares.getFolder,
+        { grantToken: "sensitive-grant", folderId: "folder-id" },
+        "folder-share:folder:folder-id:metadata",
+      ),
+    ]);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(JSON.stringify(warnings).includes("sensitive-grant"), false);
+});
+
 test("route prewarm intent handlers debounce repeated intent events", async () => {
   let calls = 0;
   const intent = createRoutePrewarmIntent(

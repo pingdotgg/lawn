@@ -73,6 +73,15 @@ export async function getMuxAsset(assetId: string) {
   return await mux.video.assets.retrieve(assetId);
 }
 
+export async function resolveMuxAssetIdFromPlaybackId(playbackId: string) {
+  const mux = getMuxClient();
+  const resolved = await mux.video.playbackIds.retrieve(playbackId);
+  if (resolved.object.type !== "asset") {
+    throw new Error("Mux playback ID does not belong to a video asset.");
+  }
+  return resolved.object.id;
+}
+
 export async function deleteMuxAsset(assetId: string) {
   const mux = getMuxClient();
   await mux.video.assets.delete(assetId);

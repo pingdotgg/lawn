@@ -16,7 +16,11 @@ import {
   buildMuxThumbnailUrl,
   createMuxAssetFromInputUrl,
   createPublicPlaybackId,
+  createSignedPlaybackId,
   getMuxAsset,
+  resolveMuxAssetIdFromPlaybackId,
+  signPlaybackToken,
+  signThumbnailToken,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
 import {
@@ -288,6 +292,30 @@ function buildPublicPlaybackSession(playbackId: string): { url: string; posterUr
   return {
     url: buildMuxPlaybackUrl(playbackId),
     posterUrl: buildMuxThumbnailUrl(playbackId),
+  };
+}
+
+async function buildSignedPlaybackSession(muxAssetId: string) {
+  const asset = await getMuxAsset(muxAssetId);
+  const playbackIds = (asset.playback_ids ?? []) as Array<{
+    id?: string;
+    policy?: string;
+  }>;
+  let playbackId = playbackIds.find((entry) => entry.policy === "signed" && entry.id)?.id;
+  if (!playbackId) {
+    playbackId = (await createSignedPlaybackId(muxAssetId)).id;
+  }
+  if (!playbackId) {
+    throw new Error("Mux asset has no signed playback ID.");
+  }
+
+  const [playbackToken, thumbnailToken] = await Promise.all([
+    signPlaybackToken(playbackId, "1h"),
+    signThumbnailToken(playbackId, "1h"),
+  ]);
+  return {
+    url: buildMuxPlaybackUrl(playbackId, playbackToken),
+    posterUrl: buildMuxThumbnailUrl(playbackId, thumbnailToken),
   };
 }
 
@@ -1158,6 +1186,33 @@ export const getSharedPlaybackSession = action({
       muxPlaybackId: result.video.muxPlaybackId,
     });
     return buildPublicPlaybackSession(playbackId);
+  },
+});
+
+export const getFolderSharedPlaybackSession = action({
+  args: {
+    grantToken: v.string(),
+    videoId: v.string(),
+  },
+  returns: v.object({
+    url: v.string(),
+    posterUrl: v.string(),
+  }),
+  handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
+    // This mutation re-resolves authorization and atomically claims both the
+    // global and durable-link/video rate limits before any Mux API work starts.
+    const claim = await ctx.runMutation(internal.folderShares.claimVideoForPlayback, args);
+    if (!claim) {
+      throw new Error("Video not found or not ready");
+    }
+
+    // Older ready rows only stored a public playback ID. Resolve that ID back
+    // to its asset, then create/use a signed policy; never return the public ID.
+    const muxAssetId =
+      claim.kind === "assetId"
+        ? claim.muxAssetId
+        : await resolveMuxAssetIdFromPlaybackId(claim.muxPlaybackId);
+    return await buildSignedPlaybackSession(muxAssetId);
   },
 });
 

@@ -51,12 +51,17 @@ export default defineSchema({
     // folder). Existing rows have no parentId, so they are already roots and no
     // backfill is needed.
     parentId: v.optional(v.id("projects")),
+    // Set before an asynchronous subtree deletion starts. Descendant share
+    // links remain physically present until their branch is drained, so public
+    // access treats this folder and every descendant as unavailable meanwhile.
+    deletionStartedAt: v.optional(v.number()),
   })
     // Kept: team-wide flat listing (storage usage, team deletion).
     .index("by_team", ["teamId"])
     // Lists the children of a folder, or — with parentId == undefined — the
     // roots of a team.
-    .index("by_team_and_parent", ["teamId", "parentId"]),
+    .index("by_team_and_parent", ["teamId", "parentId"])
+    .index("by_team_id_and_parent_id_and_name", ["teamId", "parentId", "name"]),
 
   videos: defineTable({
     projectId: v.id("projects"),
@@ -106,6 +111,11 @@ export default defineSchema({
   })
     .index("by_project", ["projectId"])
     .index("by_project_and_superseded_by_video_id", ["projectId", "supersededByVideoId"])
+    .index("by_project_id_and_superseded_by_video_id_and_status", [
+      "projectId",
+      "supersededByVideoId",
+      "status",
+    ])
     .index("by_project_id_and_superseded_by_video_id_and_title", [
       "projectId",
       "supersededByVideoId",
@@ -164,5 +174,24 @@ export default defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_share_link", ["shareLinkId"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  folderShareLinks: defineTable({
+    projectId: v.id("projects"),
+    token: v.string(),
+    createdByClerkId: v.string(),
+    createdByName: v.string(),
+  })
+    .index("by_project_id", ["projectId"])
+    .index("by_token", ["token"]),
+
+  folderShareAccessGrants: defineTable({
+    folderShareLinkId: v.id("folderShareLinks"),
+    token: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_token", ["token"])
+    .index("by_folder_share_link_id", ["folderShareLinkId"])
     .index("by_expires_at", ["expiresAt"]),
 });
