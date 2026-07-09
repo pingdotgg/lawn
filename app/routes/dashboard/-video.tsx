@@ -1229,6 +1229,7 @@ export default function VideoPage() {
             sidebarCollapsed && "pointer-events-none -mr-80 translate-x-full xl:-mr-96",
           )}
           aria-hidden={sidebarCollapsed}
+          inert={sidebarCollapsed}
         >
           <div className="flex flex-shrink-0 items-center justify-between border-b border-[#1a1a1a]/10 px-5 py-4 dark:border-white/10">
             <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#1a1a1a] dark:text-[#f0f0e8]">

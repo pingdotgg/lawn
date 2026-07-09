@@ -1,16 +1,17 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "lawn:discussion-collapsed";
 
 export function useSidebarCollapsed() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
     try {
-      return window.localStorage.getItem(STORAGE_KEY) === "1";
+      setCollapsed(window.localStorage.getItem(STORAGE_KEY) === "1");
     } catch {
-      return false;
+      // ignore storage failures
     }
-  });
+  }, []);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
