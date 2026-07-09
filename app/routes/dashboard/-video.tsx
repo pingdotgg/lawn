@@ -21,6 +21,7 @@ import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
+import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { UploadButton } from "@/components/upload/UploadButton";
@@ -33,6 +34,8 @@ import {
   MessageSquare,
   MoreVertical,
   Download,
+  PanelRightClose,
+  PanelRightOpen,
   Layers3,
   Upload,
   Trash2,
@@ -309,6 +312,7 @@ export default function VideoPage() {
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
     posterUrl: string;
@@ -987,6 +991,20 @@ export default function VideoPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={toggleSidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Show discussion sidebar" : "Hide discussion sidebar"}
+            aria-controls="dashboard-discussion-sidebar"
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? (
+              <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
+            )}
+          </Button>
         </div>
 
         {/* Compact: workflow status + consolidated menu until large screens */}
@@ -1207,7 +1225,15 @@ export default function VideoPage() {
         </div>
 
         {/* Comments sidebar — desktop */}
-        <aside className="hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] lg:flex xl:w-96">
+        <aside
+          id="dashboard-discussion-sidebar"
+          className={cn(
+            "hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] transition-[margin] duration-300 motion-reduce:transition-none lg:flex xl:w-96",
+            sidebarCollapsed && "pointer-events-none -mr-80 xl:-mr-96",
+          )}
+          aria-hidden={sidebarCollapsed}
+          inert={sidebarCollapsed}
+        >
           <div className="flex flex-shrink-0 items-center justify-between border-b border-[#1a1a1a]/10 px-5 py-4 dark:border-white/10">
             <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#1a1a1a] dark:text-[#f0f0e8]">
               Discussion
