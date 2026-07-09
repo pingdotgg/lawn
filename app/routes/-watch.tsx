@@ -19,8 +19,18 @@ import {
 import { CommentText } from "@/components/comments/CommentText";
 import { triggerDownload } from "@/lib/download";
 import { watchPath } from "@/lib/routes";
-import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
-import { AlertCircle, Layers3, MessageSquare, Clock, Download, X } from "lucide-react";
+import { cn, formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
+import {
+  AlertCircle,
+  Layers3,
+  MessageSquare,
+  Clock,
+  Download,
+  PanelRightClose,
+  PanelRightOpen,
+  X,
+} from "lucide-react";
+import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { useWatchData } from "./-watch.data";
 
 export default function WatchPage() {
@@ -47,6 +57,7 @@ export default function WatchPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const playerRef = useRef<VideoPlayerHandle | null>(null);
 
   useEffect(() => {
@@ -277,6 +288,19 @@ export default function WatchPage() {
               <span className="ml-1.5 text-xs">{comments.length}</span>
             )}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden h-8 lg:inline-flex"
+            onClick={toggleSidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Show discussion sidebar" : "Hide discussion sidebar"}
+          >
+            {sidebarCollapsed ? (
+              <PanelRightOpen className="h-4 w-4" />
+            ) : (
+              <PanelRightClose className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </header>
 
@@ -319,7 +343,13 @@ export default function WatchPage() {
         </div>
 
         {/* Comments sidebar — desktop */}
-        <aside className="hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] lg:flex xl:w-96">
+        <aside
+          className={cn(
+            "hidden w-80 flex-col border-l-2 border-[#1a1a1a] bg-[#f0f0e8] transition-[margin,transform] duration-300 lg:flex xl:w-96",
+            sidebarCollapsed && "pointer-events-none -mr-80 translate-x-full xl:-mr-96",
+          )}
+          aria-hidden={sidebarCollapsed}
+        >
           <div className="flex flex-shrink-0 items-center justify-between border-b border-[#1a1a1a]/10 px-5 py-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#1a1a1a]">
               Discussion
@@ -369,7 +399,9 @@ export default function WatchPage() {
                                 type="button"
                                 className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
                                 onClick={() =>
-                                  playerRef.current?.seekTo(reply.timestampSeconds, { play: true })
+                                  playerRef.current?.seekTo(reply.timestampSeconds, {
+                                    play: true,
+                                  })
                                 }
                               >
                                 {formatTimestamp(reply.timestampSeconds)}
