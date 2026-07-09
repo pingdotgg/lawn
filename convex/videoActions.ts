@@ -54,6 +54,7 @@ const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
 const MUX_STATUS_SWEEP_BATCH_SIZE = 10;
 const MUX_STATUS_SWEEP_LOCK = "mux-status-sweep";
 const MUX_STATUS_SWEEP_LOCK_TTL_MS = 5 * 60 * 1000;
+const SIGNED_PLAYBACK_SESSION_TTL_MS = 60 * 60 * 1000;
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
   let source = key;
@@ -309,6 +310,7 @@ async function buildSignedPlaybackSession(muxAssetId: string) {
     throw new Error("Mux asset has no signed playback ID.");
   }
 
+  const expiresAt = Date.now() + SIGNED_PLAYBACK_SESSION_TTL_MS;
   const [playbackToken, thumbnailToken] = await Promise.all([
     signPlaybackToken(playbackId, "1h"),
     signThumbnailToken(playbackId, "1h"),
@@ -316,6 +318,7 @@ async function buildSignedPlaybackSession(muxAssetId: string) {
   return {
     url: buildMuxPlaybackUrl(playbackId, playbackToken),
     posterUrl: buildMuxThumbnailUrl(playbackId, thumbnailToken),
+    expiresAt,
   };
 }
 
@@ -1194,16 +1197,36 @@ export const getFolderSharedPlaybackSession = action({
     grantToken: v.string(),
     videoId: v.string(),
   },
-  returns: v.object({
-    url: v.string(),
-    posterUrl: v.string(),
-  }),
-  handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
+  returns: v.union(
+    v.object({
+      status: v.literal("ok"),
+      url: v.string(),
+      posterUrl: v.string(),
+      expiresAt: v.number(),
+    }),
+    v.object({
+      status: v.literal("rateLimited"),
+      retryAfterMs: v.number(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    | { status: "ok"; url: string; posterUrl: string; expiresAt: number }
+    | { status: "rateLimited"; retryAfterMs: number }
+  > => {
     // This mutation re-resolves authorization and atomically claims both the
     // global and durable-link/video rate limits before any Mux API work starts.
     const claim = await ctx.runMutation(internal.folderShares.claimVideoForPlayback, args);
     if (!claim) {
       throw new Error("Video not found or not ready");
+    }
+    if (claim.kind === "rateLimited") {
+      return {
+        status: "rateLimited" as const,
+        retryAfterMs: claim.retryAfterMs,
+      };
     }
 
     // Older ready rows only stored a public playback ID. Resolve that ID back
@@ -1212,7 +1235,10 @@ export const getFolderSharedPlaybackSession = action({
       claim.kind === "assetId"
         ? claim.muxAssetId
         : await resolveMuxAssetIdFromPlaybackId(claim.muxPlaybackId);
-    return await buildSignedPlaybackSession(muxAssetId);
+    return {
+      status: "ok" as const,
+      ...(await buildSignedPlaybackSession(muxAssetId)),
+    };
   },
 });
 

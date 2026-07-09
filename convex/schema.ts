@@ -61,7 +61,12 @@ export default defineSchema({
     // Lists the children of a folder, or — with parentId == undefined — the
     // roots of a team.
     .index("by_team_and_parent", ["teamId", "parentId"])
-    .index("by_team_id_and_parent_id_and_name", ["teamId", "parentId", "name"]),
+    .index("by_team_id_and_parent_id_and_deletion_started_at_and_name", [
+      "teamId",
+      "parentId",
+      "deletionStartedAt",
+      "name",
+    ]),
 
   videos: defineTable({
     projectId: v.id("projects"),

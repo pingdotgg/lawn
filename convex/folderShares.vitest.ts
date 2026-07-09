@@ -94,7 +94,7 @@ async function seedFolderShareFixture() {
       workflowStatus: "review",
       muxPlaybackId: "outside-playback-secret",
     });
-    await ctx.db.insert("comments", {
+    const rootCommentId = await ctx.db.insert("comments", {
       videoId: rootVideoId,
       userClerkId: "comment-author-clerk-secret",
       userName: "Visible reviewer",
@@ -115,6 +115,7 @@ async function seedFolderShareFixture() {
       rootVideoId,
       childVideoId,
       outsideVideoId,
+      rootCommentId,
     };
   });
 
@@ -128,6 +129,7 @@ async function createShareAndGrant(t: ReturnType<typeof convexTest>, projectId: 
   const grant = await t.mutation(api.folderShares.issueAccessGrant, { token: created.token });
   expect(grant.ok).toBe(true);
   expect(grant.grantToken).toEqual(expect.any(String));
+  expect(grant.expiresAt).toEqual(expect.any(Number));
   return { shareToken: created.token, grantToken: grant.grantToken! };
 }
 
@@ -164,9 +166,26 @@ test("members manage one stable folder link while viewers cannot obtain it", asy
   );
 });
 
-test("public DTOs do not leak durable tokens, storage ids, Mux ids, or Clerk ids", async () => {
-  const { t, rootId, rootVideoId } = await seedFolderShareFixture();
+test("public DTOs expose direct replies without leaking private identifiers", async () => {
+  const { t, rootId, rootVideoId, rootCommentId } = await seedFolderShareFixture();
   const { shareToken, grantToken } = await createShareAndGrant(t, rootId);
+
+  const directReplyId = await t
+    .withIdentity({ subject: "member", name: "Member" })
+    .mutation(api.comments.create, {
+      videoId: rootVideoId,
+      text: "Visible direct reply",
+      timestampSeconds: 13,
+      parentId: rootCommentId,
+    });
+  await expect(
+    t.withIdentity({ subject: "member", name: "Member" }).mutation(api.comments.create, {
+      videoId: rootVideoId,
+      text: "Nested reply",
+      timestampSeconds: 14,
+      parentId: directReplyId,
+    }),
+  ).rejects.toThrow("Invalid parent comment");
 
   await expect(t.query(api.folderShares.getByToken, { token: shareToken })).resolves.toEqual({
     status: "ok",
@@ -196,6 +215,13 @@ test("public DTOs do not leak durable tokens, storage ids, Mux ids, or Clerk ids
     text: "Visible feedback",
   });
   expect(video?.comments[0]).not.toHaveProperty("userAvatarUrl");
+  expect(video?.comments[0].replies).toEqual([
+    expect.objectContaining({
+      _id: directReplyId,
+      userName: "Member",
+      text: "Visible direct reply",
+    }),
+  ]);
 
   const ordinaryProject = await t
     .withIdentity({ subject: "member" })
@@ -229,6 +255,90 @@ test("folder and video reads stay inside the shared descendant subtree", async (
       videoId: outsideVideoId,
     }),
   ).resolves.toBeNull();
+});
+
+test("active access grants renew in place without interrupting folder reads", async () => {
+  vi.useFakeTimers();
+  try {
+    const startedAt = Date.UTC(2026, 6, 8, 12);
+    vi.setSystemTime(startedAt);
+    const { t, rootId } = await seedFolderShareFixture();
+    const { shareToken, grantToken } = await createShareAndGrant(t, rootId);
+    const before = await t.run((ctx) =>
+      ctx.db
+        .query("folderShareAccessGrants")
+        .withIndex("by_token", (q) => q.eq("token", grantToken))
+        .unique(),
+    );
+    expect(before).not.toBeNull();
+
+    vi.setSystemTime(startedAt + 30 * 60 * 1000);
+    await expect(
+      t.mutation(api.folderShares.renewAccessGrant, {
+        token: "x".repeat(32),
+        grantToken,
+      }),
+    ).resolves.toEqual({ ok: false, expiresAt: null });
+    const renewed = await t.mutation(api.folderShares.renewAccessGrant, {
+      token: shareToken,
+      grantToken,
+    });
+    expect(renewed).toEqual({
+      ok: true,
+      expiresAt: startedAt + 90 * 60 * 1000,
+    });
+
+    const after = await t.run((ctx) =>
+      ctx.db
+        .query("folderShareAccessGrants")
+        .withIndex("by_token", (q) => q.eq("token", grantToken))
+        .unique(),
+    );
+    expect(after).toMatchObject({
+      _id: before!._id,
+      token: grantToken,
+      expiresAt: renewed.expiresAt,
+    });
+
+    vi.setSystemTime(before!.expiresAt + 1);
+    await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toMatchObject({
+      current: { _id: rootId },
+      grantExpiresAt: renewed.expiresAt,
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("renewal aggregate limits cannot be bypassed with fresh grants", async () => {
+  const { t, rootId } = await seedFolderShareFixture();
+  const created = await t
+    .withIdentity({ subject: "member", name: "Member" })
+    .mutation(api.folderShares.create, { projectId: rootId });
+  const grantTokens: string[] = [];
+  for (let index = 0; index < 13; index += 1) {
+    const grant = await t.mutation(api.folderShares.issueAccessGrant, { token: created.token });
+    expect(grant.ok).toBe(true);
+    grantTokens.push(grant.grantToken!);
+  }
+
+  for (const grantToken of grantTokens.slice(0, 12)) {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await expect(
+        t.mutation(api.folderShares.renewAccessGrant, {
+          token: created.token,
+          grantToken,
+        }),
+      ).resolves.toMatchObject({ ok: true, expiresAt: expect.any(Number) });
+    }
+  }
+
+  await expect(
+    t.mutation(api.folderShares.renewAccessGrant, {
+      token: created.token,
+      grantToken: grantTokens[12],
+    }),
+  ).resolves.toEqual({ ok: false, expiresAt: null });
 });
 
 test("playback claims expose only the authorized modern or legacy Mux input", async () => {
@@ -269,7 +379,44 @@ test("playback limits stay keyed to the durable link and video across fresh gran
       grantToken: freshGrant.grantToken!,
       videoId: rootVideoId,
     }),
-  ).resolves.toBeNull();
+  ).resolves.toMatchObject({ kind: "rateLimited", retryAfterMs: expect.any(Number) });
+});
+
+test("playback aggregate limits cannot be bypassed across videos", async () => {
+  const { t, rootId, rootVideoId, childVideoId } = await seedFolderShareFixture();
+  const thirdVideoId = await t.run(
+    async (ctx) =>
+      await ctx.db.insert("videos", {
+        projectId: rootId,
+        uploadedByClerkId: "owner",
+        uploaderName: "Owner",
+        title: "Third video",
+        visibility: "private",
+        publicId: "third-video-public-id",
+        status: "ready",
+        workflowStatus: "review",
+        muxPlaybackId: "third-playback-secret",
+      }),
+  );
+  const { grantToken } = await createShareAndGrant(t, rootId);
+
+  for (const videoId of [rootVideoId, childVideoId, thirdVideoId]) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await expect(
+        t.mutation(internal.folderShares.claimVideoForPlayback, {
+          grantToken,
+          videoId,
+        }),
+      ).resolves.not.toMatchObject({ kind: "rateLimited" });
+    }
+  }
+
+  await expect(
+    t.mutation(internal.folderShares.claimVideoForPlayback, {
+      grantToken,
+      videoId: thirdVideoId,
+    }),
+  ).resolves.toMatchObject({ kind: "rateLimited", retryAfterMs: expect.any(Number) });
 });
 
 test("corrupt cross-team ancestry fails closed for roots and descendants", async () => {
@@ -302,7 +449,7 @@ test("corrupt cross-team ancestry fails closed for roots and descendants", async
   });
   await expect(
     t.mutation(api.folderShares.issueAccessGrant, { token: shareToken }),
-  ).resolves.toEqual({ ok: false, grantToken: null });
+  ).resolves.toEqual({ ok: false, grantToken: null, expiresAt: null });
   await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toBeNull();
 });
 
@@ -405,6 +552,14 @@ test("folder reads paginate every immediate child and reject malformed ids", asy
   const { t, rootId } = await seedFolderShareFixture();
   await t.run(async (ctx) => {
     const root = await ctx.db.get(rootId);
+    for (let index = 0; index < 40; index += 1) {
+      await ctx.db.insert("projects", {
+        teamId: root!.teamId,
+        parentId: rootId,
+        name: `000 deleting ${index}`,
+        deletionStartedAt: 1,
+      });
+    }
     for (let index = 0; index < 101; index += 1) {
       await ctx.db.insert("projects", {
         teamId: root!.teamId,
@@ -459,7 +614,39 @@ test("folder reads paginate every immediate child and reject malformed ids", asy
   await expect(t.mutation(api.folderShares.issueAccessGrant, { token: "bad" })).resolves.toEqual({
     ok: false,
     grantToken: null,
+    expiresAt: null,
   });
+});
+
+test("paginated reads revalidate the share grant between pages", async () => {
+  const { t, rootId } = await seedFolderShareFixture();
+  await t.run(async (ctx) => {
+    const root = await ctx.db.get(rootId);
+    for (let index = 0; index < 45; index += 1) {
+      await ctx.db.insert("projects", {
+        teamId: root!.teamId,
+        parentId: rootId,
+        name: `Page boundary ${index}`,
+      });
+    }
+  });
+  const { grantToken } = await createShareAndGrant(t, rootId);
+  const first = await t.query(api.folderShares.listFolders, {
+    grantToken,
+    paginationOpts: { cursor: null, numItems: 40 },
+  });
+  expect(first.page).toHaveLength(40);
+  expect(first.isDone).toBe(false);
+
+  await t
+    .withIdentity({ subject: "member" })
+    .mutation(api.folderShares.revoke, { projectId: rootId });
+  await expect(
+    t.query(api.folderShares.listFolders, {
+      grantToken,
+      paginationOpts: { cursor: first.continueCursor, numItems: 40 },
+    }),
+  ).resolves.toEqual({ page: [], isDone: true, continueCursor: "" });
 });
 
 test("starting an async ancestor deletion immediately invalidates descendant shares", async () => {
@@ -540,7 +727,7 @@ test("starting an async ancestor deletion immediately invalidates descendant sha
     });
     await expect(
       t.mutation(api.folderShares.issueAccessGrant, { token: shareToken }),
-    ).resolves.toEqual({ ok: false, grantToken: null });
+    ).resolves.toEqual({ ok: false, grantToken: null, expiresAt: null });
     await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toBeNull();
     await expect(
       t.mutation(internal.folderShares.claimVideoForPlayback, {
@@ -596,9 +783,18 @@ test("revocation invalidates existing grants and folder deletion removes the lin
     await expect(
       t.query(api.folderShares.getFolder, { grantToken: expiredGrantToken }),
     ).resolves.toBeNull();
+    await expect(
+      t.mutation(api.folderShares.renewAccessGrant, {
+        token: shareToken,
+        grantToken: expiredGrantToken,
+      }),
+    ).resolves.toEqual({ ok: false, expiresAt: null });
 
     await member.mutation(api.folderShares.revoke, { projectId: rootId });
     await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toBeNull();
+    await expect(
+      t.mutation(api.folderShares.renewAccessGrant, { token: shareToken, grantToken }),
+    ).resolves.toEqual({ ok: false, expiresAt: null });
     await expect(
       t.mutation(internal.folderShares.claimVideoForPlayback, {
         grantToken,

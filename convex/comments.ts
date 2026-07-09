@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
@@ -47,6 +48,19 @@ async function getPublicVideoByPublicId(ctx: QueryCtx | MutationCtx, publicId: s
   return await resolvePublicVideo(ctx, publicId);
 }
 
+async function requireDirectParentComment(
+  ctx: MutationCtx,
+  videoId: Id<"videos">,
+  parentId?: Id<"comments">,
+) {
+  if (!parentId) return;
+
+  const parent = await ctx.db.get(parentId);
+  if (!parent || parent.videoId !== videoId || parent.parentId !== undefined) {
+    throw new Error("Invalid parent comment");
+  }
+}
+
 export const list = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
@@ -71,12 +85,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const { user } = await requireVideoAccess(ctx, args.videoId, "viewer");
 
-    if (args.parentId) {
-      const parent = await ctx.db.get(args.parentId);
-      if (!parent || parent.videoId !== args.videoId) {
-        throw new Error("Invalid parent comment");
-      }
-    }
+    await requireDirectParentComment(ctx, args.videoId, args.parentId);
 
     return await ctx.db.insert("comments", {
       videoId: args.videoId,
@@ -106,12 +115,7 @@ export const createForPublic = mutation({
       throw new Error("Video not found");
     }
 
-    if (args.parentId) {
-      const parent = await ctx.db.get(args.parentId);
-      if (!parent || parent.videoId !== video._id) {
-        throw new Error("Invalid parent comment");
-      }
-    }
+    await requireDirectParentComment(ctx, video._id, args.parentId);
 
     return await ctx.db.insert("comments", {
       videoId: video._id,
@@ -146,12 +150,7 @@ export const createForShareGrant = mutation({
       throw new Error("Video not found");
     }
 
-    if (args.parentId) {
-      const parent = await ctx.db.get(args.parentId);
-      if (!parent || parent.videoId !== video._id) {
-        throw new Error("Invalid parent comment");
-      }
-    }
+    await requireDirectParentComment(ctx, video._id, args.parentId);
 
     return await ctx.db.insert("comments", {
       videoId: video._id,

@@ -10,7 +10,7 @@ export function normalizeDashboardSortText(value: string) {
   return value.normalize("NFKD").toLocaleLowerCase("en-US");
 }
 
-export function sortDashboardItems<T extends DashboardSortableItem>(
+export function sortDashboardItems<const T extends DashboardSortableItem>(
   items: readonly T[],
   sort: DashboardSort,
 ) {

@@ -12,7 +12,9 @@ import {
 } from "./_generated/server";
 import { identityName, requireProjectAccess } from "./auth";
 import {
+  FOLDER_SHARE_ACCESS_GRANT_TTL_MS,
   FOLDER_SHARE_ANCESTRY_WALK_LIMIT,
+  FOLDER_SHARE_GRANT_TOKEN_LENGTH,
   findFolderShareLinkByToken,
   isFolderShareProjectActive,
   issueFolderShareAccessGrant,
@@ -23,7 +25,6 @@ import { generateUniqueToken } from "./security";
 type ReadCtx = QueryCtx | MutationCtx;
 
 const FOLDER_SHARE_TOKEN_LENGTH = 32;
-const FOLDER_SHARE_GRANT_TOKEN_LENGTH = 40;
 const MAX_FOLDER_PAGE_SIZE = 40;
 const MAX_VIDEO_PAGE_SIZE = 40;
 const MAX_PUBLIC_COMMENTS = 200;
@@ -40,11 +41,32 @@ const folderShareRateLimiter = new RateLimiter(components.rateLimiter, {
     rate: 60,
     period: MINUTE,
   },
+  renewalGlobal: {
+    kind: "fixed window",
+    rate: 600,
+    period: MINUTE,
+    shards: 8,
+  },
+  renewalByGrant: {
+    kind: "fixed window",
+    rate: 10,
+    period: MINUTE,
+  },
+  renewalByLink: {
+    kind: "fixed window",
+    rate: 120,
+    period: MINUTE,
+  },
   playbackGlobal: {
     kind: "fixed window",
     rate: 600,
     period: MINUTE,
     shards: 8,
+  },
+  playbackByLink: {
+    kind: "fixed window",
+    rate: 120,
+    period: MINUTE,
   },
   playbackByLinkAndVideo: {
     kind: "fixed window",
@@ -289,33 +311,81 @@ export const issueAccessGrant = mutation({
   returns: v.object({
     ok: v.boolean(),
     grantToken: v.union(v.string(), v.null()),
+    expiresAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
     if (args.token.length !== FOLDER_SHARE_TOKEN_LENGTH) {
-      return { ok: false, grantToken: null };
-    }
-
-    const globalLimit = await folderShareRateLimiter.limit(ctx, "grantGlobal");
-    if (!globalLimit.ok) {
-      return { ok: false, grantToken: null };
-    }
-    const tokenLimit = await folderShareRateLimiter.limit(ctx, "grantByToken", {
-      key: args.token,
-    });
-    if (!tokenLimit.ok) {
-      return { ok: false, grantToken: null };
+      return { ok: false, grantToken: null, expiresAt: null };
     }
 
     const link = await findFolderShareLinkByToken(ctx, args.token);
     const rootProject = link ? await ctx.db.get(link.projectId) : null;
     if (!link || !rootProject || !(await isFolderShareProjectActive(ctx, rootProject))) {
-      return { ok: false, grantToken: null };
+      return { ok: false, grantToken: null, expiresAt: null };
     }
 
+    const tokenLimit = await folderShareRateLimiter.limit(ctx, "grantByToken", {
+      key: args.token,
+    });
+    if (!tokenLimit.ok) {
+      return { ok: false, grantToken: null, expiresAt: null };
+    }
+    const globalLimit = await folderShareRateLimiter.limit(ctx, "grantGlobal");
+    if (!globalLimit.ok) {
+      return { ok: false, grantToken: null, expiresAt: null };
+    }
+
+    const grant = await issueFolderShareAccessGrant(ctx, link._id);
     return {
       ok: true,
-      grantToken: await issueFolderShareAccessGrant(ctx, link._id),
+      grantToken: grant.token,
+      expiresAt: grant.expiresAt,
     };
+  },
+});
+
+export const renewAccessGrant = mutation({
+  args: {
+    token: v.string(),
+    grantToken: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    expiresAt: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    if (
+      args.token.length !== FOLDER_SHARE_TOKEN_LENGTH ||
+      args.grantToken.length !== FOLDER_SHARE_GRANT_TOKEN_LENGTH
+    ) {
+      return { ok: false, expiresAt: null };
+    }
+
+    const resolved = await resolveActiveFolderShareGrant(ctx, args.grantToken);
+    if (!resolved || resolved.shareLink.token !== args.token) {
+      return { ok: false, expiresAt: null };
+    }
+
+    const grantLimit = await folderShareRateLimiter.limit(ctx, "renewalByGrant", {
+      key: resolved.grant._id,
+    });
+    if (!grantLimit.ok) {
+      return { ok: false, expiresAt: null };
+    }
+    const linkLimit = await folderShareRateLimiter.limit(ctx, "renewalByLink", {
+      key: resolved.shareLink._id,
+    });
+    if (!linkLimit.ok) {
+      return { ok: false, expiresAt: null };
+    }
+    const globalLimit = await folderShareRateLimiter.limit(ctx, "renewalGlobal");
+    if (!globalLimit.ok) {
+      return { ok: false, expiresAt: null };
+    }
+
+    const expiresAt = Date.now() + FOLDER_SHARE_ACCESS_GRANT_TTL_MS;
+    await ctx.db.patch(resolved.grant._id, { expiresAt });
+    return { ok: true, expiresAt };
   },
 });
 
@@ -368,8 +438,11 @@ export const listFolders = query({
       : MAX_FOLDER_PAGE_SIZE;
     const result = await ctx.db
       .query("projects")
-      .withIndex("by_team_id_and_parent_id_and_name", (q) =>
-        q.eq("teamId", resolved.folder.teamId).eq("parentId", resolved.folder._id),
+      .withIndex("by_team_id_and_parent_id_and_deletion_started_at_and_name", (q) =>
+        q
+          .eq("teamId", resolved.folder.teamId)
+          .eq("parentId", resolved.folder._id)
+          .eq("deletionStartedAt", undefined),
       )
       .order("asc")
       .paginate({
@@ -379,13 +452,11 @@ export const listFolders = query({
 
     return {
       ...result,
-      page: result.page
-        .filter((folder) => folder.deletionStartedAt === undefined)
-        .map((folder) => ({
-          _id: folder._id,
-          name: folder.name,
-          description: folder.description,
-        })),
+      page: result.page.map((folder) => ({
+        _id: folder._id,
+        name: folder.name,
+        description: folder.description,
+      })),
     };
   },
 });
@@ -485,12 +556,31 @@ export const claimVideoForPlayback = internalMutation({
     const resolved = await resolveSharedVideo(ctx, args.grantToken, args.videoId);
     if (!resolved || (!resolved.video.muxAssetId && !resolved.video.muxPlaybackId)) return null;
 
-    const globalLimit = await folderShareRateLimiter.limit(ctx, "playbackGlobal");
-    if (!globalLimit.ok) return null;
     const linkVideoLimit = await folderShareRateLimiter.limit(ctx, "playbackByLinkAndVideo", {
       key: `${resolved.shareLink._id}:${resolved.video._id}`,
     });
-    if (!linkVideoLimit.ok) return null;
+    if (!linkVideoLimit.ok) {
+      return {
+        kind: "rateLimited" as const,
+        retryAfterMs: linkVideoLimit.retryAfter ?? MINUTE,
+      };
+    }
+    const linkLimit = await folderShareRateLimiter.limit(ctx, "playbackByLink", {
+      key: resolved.shareLink._id,
+    });
+    if (!linkLimit.ok) {
+      return {
+        kind: "rateLimited" as const,
+        retryAfterMs: linkLimit.retryAfter ?? MINUTE,
+      };
+    }
+    const globalLimit = await folderShareRateLimiter.limit(ctx, "playbackGlobal");
+    if (!globalLimit.ok) {
+      return {
+        kind: "rateLimited" as const,
+        retryAfterMs: globalLimit.retryAfter ?? MINUTE,
+      };
+    }
 
     return resolved.video.muxAssetId
       ? { kind: "assetId" as const, muxAssetId: resolved.video.muxAssetId }

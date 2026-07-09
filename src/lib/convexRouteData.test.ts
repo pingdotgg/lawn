@@ -42,6 +42,30 @@ test("custom prewarm keys can redact bearer arguments", () => {
   assert.equal(spec.redactErrorDetails, true);
 });
 
+test("default prewarm keys and warnings do not expose bearer arguments", () => {
+  resetPrewarmDedupeForTests();
+  const token = "sensitive-default-token";
+  const spec = makeRouteQuerySpec(api.shareLinks.getByToken, { token });
+  assert.equal(spec.key.includes(token), false);
+  assert.equal(spec.redactErrorDetails, true);
+
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => warnings.push(args);
+  try {
+    const convex = {
+      prewarmQuery: () => {
+        throw new Error(token);
+      },
+    } as unknown as ConvexReactClient;
+    prewarmSpecs(convex, [spec]);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(JSON.stringify(warnings).includes(token), false);
+});
+
 test("custom-key prewarm warnings do not expose bearer arguments", () => {
   resetPrewarmDedupeForTests();
   const warnings: unknown[][] = [];

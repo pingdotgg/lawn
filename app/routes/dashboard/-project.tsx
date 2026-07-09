@@ -177,7 +177,7 @@ export default function ProjectPage({
   const sharePendingRef = useRef(false);
   const [sharePending, setSharePending] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [folderShareOpen, setFolderShareOpen] = useState(false);
+  const [folderShareProjectId, setFolderShareProjectId] = useState<Id<"projects"> | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [moveTarget, setMoveTarget] = useState<{
@@ -208,6 +208,10 @@ export default function ProjectPage({
     const timeout = window.setTimeout(() => setDndError(null), 3000);
     return () => window.clearTimeout(timeout);
   }, [dndError]);
+
+  useEffect(() => {
+    setFolderShareProjectId(null);
+  }, [projectId]);
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -443,7 +447,7 @@ export default function ProjectPage({
             <Button
               variant="outline"
               aria-label="Share folder"
-              onClick={() => setFolderShareOpen(true)}
+              onClick={() => setFolderShareProjectId(activeProjectId)}
             >
               <Share2 className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Share folder</span>
@@ -1009,8 +1013,8 @@ export default function ProjectPage({
         <FolderShareDialog
           projectId={activeProjectId}
           folderName={project.name}
-          open={folderShareOpen}
-          onOpenChange={setFolderShareOpen}
+          open={folderShareProjectId === activeProjectId}
+          onOpenChange={(open) => setFolderShareProjectId(open ? activeProjectId : null)}
         />
       ) : null}
 

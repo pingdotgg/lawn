@@ -14,8 +14,18 @@ export type RouteQuerySpec<Query extends FunctionReference<"query">> = {
   redactErrorDetails?: boolean;
 };
 
+function fingerprintQueryArgs(value: string) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${(hash >>> 0).toString(36)}:${value.length}`;
+}
+
 export function buildQueryKey(queryName: string, args: unknown): string {
-  return `${queryName}:${JSON.stringify(convexToJson(args as Value))}`;
+  const serializedArgs = JSON.stringify(convexToJson(args as Value));
+  return `${queryName}:${fingerprintQueryArgs(serializedArgs)}`;
 }
 
 export function makeRouteQuerySpec<Query extends FunctionReference<"query">>(
@@ -27,7 +37,7 @@ export function makeRouteQuerySpec<Query extends FunctionReference<"query">>(
     query,
     args,
     key: dedupeKey ?? buildQueryKey(getFunctionName(query), args),
-    redactErrorDetails: dedupeKey !== undefined,
+    redactErrorDetails: true,
   };
 }
 
@@ -61,12 +71,9 @@ export function prewarmSpecs(
         args: spec.args,
         extendSubscriptionFor,
       });
-    } catch (error) {
+    } catch {
       // Prewarm failures should never block navigation.
-      console.warn(
-        "Convex prewarm failed",
-        spec.redactErrorDetails ? { key: spec.key } : { key: spec.key, error },
-      );
+      console.warn("Convex prewarm failed", { key: spec.key });
     }
   }
 }

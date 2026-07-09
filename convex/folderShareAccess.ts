@@ -8,6 +8,7 @@ type ReadCtx = QueryCtx | MutationCtx;
 
 export const FOLDER_SHARE_ACCESS_GRANT_TTL_MS = 60 * 60 * 1000;
 export const FOLDER_SHARE_ANCESTRY_WALK_LIMIT = 12;
+export const FOLDER_SHARE_GRANT_TOKEN_LENGTH = 40;
 const EXPIRED_GRANT_SWEEP_BATCH_SIZE = 200;
 const LINK_GRANT_DELETE_BATCH_SIZE = 200;
 
@@ -51,7 +52,7 @@ export async function issueFolderShareAccessGrant(
   ttlMs = FOLDER_SHARE_ACCESS_GRANT_TTL_MS,
 ) {
   const token = await generateUniqueToken(
-    40,
+    FOLDER_SHARE_GRANT_TOKEN_LENGTH,
     async (candidate) =>
       (await ctx.db
         .query("folderShareAccessGrants")
@@ -61,14 +62,15 @@ export async function issueFolderShareAccessGrant(
   );
 
   const now = Date.now();
+  const expiresAt = now + ttlMs;
   await ctx.db.insert("folderShareAccessGrants", {
     folderShareLinkId,
     token,
     createdAt: now,
-    expiresAt: now + ttlMs,
+    expiresAt,
   });
 
-  return token;
+  return { token, expiresAt };
 }
 
 export async function resolveActiveFolderShareGrant(

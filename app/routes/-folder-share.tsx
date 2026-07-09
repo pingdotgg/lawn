@@ -48,6 +48,11 @@ type FolderSharePageProps = {
   videoId?: string;
 };
 
+const FOLDER_SHARE_RENEWAL_LEAD_MS = 60_000;
+const FOLDER_SHARE_RENEWAL_RETRY_MS = 10_000;
+const FOLDER_SHARE_PLAYBACK_REFRESH_LEAD_MS = 60_000;
+const FOLDER_SHARE_PLAYBACK_REFRESH_RETRY_MS = 10_000;
+
 type SharedFolderLinkProps = {
   token: string;
   grantToken: string;
@@ -250,17 +255,22 @@ function ShareUnavailable({
 
 export default function FolderSharePage({ token, folderId, videoId }: FolderSharePageProps) {
   const issueAccessGrant = useMutation(api.folderShares.issueAccessGrant);
+  const renewAccessGrant = useMutation(api.folderShares.renewAccessGrant);
   const getPlaybackSession = useAction(api.videoActions.getFolderSharedPlaybackSession);
   const [grantToken, setGrantToken] = useState<string | null>(null);
+  const [grantExpiresAt, setGrantExpiresAt] = useState<number | null>(null);
   const [hasAttemptedGrant, setHasAttemptedGrant] = useState(false);
   const grantRequestPendingRef = useRef(false);
   const [grantError, setGrantError] = useState(false);
+  const [grantRenewalFailureCount, setGrantRenewalFailureCount] = useState(0);
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
     posterUrl: string;
+    expiresAt: number;
   } | null>(null);
   const [playbackLoading, setPlaybackLoading] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [playbackRefreshFailureCount, setPlaybackRefreshFailureCount] = useState(0);
   const [playbackReady, setPlaybackReady] = useState(false);
   const playbackRequestSequenceRef = useRef(0);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
@@ -289,8 +299,10 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
 
   useEffect(() => {
     setGrantToken(null);
+    setGrantExpiresAt(null);
     setHasAttemptedGrant(false);
     setGrantError(false);
+    setGrantRenewalFailureCount(0);
     grantRequestPendingRef.current = false;
   }, [token]);
 
@@ -301,12 +313,16 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     setGrantError(false);
     try {
       const result = await issueAccessGrant({ token });
-      if (result.ok && result.grantToken) {
+      if (result.ok && result.grantToken && result.expiresAt) {
         setGrantToken(result.grantToken);
+        setGrantExpiresAt(result.expiresAt);
+        setGrantRenewalFailureCount(0);
       } else {
+        setGrantExpiresAt(null);
         setGrantError(true);
       }
     } catch {
+      setGrantExpiresAt(null);
       setGrantError(true);
     } finally {
       grantRequestPendingRef.current = false;
@@ -318,52 +334,104 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     void acquireGrant();
   }, [acquireGrant, grantToken, hasAttemptedGrant]);
 
-  const grantExpiresAt = video?.grantExpiresAt ?? folder?.grantExpiresAt;
-  useEffect(() => {
-    if (!grantToken || !grantExpiresAt) return;
-    const delay = Math.max(grantExpiresAt - Date.now() + 250, 0);
-    const timeout = window.setTimeout(() => {
-      setGrantToken(null);
-      setHasAttemptedGrant(false);
-    }, delay);
-    return () => window.clearTimeout(timeout);
-  }, [grantExpiresAt, grantToken]);
+  const renewGrant = useCallback(async () => {
+    if (!grantToken || !grantExpiresAt || grantRequestPendingRef.current) return;
+    grantRequestPendingRef.current = true;
+    try {
+      const renewed = await renewAccessGrant({ token, grantToken });
+      if (renewed.ok && renewed.expiresAt) {
+        setGrantExpiresAt(renewed.expiresAt);
+        setGrantRenewalFailureCount(0);
+        return;
+      }
 
-  const loadPlayback = useCallback(() => {
-    const requestSequence = playbackRequestSequenceRef.current + 1;
-    playbackRequestSequenceRef.current = requestSequence;
-    setPlaybackSession(null);
-    setPlaybackError(null);
-    setPlaybackReady(false);
-    if (!grantToken || !videoId) {
-      setPlaybackLoading(false);
-      return;
+      if (grantExpiresAt <= Date.now()) {
+        const replacement = await issueAccessGrant({ token });
+        if (replacement.ok && replacement.grantToken && replacement.expiresAt) {
+          setGrantToken(replacement.grantToken);
+          setGrantExpiresAt(replacement.expiresAt);
+          setGrantRenewalFailureCount(0);
+          return;
+        }
+      }
+
+      setGrantRenewalFailureCount((failureCount) => failureCount + 1);
+    } catch {
+      setGrantRenewalFailureCount((failureCount) => failureCount + 1);
+    } finally {
+      grantRequestPendingRef.current = false;
     }
+  }, [grantExpiresAt, grantToken, issueAccessGrant, renewAccessGrant, token]);
 
-    setPlaybackLoading(true);
-    void getPlaybackSession({ grantToken, videoId })
-      .then((session) => {
-        if (requestSequence === playbackRequestSequenceRef.current) {
-          setPlaybackSession(session);
-        }
-      })
-      .catch(() => {
-        if (requestSequence === playbackRequestSequenceRef.current) {
-          setPlaybackError("This video could not be loaded.");
-        }
-      })
-      .finally(() => {
-        if (requestSequence === playbackRequestSequenceRef.current) {
-          setPlaybackLoading(false);
-        }
-      });
-  }, [getPlaybackSession, grantToken, videoId]);
+  useEffect(() => {
+    if (shareInfo?.status !== "ok" || !grantToken || !grantExpiresAt) return;
+    const delay =
+      grantRenewalFailureCount > 0
+        ? FOLDER_SHARE_RENEWAL_RETRY_MS
+        : Math.max(grantExpiresAt - Date.now() - FOLDER_SHARE_RENEWAL_LEAD_MS, 0);
+    const timeout = window.setTimeout(() => void renewGrant(), delay);
+    return () => window.clearTimeout(timeout);
+  }, [grantExpiresAt, grantRenewalFailureCount, grantToken, renewGrant, shareInfo?.status]);
+
+  const loadPlayback = useCallback(
+    (preserveCurrentSession = false) => {
+      const requestSequence = playbackRequestSequenceRef.current + 1;
+      playbackRequestSequenceRef.current = requestSequence;
+      if (!preserveCurrentSession) {
+        setPlaybackSession(null);
+        setPlaybackError(null);
+        setPlaybackReady(false);
+        setPlaybackRefreshFailureCount(0);
+      }
+      if (!grantToken || !videoId) {
+        setPlaybackLoading(false);
+        return;
+      }
+
+      setPlaybackLoading(true);
+      void getPlaybackSession({ grantToken, videoId })
+        .then((result) => {
+          if (requestSequence !== playbackRequestSequenceRef.current) return;
+          if (result.status === "rateLimited") {
+            if (preserveCurrentSession) {
+              setPlaybackRefreshFailureCount((failureCount) => failureCount + 1);
+              return;
+            }
+            const retryAfterSeconds = Math.max(1, Math.ceil(result.retryAfterMs / 1000));
+            setPlaybackError(`Too many playback requests. Try again in ${retryAfterSeconds}s.`);
+            return;
+          }
+          setPlaybackSession({
+            url: result.url,
+            posterUrl: result.posterUrl,
+            expiresAt: result.expiresAt,
+          });
+          setPlaybackRefreshFailureCount(0);
+        })
+        .catch(() => {
+          if (requestSequence === playbackRequestSequenceRef.current) {
+            if (preserveCurrentSession) {
+              setPlaybackRefreshFailureCount((failureCount) => failureCount + 1);
+            } else {
+              setPlaybackError("This video could not be loaded.");
+            }
+          }
+        })
+        .finally(() => {
+          if (requestSequence === playbackRequestSequenceRef.current) {
+            setPlaybackLoading(false);
+          }
+        });
+    },
+    [getPlaybackSession, grantToken, videoId],
+  );
 
   const handlePlaybackIssue = useCallback(() => {
     playbackRequestSequenceRef.current += 1;
     setPlaybackSession(null);
     setPlaybackLoading(false);
     setPlaybackReady(false);
+    setPlaybackRefreshFailureCount(0);
     setPlaybackError("This video could not be played.");
   }, []);
 
@@ -373,6 +441,25 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       playbackRequestSequenceRef.current += 1;
     };
   }, [loadPlayback]);
+
+  useEffect(() => {
+    if (shareInfo?.status !== "ok" || !video || !playbackSession) return;
+    const delay =
+      playbackRefreshFailureCount > 0
+        ? FOLDER_SHARE_PLAYBACK_REFRESH_RETRY_MS
+        : Math.max(
+            playbackSession.expiresAt - Date.now() - FOLDER_SHARE_PLAYBACK_REFRESH_LEAD_MS,
+            0,
+          );
+    const timeout = window.setTimeout(() => loadPlayback(true), delay);
+    return () => window.clearTimeout(timeout);
+  }, [
+    loadPlayback,
+    playbackRefreshFailureCount,
+    playbackSession,
+    shareInfo?.status,
+    video?.video._id,
+  ]);
 
   const commentMarkers = useMemo(() => {
     if (!video) return [];
@@ -514,7 +601,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
                   grantToken={grantToken}
                   folderId={crumb._id}
                   rootFolderId={rootFolderId}
-                  className="max-w-48 truncate font-bold hover:text-[#2d5a2d] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[#2d5a2d]"
+                  className="max-w-48 truncate font-bold underline hover:text-[#2d5a2d] focus:outline-2 focus:outline-offset-2 focus:outline-[#2d5a2d]"
                 >
                   {crumb.name}
                 </SharedFolderLink>
@@ -580,7 +667,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
                           variant="secondary"
                           size="sm"
                           aria-label="Try loading the shared video again"
-                          onClick={loadPlayback}
+                          onClick={() => loadPlayback()}
                         >
                           Try again
                         </Button>
@@ -709,7 +796,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
                   grantToken={grantToken}
                   folderId={crumb._id}
                   rootFolderId={folder.root._id}
-                  className="max-w-48 truncate font-bold text-[#666] hover:text-[#2d5a2d] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[#2d5a2d]"
+                  className="max-w-48 truncate font-bold text-[#666] underline hover:text-[#2d5a2d] focus:outline-2 focus:outline-offset-2 focus:outline-[#2d5a2d]"
                 >
                   {crumb.name}
                 </SharedFolderLink>
