@@ -1216,8 +1216,10 @@ export const getFolderSharedPlaybackSession = action({
     | { status: "ok"; url: string; posterUrl: string; expiresAt: number }
     | { status: "rateLimited"; retryAfterMs: number }
   > => {
-    // This mutation re-resolves authorization and atomically claims both the
-    // global and durable-link/video rate limits before any Mux API work starts.
+    // Re-resolve authorization and atomically claim every playback budget
+    // before any Mux API work starts. Failed Mux attempts intentionally remain
+    // charged so an outage or bad legacy ID cannot be used to call Mux without
+    // bound by repeatedly retrying this public action.
     const claim = await ctx.runMutation(internal.folderShares.claimVideoForPlayback, args);
     if (!claim) {
       throw new Error("Video not found or not ready");

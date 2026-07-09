@@ -264,15 +264,19 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
   const [grantError, setGrantError] = useState(false);
   const [grantRenewalFailureCount, setGrantRenewalFailureCount] = useState(0);
   const [playbackSession, setPlaybackSession] = useState<{
+    videoId: string;
+    grantToken: string;
     url: string;
     posterUrl: string;
     expiresAt: number;
   } | null>(null);
   const [playbackLoading, setPlaybackLoading] = useState(false);
+  const [playbackRequestGrantToken, setPlaybackRequestGrantToken] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playbackRefreshFailureCount, setPlaybackRefreshFailureCount] = useState(0);
   const [playbackReady, setPlaybackReady] = useState(false);
   const playbackRequestSequenceRef = useRef(0);
+  const playbackVideoIdRef = useRef<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const folderHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const videoHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -296,6 +300,26 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     loadMoreVideos,
     video,
   } = useFolderShareData({ token, grantToken, folderId, videoId });
+  const [lastAuthorizedVideo, setLastAuthorizedVideo] = useState<{
+    videoId: string;
+    value: NonNullable<typeof video>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (videoId && video) {
+      setLastAuthorizedVideo({ videoId, value: video });
+      return;
+    }
+    if (!videoId || (video === null && (!grantExpiresAt || grantExpiresAt > Date.now()))) {
+      setLastAuthorizedVideo(null);
+    }
+  }, [grantExpiresAt, video, videoId]);
+
+  const retainedVideo =
+    playbackSession?.videoId === videoId && lastAuthorizedVideo?.videoId === videoId
+      ? lastAuthorizedVideo.value
+      : undefined;
+  const renderedVideo = video === undefined ? retainedVideo : video;
 
   useEffect(() => {
     setGrantToken(null);
@@ -348,6 +372,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       if (grantExpiresAt <= Date.now()) {
         const replacement = await issueAccessGrant({ token });
         if (replacement.ok && replacement.grantToken && replacement.expiresAt) {
+          setPlaybackRefreshFailureCount(0);
           setGrantToken(replacement.grantToken);
           setGrantExpiresAt(replacement.expiresAt);
           setGrantRenewalFailureCount(0);
@@ -378,16 +403,19 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       const requestSequence = playbackRequestSequenceRef.current + 1;
       playbackRequestSequenceRef.current = requestSequence;
       if (!preserveCurrentSession) {
+        playbackVideoIdRef.current = null;
         setPlaybackSession(null);
         setPlaybackError(null);
         setPlaybackReady(false);
         setPlaybackRefreshFailureCount(0);
       }
       if (!grantToken || !videoId) {
+        setPlaybackRequestGrantToken(null);
         setPlaybackLoading(false);
         return;
       }
 
+      setPlaybackRequestGrantToken(grantToken);
       setPlaybackLoading(true);
       void getPlaybackSession({ grantToken, videoId })
         .then((result) => {
@@ -402,10 +430,13 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
             return;
           }
           setPlaybackSession({
+            videoId,
+            grantToken,
             url: result.url,
             posterUrl: result.posterUrl,
             expiresAt: result.expiresAt,
           });
+          playbackVideoIdRef.current = videoId;
           setPlaybackRefreshFailureCount(0);
         })
         .catch(() => {
@@ -419,6 +450,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
         })
         .finally(() => {
           if (requestSequence === playbackRequestSequenceRef.current) {
+            setPlaybackRequestGrantToken(null);
             setPlaybackLoading(false);
           }
         });
@@ -428,7 +460,9 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
 
   const handlePlaybackIssue = useCallback(() => {
     playbackRequestSequenceRef.current += 1;
+    playbackVideoIdRef.current = null;
     setPlaybackSession(null);
+    setPlaybackRequestGrantToken(null);
     setPlaybackLoading(false);
     setPlaybackReady(false);
     setPlaybackRefreshFailureCount(0);
@@ -436,14 +470,25 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
   }, []);
 
   useEffect(() => {
-    loadPlayback();
+    loadPlayback(Boolean(videoId && playbackVideoIdRef.current === videoId));
     return () => {
       playbackRequestSequenceRef.current += 1;
     };
-  }, [loadPlayback]);
+  }, [loadPlayback, videoId]);
 
   useEffect(() => {
-    if (shareInfo?.status !== "ok" || !video || !playbackSession) return;
+    if (
+      shareInfo?.status !== "ok" ||
+      !grantToken ||
+      !videoId ||
+      !renderedVideo ||
+      !playbackSession ||
+      playbackSession.videoId !== videoId ||
+      playbackRequestGrantToken === grantToken ||
+      (playbackSession.grantToken !== grantToken && playbackRefreshFailureCount === 0)
+    ) {
+      return;
+    }
     const delay =
       playbackRefreshFailureCount > 0
         ? FOLDER_SHARE_PLAYBACK_REFRESH_RETRY_MS
@@ -455,15 +500,18 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     return () => window.clearTimeout(timeout);
   }, [
     loadPlayback,
+    grantToken,
+    playbackRequestGrantToken,
     playbackRefreshFailureCount,
     playbackSession,
     shareInfo?.status,
-    video?.video._id,
+    renderedVideo?.video._id,
+    videoId,
   ]);
 
   const commentMarkers = useMemo(() => {
-    if (!video) return [];
-    return video.comments.flatMap((comment) => [
+    if (!renderedVideo) return [];
+    return renderedVideo.comments.flatMap((comment) => [
       {
         _id: comment._id,
         timestampSeconds: comment.timestampSeconds,
@@ -475,7 +523,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
         resolved: reply.resolved,
       })),
     ]);
-  }, [video]);
+  }, [renderedVideo]);
   const sortedFolders = useMemo(() => sortDashboardItems(folders, "alphabetical"), [folders]);
 
   const recordNavigationOrigin = useCallback(
@@ -521,7 +569,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       return () => window.cancelAnimationFrame(frame);
     }
 
-    if ((videoId && !video) || (!videoId && !folder)) return;
+    if ((videoId && !renderedVideo) || (!videoId && !folder)) return;
     const target = videoId ? videoHeadingRef.current : folderHeadingRef.current;
     if (!target) return;
 
@@ -532,13 +580,13 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       pendingFocusRef.current = null;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [currentRouteKey, folder, folders, video, videoId, videos]);
+  }, [currentRouteKey, folder, folders, renderedVideo, videoId, videos]);
 
   const bootstrapping =
     shareInfo === undefined ||
     (shareInfo.status === "ok" &&
       ((!grantToken && !grantError) ||
-        (Boolean(grantToken) && (videoId ? video === undefined : folder === undefined))));
+        (Boolean(grantToken) && (videoId ? renderedVideo === undefined : folder === undefined))));
 
   if (bootstrapping) {
     return (
@@ -568,9 +616,10 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
   }
 
   if (videoId) {
-    if (!video) {
+    if (!renderedVideo) {
       return <ShareUnavailable token={token} canReturnToRoot />;
     }
+    const video = renderedVideo;
 
     const backFolderId = video.folder._id;
     const rootFolderId = video.breadcrumbs[0]?._id;

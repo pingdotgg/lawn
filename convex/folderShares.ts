@@ -30,6 +30,12 @@ const MAX_VIDEO_PAGE_SIZE = 40;
 const MAX_PUBLIC_COMMENTS = 200;
 
 const folderShareRateLimiter = new RateLimiter(components.rateLimiter, {
+  grantAttemptGlobal: {
+    kind: "fixed window",
+    rate: 1200,
+    period: MINUTE,
+    shards: 16,
+  },
   grantGlobal: {
     kind: "fixed window",
     rate: 600,
@@ -315,6 +321,11 @@ export const issueAccessGrant = mutation({
   }),
   handler: async (ctx, args) => {
     if (args.token.length !== FOLDER_SHARE_TOKEN_LENGTH) {
+      return { ok: false, grantToken: null, expiresAt: null };
+    }
+
+    const attemptLimit = await folderShareRateLimiter.limit(ctx, "grantAttemptGlobal");
+    if (!attemptLimit.ok) {
       return { ok: false, grantToken: null, expiresAt: null };
     }
 

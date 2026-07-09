@@ -2,6 +2,12 @@
 
 import Mux from "@mux/mux-node";
 
+const PLAYBACK_RESOLUTION_PARAMS = {
+  min_resolution: "720p",
+  max_resolution: "720p",
+};
+const THUMBNAIL_PARAMS = { time: "0" };
+
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -108,19 +114,27 @@ export async function deletePlaybackId(assetId: string, playbackId: string) {
 
 export function buildMuxPlaybackUrl(playbackId: string, token?: string): string {
   const url = new URL(`https://stream.mux.com/${playbackId}.m3u8`);
-  // Force a single 720p delivery profile in the playback manifest.
-  url.searchParams.set("min_resolution", "720p");
-  url.searchParams.set("max_resolution", "720p");
   if (token) {
+    // Mux signed URLs may only expose the token query parameter. Playback
+    // modifiers are protected inside the JWT claims instead.
     url.searchParams.set("token", token);
+  } else {
+    // Force a single 720p delivery profile in the public playback manifest.
+    for (const [name, value] of Object.entries(PLAYBACK_RESOLUTION_PARAMS)) {
+      url.searchParams.set(name, value);
+    }
   }
   return url.toString();
 }
 
 export function buildMuxThumbnailUrl(playbackId: string, token?: string): string {
-  const base = `https://image.mux.com/${playbackId}/thumbnail.jpg?time=0`;
-  if (!token) return base;
-  return `${base}&token=${encodeURIComponent(token)}`;
+  const url = new URL(`https://image.mux.com/${playbackId}/thumbnail.jpg`);
+  if (token) {
+    url.searchParams.set("token", token);
+  } else {
+    url.searchParams.set("time", THUMBNAIL_PARAMS.time);
+  }
+  return url.toString();
 }
 
 export async function signPlaybackToken(playbackId: string, expiration = "1h") {
@@ -131,6 +145,7 @@ export async function signPlaybackToken(playbackId: string, expiration = "1h") {
     keySecret: credentials.keySecret,
     type: "video",
     expiration,
+    params: PLAYBACK_RESOLUTION_PARAMS,
   });
 }
 
@@ -142,6 +157,7 @@ export async function signThumbnailToken(playbackId: string, expiration = "1h") 
     keySecret: credentials.keySecret,
     type: "thumbnail",
     expiration,
+    params: THUMBNAIL_PARAMS,
   });
 }
 
