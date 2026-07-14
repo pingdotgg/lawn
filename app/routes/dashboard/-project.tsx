@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadButton } from "@/components/upload/UploadButton";
+import { ProjectAssetGrid } from "@/components/assets/ProjectAssetGrid";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
 import {
@@ -164,6 +165,10 @@ export default function ProjectPage({
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
   const createFolder = useMutation(api.projects.create);
   const deleteFolder = useMutation(api.projects.remove);
+  const projectAssets = useQuery(
+    api.projectAssets.list,
+    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+  );
 
   const teamId = context?.team?._id;
   const { moveFromDrop } = useMoveActions();
@@ -384,7 +389,9 @@ export default function ProjectPage({
   const activeProjectId = project?._id ?? resolvedProjectId ?? projectId;
   const hasChildFolders = (childFolders?.length ?? 0) > 0;
   const hasVideos = (videos?.length ?? 0) > 0;
-  const showEmptyDropzone = !isLoadingData && !videosSortPending && !hasVideos && !hasChildFolders;
+  const hasAssets = (projectAssets?.length ?? 0) > 0;
+  const showEmptyDropzone =
+    !isLoadingData && !videosSortPending && !hasVideos && !hasChildFolders && !hasAssets;
   const breadcrumbSegments =
     breadcrumb ??
     (project ? [{ _id: activeProjectId, name: project.name }] : [{ _id: projectId, name: " " }]);
@@ -493,7 +500,7 @@ export default function ProjectPage({
           <div
             className={cn(
               "p-6 transition-opacity duration-300",
-              hasVideos ? "pb-0" : "",
+              hasVideos || hasAssets ? "pb-0" : "",
               isLoadingData ? "opacity-0" : "opacity-100",
             )}
           >
@@ -524,6 +531,16 @@ export default function ProjectPage({
             </div>
           </div>
         )}
+        {hasAssets && projectAssets && (
+          <div
+            className={cn(
+              "transition-opacity duration-300",
+              isLoadingData ? "opacity-0" : "opacity-100",
+            )}
+          >
+            <ProjectAssetGrid assets={projectAssets} canManage={canUpload} />
+          </div>
+        )}
         {showEmptyDropzone ? (
           <div className="animate-in fade-in flex h-full items-center justify-center p-6 duration-300">
             <DropZone
@@ -540,6 +557,11 @@ export default function ProjectPage({
               isLoadingData ? "opacity-0" : "opacity-100",
             )}
           >
+            {hasVideos && (
+              <h2 className="mb-3 text-xs font-black tracking-wider text-[#888] uppercase">
+                Videos
+              </h2>
+            )}
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {videos?.map((video) => {
                 const thumbnailSrc = video.thumbnailUrl?.startsWith("http")

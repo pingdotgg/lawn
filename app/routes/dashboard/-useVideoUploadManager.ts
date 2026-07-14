@@ -11,14 +11,20 @@ import {
   type UploadCreationIntent,
   uploadCreationIntentsMatch,
 } from "@/lib/uploadResumeDb";
+import { isAllowedProjectAsset, isVideoUploadFile } from "@/lib/projectAssetTypes";
+import { uploadProjectAssetFile } from "@/lib/projectAssetUpload";
 import { isProcessingRetryError, isResumableUploadError, uploadVideoFile } from "@/lib/videoUpload";
+
+export type ManagedUploadKind = "video" | "asset";
 
 export interface ManagedUploadItem {
   id: string;
+  kind: ManagedUploadKind;
   projectId: Id<"projects">;
   creationIntent: UploadCreationIntent;
   file: File;
   videoId?: Id<"videos">;
+  assetId?: Id<"projectAssets">;
   progress: number;
   status: UploadStatus;
   error?: string;
@@ -40,15 +46,27 @@ function isMissingVideoError(error: unknown) {
   return error instanceof Error && error.message.includes("Video not found");
 }
 
+function isMissingAssetError(error: unknown) {
+  return error instanceof Error && error.message.includes("Asset not found");
+}
+
 export function useVideoUploadManager() {
   const createVideo = useMutation(api.videos.create);
   const createVersion = useMutation(api.videos.createVersion);
+  const createAsset = useMutation(api.projectAssets.create);
   const initiateVideoUpload = useAction(api.videoActions.initiateVideoUpload);
   const signUploadParts = useAction(api.videoActions.signUploadParts);
   const completeMultipartUpload = useAction(api.videoActions.completeMultipartUpload);
   const markUploadComplete = useAction(api.videoActions.markUploadComplete);
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const abortVideoUpload = useAction(api.videoActions.abortVideoUpload);
+  const initiateAssetUpload = useAction(api.projectAssetActions.initiateAssetUpload);
+  const signAssetUploadParts = useAction(api.projectAssetActions.signAssetUploadParts);
+  const completeAssetMultipartUpload = useAction(
+    api.projectAssetActions.completeAssetMultipartUpload,
+  );
+  const markAssetUploadComplete = useAction(api.projectAssetActions.markAssetUploadComplete);
+  const abortAssetUpload = useAction(api.projectAssetActions.abortAssetUpload);
   const [uploads, setUploads] = useState<ManagedUploadItem[]>([]);
 
   const uploadFile = useCallback(
@@ -61,6 +79,7 @@ export function useVideoUploadManager() {
           ...prev,
           {
             id: uploadId,
+            kind: "video",
             projectId,
             creationIntent,
             file,
@@ -83,6 +102,7 @@ export function useVideoUploadManager() {
         ...prev,
         {
           id: uploadId,
+          kind: "video",
           projectId,
           creationIntent,
           file,
@@ -281,13 +301,161 @@ export function useVideoUploadManager() {
     ],
   );
 
+  const uploadAssetFile = useCallback(
+    async (projectId: Id<"projects">, file: File) => {
+      const uploadId = createUploadId();
+      const abortController = new AbortController();
+      const creationIntent: UploadCreationIntent = { kind: "standalone", projectId };
+
+      if (isFileTooLarge(file.size)) {
+        setUploads((prev) => [
+          ...prev,
+          {
+            id: uploadId,
+            kind: "asset",
+            projectId,
+            creationIntent,
+            file,
+            progress: 0,
+            status: "error",
+            error: `File is too large. Maximum size is ${formatMaxUploadSize()}.`,
+            abortController,
+          },
+        ]);
+        return;
+      }
+
+      setUploads((prev) => [
+        ...prev,
+        {
+          id: uploadId,
+          kind: "asset",
+          projectId,
+          creationIntent,
+          file,
+          progress: 0,
+          status: "pending",
+          abortController,
+        },
+      ]);
+
+      let createdAssetId: Id<"projectAssets"> | undefined;
+
+      try {
+        createdAssetId = await createAsset({
+          projectId,
+          filename: file.name,
+          fileSize: file.size,
+          contentType: file.type || undefined,
+        });
+
+        setUploads((prev) =>
+          prev.map((upload) =>
+            upload.id === uploadId
+              ? {
+                  ...upload,
+                  assetId: createdAssetId,
+                  status: "uploading",
+                }
+              : upload,
+          ),
+        );
+
+        await uploadProjectAssetFile({
+          file,
+          assetId: createdAssetId,
+          actions: {
+            initiateAssetUpload,
+            signAssetUploadParts,
+            completeAssetMultipartUpload,
+            markAssetUploadComplete,
+          },
+          signal: abortController.signal,
+          onProgress: (update) => {
+            setUploads((prev) =>
+              prev.map((upload) =>
+                upload.id === uploadId
+                  ? {
+                      ...upload,
+                      progress: update.progress,
+                      bytesPerSecond: update.bytesPerSecond,
+                      estimatedSecondsRemaining: update.estimatedSecondsRemaining,
+                    }
+                  : upload,
+              ),
+            );
+          },
+        });
+
+        setUploads((prev) =>
+          prev.map((upload) =>
+            upload.id === uploadId
+              ? { ...upload, status: "complete", progress: 100, resuming: false }
+              : upload,
+          ),
+        );
+
+        setTimeout(() => {
+          setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+        }, 3000);
+
+        return createdAssetId;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Upload failed";
+        const cancelled = abortController.signal.aborted;
+
+        setUploads((prev) =>
+          prev.map((upload) =>
+            upload.id === uploadId
+              ? {
+                  ...upload,
+                  status: cancelled ? "pending" : "error",
+                  error: cancelled ? undefined : errorMessage,
+                }
+              : upload,
+          ),
+        );
+
+        if (cancelled) {
+          if (createdAssetId) {
+            try {
+              await abortAssetUpload({ assetId: createdAssetId });
+            } catch (cleanupError) {
+              if (!isMissingAssetError(cleanupError)) {
+                console.error(cleanupError);
+              }
+            }
+          }
+          setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+        }
+
+        return undefined;
+      }
+    },
+    [
+      createAsset,
+      initiateAssetUpload,
+      signAssetUploadParts,
+      completeAssetMultipartUpload,
+      markAssetUploadComplete,
+      abortAssetUpload,
+    ],
+  );
+
   const uploadFilesToProject = useCallback(
     async (projectId: Id<"projects">, files: File[]) => {
       for (const file of files) {
-        await uploadFile(projectId, file, { kind: "standalone", projectId });
+        if (isVideoUploadFile(file.name, file.type)) {
+          await uploadFile(projectId, file, { kind: "standalone", projectId });
+          continue;
+        }
+        if (isAllowedProjectAsset(file.name, file.type)) {
+          await uploadAssetFile(projectId, file);
+          continue;
+        }
       }
     },
-    [uploadFile],
+    [uploadFile, uploadAssetFile],
   );
 
   const uploadNewVersion = useCallback(
@@ -312,7 +480,13 @@ export function useVideoUploadManager() {
       if (upload?.abortController) {
         upload.abortController.abort();
       }
-      if (upload?.videoId) {
+      if (upload?.kind === "asset" && upload.assetId) {
+        abortAssetUpload({ assetId: upload.assetId }).catch((error) => {
+          if (!isMissingAssetError(error)) {
+            console.error(error);
+          }
+        });
+      } else if (upload?.videoId) {
         abortVideoUpload({ videoId: upload.videoId }).catch((error) => {
           if (!isMissingVideoError(error)) {
             console.error(error);
@@ -322,7 +496,7 @@ export function useVideoUploadManager() {
       }
       setUploads((prev) => prev.filter((item) => item.id !== uploadId));
     },
-    [uploads, abortVideoUpload],
+    [uploads, abortVideoUpload, abortAssetUpload],
   );
 
   const retryProcessing = useCallback(

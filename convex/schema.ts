@@ -165,4 +165,31 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_share_link", ["shareLinkId"])
     .index("by_expires_at", ["expiresAt"]),
+
+  // Non-video project files (images, audio, docs). Stored in S3 without Mux.
+  projectAssets: defineTable({
+    projectId: v.id("projects"),
+    uploadedByClerkId: v.string(),
+    uploaderName: v.string(),
+    title: v.string(),
+    filename: v.string(),
+    kind: v.union(
+      v.literal("image"),
+      v.literal("audio"),
+      v.literal("document"),
+      v.literal("other"),
+    ),
+    contentType: v.string(),
+    fileSize: v.optional(v.number()),
+    s3Key: v.optional(v.string()),
+    s3MultipartUploadId: v.optional(v.string()),
+    s3MultipartPartSizeBytes: v.optional(v.number()),
+    s3MultipartPartCount: v.optional(v.number()),
+    uploadUpdatedAt: v.optional(v.number()),
+    uploadError: v.optional(v.string()),
+    status: v.union(v.literal("uploading"), v.literal("ready"), v.literal("failed")),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_status", ["projectId", "status"])
+    .index("by_status_and_upload_updated_at", ["status", "uploadUpdatedAt"]),
 });

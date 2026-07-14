@@ -3,6 +3,11 @@
 import { useRef } from "react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import {
+  PROJECT_ASSET_ACCEPT,
+  isAllowedProjectAsset,
+  isVideoUploadFile,
+} from "@/lib/projectAssetTypes";
 
 interface UploadButtonProps {
   onFilesSelected: (files: File[]) => void;
@@ -12,6 +17,9 @@ interface UploadButtonProps {
   size?: ButtonProps["size"];
   className?: string;
   children?: React.ReactNode;
+  /** Restrict to videos only (e.g. new version upload). */
+  accept?: string;
+  videoOnly?: boolean;
 }
 
 export function UploadButton({
@@ -22,6 +30,8 @@ export function UploadButton({
   size,
   className,
   children,
+  accept,
+  videoOnly = false,
 }: UploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -30,7 +40,13 @@ export function UploadButton({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files ? Array.from(e.target.files) : [];
+    const raw = e.target.files ? Array.from(e.target.files) : [];
+    const files = videoOnly
+      ? raw.filter((file) => isVideoUploadFile(file.name, file.type))
+      : raw.filter(
+          (file) =>
+            isVideoUploadFile(file.name, file.type) || isAllowedProjectAsset(file.name, file.type),
+        );
     if (files.length > 0) {
       onFilesSelected(files);
     }
@@ -42,7 +58,7 @@ export function UploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept="video/*"
+        accept={accept ?? (videoOnly ? "video/*" : PROJECT_ASSET_ACCEPT)}
         multiple={multiple}
         onChange={handleChange}
         className="hidden"

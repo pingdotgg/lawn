@@ -3,11 +3,20 @@
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Upload } from "lucide-react";
+import {
+  PROJECT_ASSET_ACCEPT,
+  isAllowedProjectAsset,
+  isVideoUploadFile,
+} from "@/lib/projectAssetTypes";
 
 interface DropZoneProps {
   onFilesSelected: (files: File[]) => void;
   disabled?: boolean;
   className?: string;
+}
+
+function isSupportedUploadFile(file: File) {
+  return isVideoUploadFile(file.name, file.type) || isAllowedProjectAsset(file.name, file.type);
 }
 
 export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps) {
@@ -31,9 +40,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
 
       if (disabled) return;
 
-      const files = Array.from(e.dataTransfer.files).filter((file) =>
-        file.type.startsWith("video/"),
-      );
+      const files = Array.from(e.dataTransfer.files).filter(isSupportedUploadFile);
 
       if (files.length > 0) {
         onFilesSelected(files);
@@ -46,10 +53,13 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (disabled) return;
 
-      const files = e.target.files ? Array.from(e.target.files) : [];
+      const files = e.target.files
+        ? Array.from(e.target.files).filter(isSupportedUploadFile)
+        : [];
       if (files.length > 0) {
         onFilesSelected(files);
       }
+      e.target.value = "";
     },
     [disabled, onFilesSelected],
   );
@@ -71,7 +81,7 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
     >
       <input
         type="file"
-        accept="video/*"
+        accept={PROJECT_ASSET_ACCEPT}
         multiple
         onChange={handleChange}
         disabled={disabled}
@@ -88,9 +98,11 @@ export function DropZone({ onFilesSelected, disabled, className }: DropZoneProps
         </div>
         <div>
           <p className="font-bold text-[#1a1a1a]">
-            {isDragActive ? "Drop to upload" : "Drop videos or click to upload"}
+            {isDragActive ? "Drop to upload" : "Drop files or click to upload"}
           </p>
-          <p className="mt-1 text-sm text-[#888]">MP4, MOV, WebM supported</p>
+          <p className="mt-1 text-sm text-[#888]">
+            Videos, images, audio, and documents supported
+          </p>
         </div>
       </div>
     </div>

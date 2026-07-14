@@ -938,6 +938,7 @@ export default function VideoPage() {
           {canEdit && (
             <UploadButton
               multiple={false}
+              videoOnly
               variant="outline"
               onFilesSelected={handleNewVersionSelected}
             >
@@ -1035,6 +1036,7 @@ export default function VideoPage() {
           {canEdit && (
             <UploadButton
               multiple={false}
+              videoOnly
               variant="outline"
               size="icon"
               className="h-8 w-8"

@@ -16,14 +16,17 @@ import {
 import { UploadProgress } from "@/components/upload/UploadProgress";
 import { useVideoUploadManager } from "./-useVideoUploadManager";
 import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
+import { isAllowedProjectAsset, isVideoUploadFile } from "@/lib/projectAssetTypes";
 import { videoPath, watchPath } from "@/lib/routes";
 import { prewarmVideo } from "./-video.data";
 import { resolveDashboardAccess } from "@/lib/dashboardAccess";
 
-const VIDEO_FILE_EXTENSIONS = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
-
 function isVideoFile(file: File) {
-  return file.type.startsWith("video/") || VIDEO_FILE_EXTENSIONS.test(file.name);
+  return isVideoUploadFile(file.name, file.type);
+}
+
+function isSupportedUploadFile(file: File) {
+  return isVideoFile(file) || isAllowedProjectAsset(file.name, file.type);
 }
 
 function dragEventHasFiles(event: DragEvent) {
@@ -86,7 +89,7 @@ export default function DashboardLayout() {
 
   const requestUpload = useCallback(
     (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
-      const files = inputFiles.filter(isVideoFile);
+      const files = inputFiles.filter(isSupportedUploadFile);
       if (files.length === 0) return;
 
       if (preferredProjectId) {
@@ -200,7 +203,7 @@ export default function DashboardLayout() {
         return;
       }
 
-      const files = droppedFiles.filter(isVideoFile);
+      const files = droppedFiles.filter(isSupportedUploadFile);
       if (files.length === 0) return;
       requestUpload(files);
     };
@@ -334,7 +337,7 @@ export default function DashboardLayout() {
                 ? detailVideo?.role === "viewer"
                   ? "New version uploads require member access"
                   : "Drop one video to upload it as a new version"
-                : "Drop videos to upload"}
+                : "Drop videos, images, audio, or documents"}
             </p>
           </div>
         </div>
@@ -359,7 +362,13 @@ export default function DashboardLayout() {
                 bytesPerSecond={upload.bytesPerSecond}
                 estimatedSecondsRemaining={upload.estimatedSecondsRemaining}
                 resuming={upload.resuming}
-                intentLabel={upload.creationIntent.kind === "version" ? "New version" : undefined}
+                intentLabel={
+                  upload.creationIntent.kind === "version"
+                    ? "New version"
+                    : upload.kind === "asset"
+                      ? "Project file"
+                      : undefined
+                }
                 onCancel={() => cancelUpload(upload.id)}
                 onRetryProcessing={
                   upload.canRetryProcessing ? () => retryProcessing(upload.id) : undefined
@@ -381,7 +390,7 @@ export default function DashboardLayout() {
             <DialogTitle>Choose a project</DialogTitle>
             <DialogDescription>
               {pendingFiles?.length
-                ? `Upload ${pendingFiles.length} video${pendingFiles.length > 1 ? "s" : ""} to:`
+                ? `Upload ${pendingFiles.length} file${pendingFiles.length > 1 ? "s" : ""} to:`
                 : "Pick a project to start uploading."}
             </DialogDescription>
           </DialogHeader>

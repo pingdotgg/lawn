@@ -12,6 +12,7 @@ export type DashboardUploadContextValue = {
   ) => void;
   uploads: {
     id: string;
+    kind?: "video" | "asset";
     projectId: Id<"projects">;
     creationIntent:
       | {
@@ -25,6 +26,7 @@ export type DashboardUploadContextValue = {
         };
     file: File;
     videoId?: Id<"videos">;
+    assetId?: Id<"projectAssets">;
     progress: number;
     status: UploadStatus;
     error?: string;

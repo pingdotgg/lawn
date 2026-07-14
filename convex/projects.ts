@@ -5,6 +5,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
 import { deleteVideoAndDependentsBatch } from "./videos";
+import { deleteProjectAssetsBatch } from "./projectAssets";
 
 // Maximum folder nesting. depth(root) == 0; a folder may be created/moved under
 // a parent only when parentDepth + 1 <= MAX_FOLDER_DEPTH, so the deepest folder
@@ -470,6 +471,22 @@ async function runSubtreeDeleteBatch(
     const result = await deleteVideoAndDependentsBatch(ctx, video._id, budget);
     budget -= result.deleted;
     if (!result.done || budget === 0) {
+      return { done: false };
+    }
+  }
+
+  if (budget === 0) return { done: false };
+
+  while (budget > 0) {
+    const assetBatch = await deleteProjectAssetsBatch(ctx, leaf._id, Math.min(budget, 50));
+    budget -= assetBatch.deleted;
+    for (const s3Key of assetBatch.s3Keys) {
+      await ctx.scheduler.runAfter(0, internal.projectAssetActions.deleteAssetObject, {
+        s3Key,
+      });
+    }
+    if (assetBatch.done) break;
+    if (budget === 0) {
       return { done: false };
     }
   }
