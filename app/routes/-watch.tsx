@@ -43,7 +43,7 @@ export default function WatchPage() {
   const getPlaybackSession = useAction(api.videoActions.getPublicPlaybackSession);
   const getDownloadUrl = useAction(api.videoActions.getPublicDownloadUrl);
 
-  const { videoData, versions, comments } = useWatchData({ publicId });
+  const { videoData, versions, comments, shareHost } = useWatchData({ publicId });
   const [playbackSession, setPlaybackSession] = useState<{
     url: string;
     posterUrl: string;
@@ -70,7 +70,7 @@ export default function WatchPage() {
     setIsLoadingPlayback(true);
     setPlaybackError(null);
 
-    void getPlaybackSession({ publicId })
+    void getPlaybackSession({ publicId, shareHost })
       .then((session) => {
         if (cancelled) return;
         setPlaybackSession(session);
@@ -87,7 +87,7 @@ export default function WatchPage() {
     return () => {
       cancelled = true;
     };
-  }, [getPlaybackSession, publicId, videoData?.video?.muxPlaybackId]);
+  }, [getPlaybackSession, publicId, shareHost, videoData?.video?.muxPlaybackId]);
 
   useEffect(() => {
     setIsDownloading(false);
@@ -126,6 +126,7 @@ export default function WatchPage() {
         publicId,
         text: commentText.trim(),
         timestampSeconds: currentTime,
+        shareHost,
       });
       setCommentText("");
     } catch {
@@ -141,7 +142,7 @@ export default function WatchPage() {
     setDownloadError(null);
     setIsDownloading(true);
     try {
-      const result = await getDownloadUrl({ publicId });
+      const result = await getDownloadUrl({ publicId, shareHost });
       triggerDownload(result.url, result.filename);
     } catch (error) {
       console.error("Failed to prepare public download:", error);
@@ -151,7 +152,7 @@ export default function WatchPage() {
     } finally {
       setIsDownloading(false);
     }
-  }, [getDownloadUrl, isDownloading, publicId]);
+  }, [getDownloadUrl, isDownloading, publicId, shareHost]);
 
   if (videoData === undefined) {
     return (

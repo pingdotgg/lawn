@@ -38,8 +38,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { projectPath, teamHomePath, videoPath, watchPath } from "@/lib/routes";
+import { projectPath, teamHomePath, videoPath } from "@/lib/routes";
 import { copyTextToClipboard } from "@/lib/clipboard";
+import { publicWatchUrl } from "@/lib/shareHost";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { MoveProjectDialog } from "@/components/projects/MoveProjectDialog";
 import { MoveVideoDialog } from "@/components/videos/MoveVideoDialog";
@@ -338,11 +339,13 @@ export default function ProjectPage({
       setSharePending(true);
       setShareToast(null);
       const requestEpoch = shareRequestEpochRef.current.next();
-      const publicWatchPath =
-        video.visibility === "public" && video.publicId ? watchPath(video.publicId) : null;
-      const path = publicWatchPath ?? videoPath(resolvedTeamSlug, projectId, video._id);
+      const publicUrl =
+        video.visibility === "public" && video.publicId
+          ? publicWatchUrl(resolvedTeamSlug, video.publicId)
+          : null;
+      const privatePath = videoPath(resolvedTeamSlug, projectId, video._id);
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = `${origin}${path}`;
+      const url = publicUrl ?? `${origin}${privatePath}`;
 
       try {
         const copied = await copyTextToClipboard(url);
@@ -356,7 +359,7 @@ export default function ProjectPage({
         showShareToast(
           {
             tone: "success",
-            message: publicWatchPath ? "Share link copied" : "Private dashboard link copied",
+            message: publicUrl ? "Share link copied" : "Private dashboard link copied",
           },
           true,
         );

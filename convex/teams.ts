@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import {
   getUser,
   identityAvatarUrl,
@@ -9,6 +9,7 @@ import {
   requireTeamAccess,
 } from "./auth";
 import { getTeamSubscriptionState } from "./billingHelpers";
+import { isReservedShareSubdomain } from "./shareHost";
 import { deleteVideoAndDependents } from "./videos";
 
 function normalizedEmail(value: string) {
@@ -32,6 +33,27 @@ function generateToken(): string {
   return result;
 }
 
+/** Team slugs double as share subdomains; keep them unique and non-reserved. */
+async function allocateUniqueTeamSlug(ctx: MutationCtx, baseName: string): Promise<string> {
+  const base = generateSlug(baseName) || "team";
+  let slug = base;
+  let counter = 1;
+
+  while (true) {
+    if (!isReservedShareSubdomain(slug)) {
+      const existingWithSlug = await ctx.db
+        .query("teams")
+        .withIndex("by_slug", (q) => q.eq("slug", slug))
+        .unique();
+      if (!existingWithSlug) {
+        return slug;
+      }
+    }
+    slug = `${base}-${counter}`;
+    counter++;
+  }
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -39,21 +61,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
 
-    let slug = generateSlug(args.name);
-    let existingWithSlug = await ctx.db
-      .query("teams")
-      .withIndex("by_slug", (q) => q.eq("slug", slug))
-      .unique();
-
-    let counter = 1;
-    while (existingWithSlug) {
-      slug = `${generateSlug(args.name)}-${counter}`;
-      existingWithSlug = await ctx.db
-        .query("teams")
-        .withIndex("by_slug", (q) => q.eq("slug", slug))
-        .unique();
-      counter++;
-    }
+    const slug = await allocateUniqueTeamSlug(ctx, args.name);
 
     const teamId = await ctx.db.insert("teams", {
       name: args.name,

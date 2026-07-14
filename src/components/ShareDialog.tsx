@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { copyTextToClipboard } from "@/lib/clipboard";
-import { watchPath } from "@/lib/routes";
+import { displayShareUrl, publicWatchUrl, restrictedShareUrl } from "@/lib/shareHost";
 import { createRequestEpoch } from "@/lib/requestEpoch";
 
 interface ShareDialogProps {
@@ -193,7 +193,9 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     }
   };
 
-  const copyLink = async (id: string, path: string) => {
+  const teamSlug = video?.teamSlug ?? null;
+
+  const copyAbsoluteUrl = async (id: string, url: string) => {
     const requestId = copySequenceRef.current + 1;
     copySequenceRef.current = requestId;
     if (copyTimeoutRef.current !== null) {
@@ -203,7 +205,6 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     setCopiedId(null);
     setCopyStatus(null);
     setCopyFailureUrl(null);
-    const url = `${window.location.origin}${path}`;
     const copied = await copyTextToClipboard(url);
     if (requestId !== copySequenceRef.current || activeVideoIdRef.current !== videoId || !open) {
       return;
@@ -228,12 +229,12 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
   };
 
   const handleCopyLink = async (token: string) => {
-    await copyLink(token, `/share/${token}`);
+    await copyAbsoluteUrl(token, restrictedShareUrl(teamSlug, token));
   };
 
   const handleCopyPublicLink = async () => {
     if (!video?.publicId) return;
-    await copyLink("public", watchPath(video.publicId));
+    await copyAbsoluteUrl("public", publicWatchUrl(teamSlug, video.publicId));
   };
 
   const handleDeleteLink = async (linkId: Id<"shareLinks">) => {
@@ -255,7 +256,10 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     }
   };
 
-  const publicWatchPath = video?.publicId ? watchPath(video.publicId) : null;
+  const publicWatchAbsoluteUrl = video?.publicId ? publicWatchUrl(teamSlug, video.publicId) : null;
+  const publicWatchDisplay = publicWatchAbsoluteUrl
+    ? displayShareUrl(publicWatchAbsoluteUrl)
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -335,10 +339,10 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
         {/* Public URL + version browsing */}
         {video?.visibility === "public" ? (
           <div className="space-y-3">
-            {publicWatchPath ? (
+            {publicWatchAbsoluteUrl && publicWatchDisplay ? (
               <div className="flex items-center gap-2">
                 <code className="min-w-0 flex-1 truncate border-2 border-[#1a1a1a] bg-[#e8e8e0] px-3 py-2 font-mono text-sm">
-                  {publicWatchPath}
+                  {publicWatchDisplay}
                 </code>
                 <Button
                   variant="outline"
@@ -355,7 +359,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => window.open(publicWatchPath, "_blank")}
+                  onClick={() => window.open(publicWatchAbsoluteUrl, "_blank")}
                   aria-label="Open public URL"
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -474,67 +478,70 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
             <p className="text-sm text-[#888]">No share links yet</p>
           ) : (
             <div className="max-h-64 divide-y-2 divide-[#1a1a1a] overflow-y-auto border-2 border-[#1a1a1a]">
-              {shareLinks.map((link) => (
-                <div key={link._id} className="flex items-center justify-between gap-2 p-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <code className="max-w-[200px] truncate bg-[#e8e8e0] px-2 py-0.5 font-mono text-sm">
-                        /share/{link.token}
-                      </code>
-                      {link.isExpired ? <Badge variant="destructive">Expired</Badge> : null}
-                    </div>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-[#888]">
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {link.viewCount} views
-                      </span>
-                      {link.hasPassword ? (
+              {shareLinks.map((link) => {
+                const linkUrl = restrictedShareUrl(teamSlug, link.token);
+                return (
+                  <div key={link._id} className="flex items-center justify-between gap-2 p-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <code className="max-w-[200px] truncate bg-[#e8e8e0] px-2 py-0.5 font-mono text-sm">
+                          {displayShareUrl(linkUrl)}
+                        </code>
+                        {link.isExpired ? <Badge variant="destructive">Expired</Badge> : null}
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-[#888]">
                         <span className="flex items-center gap-1">
-                          <Lock className="h-3 w-3" />
-                          Protected
+                          <Eye className="h-3 w-3" />
+                          {link.viewCount} views
                         </span>
-                      ) : null}
-                      {link.expiresAt ? (
-                        <span>Expires {formatRelativeTime(link.expiresAt)}</span>
-                      ) : null}
+                        {link.hasPassword ? (
+                          <span className="flex items-center gap-1">
+                            <Lock className="h-3 w-3" />
+                            Protected
+                          </span>
+                        ) : null}
+                        {link.expiresAt ? (
+                          <span>Expires {formatRelativeTime(link.expiresAt)}</span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => void handleCopyLink(link.token)}
-                      aria-label="Copy restricted link"
-                    >
-                      {copiedId === link.token ? (
-                        <Check className="h-4 w-4 text-[#2d5a2d]" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => window.open(`/share/${link.token}`, "_blank")}
-                      aria-label="Open restricted link"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                    {canManageSharing ? (
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-[#dc2626] hover:text-[#dc2626]"
-                        disabled={deletingLinkId !== null}
-                        onClick={() => void handleDeleteLink(link._id)}
-                        aria-label="Delete restricted link"
+                        onClick={() => void handleCopyLink(link.token)}
+                        aria-label="Copy restricted link"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        {copiedId === link.token ? (
+                          <Check className="h-4 w-4 text-[#2d5a2d]" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
                       </Button>
-                    ) : null}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.open(linkUrl, "_blank")}
+                        aria-label="Open restricted link"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                      {canManageSharing ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-[#dc2626] hover:text-[#dc2626]"
+                          disabled={deletingLinkId !== null}
+                          onClick={() => void handleDeleteLink(link._id)}
+                          aria-label="Delete restricted link"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

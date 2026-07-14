@@ -50,7 +50,7 @@ export default function SharePage() {
     setDownloadError(null);
   }, [token]);
 
-  const { shareInfo, videoData, comments } = useShareData({ token, grantToken });
+  const { shareInfo, videoData, comments, shareHost } = useShareData({ token, grantToken });
   const canTrackPresence = Boolean(playbackSession?.url && videoData?.video?._id);
   const { watchers } = useVideoPresence({
     videoId: videoData?.video?._id,
@@ -70,7 +70,7 @@ export default function SharePage() {
       setPasswordError(false);
 
       try {
-        const result = await issueAccessGrant({ token, password });
+        const result = await issueAccessGrant({ token, password, shareHost });
         if (result.ok && result.grantToken) {
           setGrantToken(result.grantToken);
           return true;
@@ -85,7 +85,7 @@ export default function SharePage() {
         setIsRequestingGrant(false);
       }
     },
-    [isRequestingGrant, issueAccessGrant, token],
+    [isRequestingGrant, issueAccessGrant, shareHost, token],
   );
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function SharePage() {
     setIsLoadingPlayback(true);
     setPlaybackError(null);
 
-    void getPlaybackSession({ grantToken })
+    void getPlaybackSession({ grantToken, shareHost })
       .then((session) => {
         if (cancelled) return;
         setPlaybackSession(session);
@@ -124,7 +124,7 @@ export default function SharePage() {
     return () => {
       cancelled = true;
     };
-  }, [getPlaybackSession, grantToken]);
+  }, [getPlaybackSession, grantToken, shareHost]);
 
   const flattenedComments = useMemo(() => {
     if (!comments) return [] as Array<{ _id: string; timestampSeconds: number; resolved: boolean }>;
@@ -158,6 +158,7 @@ export default function SharePage() {
         grantToken,
         text: commentText.trim(),
         timestampSeconds: currentTime,
+        shareHost,
       });
       setCommentText("");
     } catch {
@@ -173,7 +174,7 @@ export default function SharePage() {
     setDownloadError(null);
     setIsDownloading(true);
     try {
-      const result = await getDownloadUrl({ grantToken });
+      const result = await getDownloadUrl({ grantToken, shareHost });
       triggerDownload(result.url, result.filename);
     } catch (error) {
       console.error("Failed to prepare shared download:", error);
@@ -183,7 +184,7 @@ export default function SharePage() {
     } finally {
       setIsDownloading(false);
     }
-  }, [getDownloadUrl, grantToken, isDownloading]);
+  }, [getDownloadUrl, grantToken, isDownloading, shareHost]);
 
   const isBootstrappingShare =
     shareInfo === undefined ||

@@ -13,6 +13,7 @@ import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Doc, Id } from "./_generated/dataModel";
 import { generateUniqueToken } from "./security";
 import { resolveActiveShareGrant } from "./shareAccess";
+import { videoMatchesShareHost } from "./shareHost";
 import { assertTeamCanStoreBytes, assertTeamHasActiveSubscription } from "./billingHelpers";
 import { assertVideoFileSizeAllowed } from "./uploadLimits";
 
@@ -595,7 +596,8 @@ export const list = query({
 export const get = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
-    const { video, membership } = await requireVideoAccess(ctx, args.videoId);
+    const { video, membership, project } = await requireVideoAccess(ctx, args.videoId);
+    const team = await ctx.db.get(project.teamId);
     return {
       ...video,
       uploaderName: video.uploaderName ?? "Unknown",
@@ -603,6 +605,8 @@ export const get = query({
       versionNumber: normalizeVersionNumber(video),
       isLatestVersion: video.supersededByVideoId === undefined,
       role: membership.role,
+      // Share/watch URLs use the team slug as the branded lawn.video subdomain.
+      teamSlug: team?.slug ?? null,
     };
   },
 });
@@ -629,7 +633,7 @@ export const listVersions = query({
 
 type PublicWatchResolution =
   | { state: "ready"; video: Doc<"videos">; allowVersionBrowsing: boolean }
-  | { state: "processing"; title: string }
+  | { state: "processing"; title: string; videoId: Id<"videos"> }
   | { state: "unavailable" };
 
 // Version browsing is on unless explicitly disabled, so existing public videos
@@ -725,7 +729,7 @@ async function resolvePublicWatch(
       (candidate.status === "uploading" || candidate.status === "processing"),
   );
   if (hasInflightVersion) {
-    return { state: "processing", title: matched.title };
+    return { state: "processing", title: matched.title, videoId: matched._id };
   }
 
   return { state: "unavailable" };
@@ -745,7 +749,11 @@ export async function resolvePublicVideo(
 }
 
 export const getByPublicId = query({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    /** Request hostname for team subdomain isolation (optional). */
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const resolution = await resolvePublicWatch(ctx, args.publicId);
 
@@ -754,10 +762,17 @@ export const getByPublicId = query({
     }
 
     if (resolution.state === "processing") {
+      if (!(await videoMatchesShareHost(ctx, resolution.videoId, args.shareHost))) {
+        return null;
+      }
       return { processing: true as const, title: resolution.title, video: null };
     }
 
     const video = resolution.video;
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
+      return null;
+    }
+
     return {
       processing: false as const,
       title: video.title,
@@ -785,7 +800,10 @@ export const getByPublicId = query({
  * list when the video is private or the owner disabled version browsing.
  */
 export const listPublicVersions = query({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   returns: v.array(
     v.object({
       publicId: v.string(),
@@ -803,6 +821,10 @@ export const listPublicVersions = query({
       return [];
     }
 
+    if (!(await videoMatchesShareHost(ctx, matched._id, args.shareHost))) {
+      return [];
+    }
+
     const stackVersions = await readStackVersions(ctx, matched);
     return stackVersions.filter(isPublicReadyVersion).map((version) => ({
       publicId: version.publicId,
@@ -813,10 +835,17 @@ export const listPublicVersions = query({
 });
 
 export const getByPublicIdForDownload = query({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const video = await resolvePublicVideo(ctx, args.publicId);
     if (!video) {
+      return null;
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       return null;
     }
 
@@ -851,7 +880,10 @@ export const getPublicIdByVideoId = query({
 });
 
 export const getByShareGrant = query({
-  args: { grantToken: v.string() },
+  args: {
+    grantToken: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const resolved = await resolveActiveShareGrant(ctx, args.grantToken);
     if (!resolved) {
@@ -860,6 +892,10 @@ export const getByShareGrant = query({
 
     const video = await ctx.db.get(resolved.shareLink.videoId);
     if (!video || video.status !== "ready") {
+      return null;
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       return null;
     }
 
@@ -881,7 +917,10 @@ export const getByShareGrant = query({
 });
 
 export const getByShareGrantForDownload = query({
-  args: { grantToken: v.string() },
+  args: {
+    grantToken: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const resolved = await resolveActiveShareGrant(ctx, args.grantToken);
     if (!resolved) {
@@ -890,6 +929,10 @@ export const getByShareGrantForDownload = query({
 
     const video = await ctx.db.get(resolved.shareLink.videoId);
     if (!video) {
+      return null;
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       return null;
     }
 

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
+import { videoMatchesShareHost } from "./shareHost";
 import { resolvePublicVideo } from "./videos";
 
 function toThreadedComments<
@@ -97,12 +98,17 @@ export const createForPublic = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    shareHost: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const video = await getPublicVideoByPublicId(ctx, args.publicId);
 
     if (!video) {
+      throw new Error("Video not found");
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       throw new Error("Video not found");
     }
 
@@ -132,6 +138,7 @@ export const createForShareGrant = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    shareHost: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -143,6 +150,10 @@ export const createForShareGrant = mutation({
 
     const video = await ctx.db.get(resolved.shareLink.videoId);
     if (!video || video.status !== "ready") {
+      throw new Error("Video not found");
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       throw new Error("Video not found");
     }
 
@@ -237,10 +248,17 @@ export const getThreaded = query({
 });
 
 export const getThreadedForPublic = query({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const video = await getPublicVideoByPublicId(ctx, args.publicId);
     if (!video) {
+      return [];
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       return [];
     }
 
@@ -254,7 +272,10 @@ export const getThreadedForPublic = query({
 });
 
 export const getThreadedForShareGrant = query({
-  args: { grantToken: v.string() },
+  args: {
+    grantToken: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const resolved = await resolveActiveShareGrant(ctx, args.grantToken);
     if (!resolved) {
@@ -263,6 +284,10 @@ export const getThreadedForShareGrant = query({
 
     const video = await ctx.db.get(resolved.shareLink.videoId);
     if (!video || video.status !== "ready") {
+      return [];
+    }
+
+    if (!(await videoMatchesShareHost(ctx, video._id, args.shareHost))) {
       return [];
     }
 

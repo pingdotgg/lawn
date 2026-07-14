@@ -1114,7 +1114,10 @@ export const getOriginalPlaybackUrl = action({
 });
 
 export const getPublicPlaybackSession = action({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   returns: v.object({
     url: v.string(),
     posterUrl: v.string(),
@@ -1122,6 +1125,7 @@ export const getPublicPlaybackSession = action({
   handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
     const result = await ctx.runQuery(api.videos.getByPublicId, {
       publicId: args.publicId,
+      shareHost: args.shareHost,
     });
 
     if (!result?.video?.muxPlaybackId) {
@@ -1138,7 +1142,10 @@ export const getPublicPlaybackSession = action({
 });
 
 export const getSharedPlaybackSession = action({
-  args: { grantToken: v.string() },
+  args: {
+    grantToken: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   returns: v.object({
     url: v.string(),
     posterUrl: v.string(),
@@ -1146,6 +1153,7 @@ export const getSharedPlaybackSession = action({
   handler: async (ctx, args): Promise<{ url: string; posterUrl: string }> => {
     const result = await ctx.runQuery(api.videos.getByShareGrant, {
       grantToken: args.grantToken,
+      shareHost: args.shareHost,
     });
 
     if (!result?.video?.muxPlaybackId) {
@@ -1193,7 +1201,10 @@ export const getDownloadUrl = action({
 });
 
 export const getPublicDownloadUrl = action({
-  args: { publicId: v.string() },
+  args: {
+    publicId: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   returns: v.object({
     url: v.string(),
     filename: v.string(),
@@ -1201,6 +1212,7 @@ export const getPublicDownloadUrl = action({
   handler: async (ctx, args): Promise<{ url: string; filename: string }> => {
     const result = await ctx.runQuery(api.videos.getByPublicIdForDownload, {
       publicId: args.publicId,
+      shareHost: args.shareHost,
     });
 
     if (!result?.video) {
@@ -1224,7 +1236,10 @@ export const getPublicDownloadUrl = action({
 });
 
 export const getSharedDownloadUrl = action({
-  args: { grantToken: v.string() },
+  args: {
+    grantToken: v.string(),
+    shareHost: v.optional(v.string()),
+  },
   returns: v.object({
     url: v.string(),
     filename: v.string(),
@@ -1232,6 +1247,7 @@ export const getSharedDownloadUrl = action({
   handler: async (ctx, args): Promise<{ url: string; filename: string }> => {
     const result = await ctx.runQuery(api.videos.getByShareGrantForDownload, {
       grantToken: args.grantToken,
+      shareHost: args.shareHost,
     });
 
     if (!result?.video) {

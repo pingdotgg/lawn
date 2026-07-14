@@ -6,6 +6,7 @@ import { mutation, query, MutationCtx } from "./_generated/server";
 import { identityName, requireVideoAccess } from "./auth";
 import { generateUniqueToken, hashPassword, verifyPassword } from "./security";
 import { findShareLinkByToken, issueShareAccessGrant } from "./shareAccess";
+import { videoMatchesShareHost } from "./shareHost";
 
 const shareLinkStatusValidator = v.union(
   v.literal("missing"),
@@ -196,7 +197,11 @@ export const update = mutation({
 });
 
 export const getByToken = query({
-  args: { token: v.string() },
+  args: {
+    token: v.string(),
+    /** Request hostname for team subdomain isolation (optional). */
+    shareHost: v.optional(v.string()),
+  },
   returns: v.object({
     status: shareLinkStatusValidator,
   }),
@@ -216,6 +221,10 @@ export const getByToken = query({
       return { status: "missing" as const };
     }
 
+    if (!(await videoMatchesShareHost(ctx, link.videoId, args.shareHost))) {
+      return { status: "missing" as const };
+    }
+
     if (hasPasswordProtection(link)) {
       return { status: "requiresPassword" as const };
     }
@@ -228,6 +237,7 @@ export const issueAccessGrant = mutation({
   args: {
     token: v.string(),
     password: v.optional(v.string()),
+    shareHost: v.optional(v.string()),
   },
   returns: v.object({
     ok: v.boolean(),
@@ -260,6 +270,10 @@ export const issueAccessGrant = mutation({
 
     const video = await ctx.db.get(link.videoId);
     if (!video || video.status !== "ready") {
+      return { ok: false, grantToken: null };
+    }
+
+    if (!(await videoMatchesShareHost(ctx, link.videoId, args.shareHost))) {
       return { ok: false, grantToken: null };
     }
 
