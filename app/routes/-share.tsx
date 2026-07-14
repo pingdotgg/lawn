@@ -11,7 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { triggerDownload } from "@/lib/download";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import { useVideoPresence } from "@/lib/useVideoPresence";
+import { useGangPlaybackSync } from "@/lib/useGangPlaybackSync";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
+import { GangPlaybackControls } from "@/components/presence/GangPlaybackControls";
 import { CommentText } from "@/components/comments/CommentText";
 import { Lock, Video, AlertCircle, MessageSquare, Clock, Download } from "lucide-react";
 import { useShareData } from "./-share.data";
@@ -52,11 +54,54 @@ export default function SharePage() {
 
   const { shareInfo, videoData, comments } = useShareData({ token, grantToken });
   const canTrackPresence = Boolean(playbackSession?.url && videoData?.video?._id);
-  const { watchers } = useVideoPresence({
+  const {
+    watchers,
+    canLead,
+    leader,
+    isLeading,
+    isFollowing,
+    followEnabled,
+    setFollowing,
+    claimLead,
+    releaseLead,
+    publishPlayback,
+  } = useVideoPresence({
     videoId: videoData?.video?._id,
     enabled: canTrackPresence,
     shareToken: token,
+    // Share viewers (guests) auto-follow when a leader is active. Team members
+    // who open the share link can still unfollow via the control.
+    isGuestViewer: true,
   });
+
+  useGangPlaybackSync({
+    enabled: isFollowing,
+    playerRef,
+    leaderPlayback: leader?.playback,
+    leaderUserId: leader?.userId,
+  });
+
+  const isPlayingRef = useRef(false);
+
+  const handleTimeUpdate = useCallback(
+    (time: number) => {
+      setCurrentTime(time);
+      publishPlayback(
+        { currentTime: time, paused: !isPlayingRef.current },
+        { force: !isPlayingRef.current },
+      );
+    },
+    [publishPlayback],
+  );
+
+  const handlePlayStateChange = useCallback(
+    (playing: boolean) => {
+      isPlayingRef.current = playing;
+      const time = playerRef.current?.getPlaybackState().currentTime ?? currentTime;
+      publishPlayback({ currentTime: time, paused: !playing }, { force: true });
+    },
+    [currentTime, publishPlayback],
+  );
 
   useEffect(() => {
     setGrantToken(null);
@@ -321,11 +366,22 @@ export default function SharePage() {
         <div>
           <h1 className="text-2xl font-black text-[#1a1a1a]">{video.title}</h1>
           {video.description && <p className="mt-1 text-[#888]">{video.description}</p>}
-          <div className="mt-2 flex items-center gap-4 text-sm text-[#888]">
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-[#888]">
             {video.duration && <span className="font-mono">{formatDuration(video.duration)}</span>}
             {comments && <span>{comments.length} threads</span>}
             <VideoWatchers watchers={watchers} className="ml-auto" />
           </div>
+          <GangPlaybackControls
+            className="mt-3"
+            canLead={canLead}
+            isLeading={isLeading}
+            leader={leader}
+            isFollowing={isFollowing}
+            followEnabled={followEnabled}
+            onClaimLead={() => void claimLead()}
+            onReleaseLead={() => void releaseLead()}
+            onToggleFollow={() => setFollowing(!followEnabled)}
+          />
         </div>
 
         <div className="overflow-hidden border-2 border-[#1a1a1a]">
@@ -335,7 +391,8 @@ export default function SharePage() {
               src={playbackSession.url}
               poster={playbackSession.posterUrl}
               comments={flattenedComments}
-              onTimeUpdate={setCurrentTime}
+              onTimeUpdate={handleTimeUpdate}
+              onPlayStateChange={handlePlayStateChange}
               allowDownload={false}
             />
           ) : (

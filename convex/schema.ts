@@ -165,4 +165,14 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_share_link", ["shareLinkId"])
     .index("by_expires_at", ["expiresAt"]),
+
+  // Ephemeral gang-playback leader for a video room. Last claim wins.
+  // Presence payloads mirror `leading` for cheap client reads; this table is
+  // the auth-backed source of truth for who may drive play/pause/seek.
+  videoLeaders: defineTable({
+    videoId: v.id("videos"),
+    leaderUserId: v.string(),
+    displayName: v.string(),
+    claimedAt: v.number(),
+  }).index("by_video", ["videoId"]),
 });

@@ -21,8 +21,10 @@ import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
+import { useGangPlaybackSync } from "@/lib/useGangPlaybackSync";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
+import { GangPlaybackControls } from "@/components/presence/GangPlaybackControls";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
@@ -395,9 +397,28 @@ export default function VideoPage() {
       projectId: resolvedProjectId,
     });
   });
-  const { watchers } = useVideoPresence({
+  const {
+    watchers,
+    canLead,
+    leader,
+    isLeading,
+    isFollowing,
+    followEnabled,
+    setFollowing,
+    claimLead,
+    releaseLead,
+    publishPlayback,
+  } = useVideoPresence({
     videoId: resolvedVideoId,
     enabled: Boolean(resolvedVideoId),
+    isGuestViewer: false,
+  });
+
+  useGangPlaybackSync({
+    enabled: isFollowing,
+    playerRef,
+    leaderPlayback: leader?.playback,
+    leaderUserId: leader?.userId,
   });
 
   useEffect(() => {
@@ -550,9 +571,28 @@ export default function VideoPage() {
     };
   }, [getOriginalPlaybackUrl, resolvedVideoId, video?.status, video?.s3Key]);
 
-  const handleTimeUpdate = useCallback((time: number) => {
-    setCurrentTime(time);
-  }, []);
+  const isPlayingRef = useRef(false);
+
+  const handleTimeUpdate = useCallback(
+    (time: number) => {
+      setCurrentTime(time);
+      // Throttled while playing; force on pause is handled by play-state.
+      publishPlayback(
+        { currentTime: time, paused: !isPlayingRef.current },
+        { force: !isPlayingRef.current },
+      );
+    },
+    [publishPlayback],
+  );
+
+  const handlePlayStateChange = useCallback(
+    (playing: boolean) => {
+      isPlayingRef.current = playing;
+      const time = playerRef.current?.getPlaybackState().currentTime ?? currentTime;
+      publishPlayback({ currentTime: time, paused: !playing }, { force: true });
+    },
+    [currentTime, publishPlayback],
+  );
 
   const handleOriginalPlaybackIssue = useCallback(
     (issue: VideoPlaybackIssue) => {
@@ -919,6 +959,16 @@ export default function VideoPage() {
             </>
           )}
           <VideoWatchers watchers={watchers} />
+          <GangPlaybackControls
+            canLead={canLead}
+            isLeading={isLeading}
+            leader={leader}
+            isFollowing={isFollowing}
+            followEnabled={followEnabled}
+            onClaimLead={() => void claimLead()}
+            onReleaseLead={() => void releaseLead()}
+            onToggleFollow={() => setFollowing(!followEnabled)}
+          />
         </div>
         <div className="ml-1 hidden flex-shrink-0 items-center gap-3 border-l-2 border-[#1a1a1a]/20 pl-3 lg:flex">
           {showVersionSelector && (
@@ -1125,6 +1175,21 @@ export default function VideoPage() {
             </div>
           ) : null}
 
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-black px-3 py-2 2xl:hidden">
+            <VideoWatchers watchers={watchers} className="mr-1" />
+            <GangPlaybackControls
+              tone="dark"
+              canLead={canLead}
+              isLeading={isLeading}
+              leader={leader}
+              isFollowing={isFollowing}
+              followEnabled={followEnabled}
+              onClaimLead={() => void claimLead()}
+              onReleaseLead={() => void releaseLead()}
+              onToggleFollow={() => setFollowing(!followEnabled)}
+            />
+          </div>
+
           {activePlaybackUrl ? (
             <VideoPlayer
               key={resolvedVideoId}
@@ -1135,6 +1200,7 @@ export default function VideoPage() {
               poster={playbackSession?.posterUrl}
               comments={comments || []}
               onTimeUpdate={handleTimeUpdate}
+              onPlayStateChange={handlePlayStateChange}
               onMarkerClick={handleMarkerClick}
               allowDownload={video.status === "ready"}
               downloadFilename={`${video.title}.mp4`}

@@ -50,6 +50,8 @@ interface VideoPlayerProps {
   poster?: string;
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
+  /** Fires on play / pause / ended so callers can publish gang presence. */
+  onPlayStateChange?: (playing: boolean) => void;
   onMarkerClick?: (comment: Comment) => void;
   initialTime?: number;
   initialPlay?: boolean;
@@ -90,6 +92,9 @@ export type VideoPlaybackIssue =
 
 export interface VideoPlayerHandle {
   seekTo: (time: number, options?: { play?: boolean }) => void;
+  play: () => void;
+  pause: () => void;
+  getPlaybackState: () => { currentTime: number; paused: boolean };
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -114,6 +119,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     poster,
     comments = [],
     onTimeUpdate,
+    onPlayStateChange,
     onMarkerClick,
     initialTime,
     initialPlay = false,
@@ -166,10 +172,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
   const hasAttachedSourceRef = useRef(false);
   const onPlaybackIssueRef = useRef(onPlaybackIssue);
+  const onPlayStateChangeRef = useRef(onPlayStateChange);
 
   useEffect(() => {
     onPlaybackIssueRef.current = onPlaybackIssue;
   }, [onPlaybackIssue]);
+
+  useEffect(() => {
+    onPlayStateChangeRef.current = onPlayStateChange;
+  }, [onPlayStateChange]);
 
   const groupedMarkers = useMemo(() => {
     if (!duration || comments.length === 0) return [] as { position: number; comment: Comment }[];
@@ -231,13 +242,45 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             });
           }
         }
+      } else if (options?.play === false) {
+        videoRef.current?.pause();
       }
       showControls();
     },
     [applyTime, showControls],
   );
 
-  useImperativeHandle(ref, () => ({ seekTo }), [seekTo]);
+  const play = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const playPromise = video.play();
+    if (playPromise) {
+      playPromise.catch(() => {
+        // Ignore autoplay rejections.
+      });
+    }
+    showControls();
+  }, [showControls]);
+
+  const pause = useCallback(() => {
+    videoRef.current?.pause();
+    showControls();
+  }, [showControls]);
+
+  const getPlaybackState = useCallback(() => {
+    const video = videoRef.current;
+    return {
+      currentTime: video?.currentTime ?? 0,
+      paused: video ? video.paused || video.ended : true,
+    };
+  }, []);
+
+  useImperativeHandle(ref, () => ({ seekTo, play, pause, getPlaybackState }), [
+    seekTo,
+    play,
+    pause,
+    getPlaybackState,
+  ]);
 
   const handleSeekBy = useCallback(
     (delta: number) => {
@@ -576,6 +619,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setIsPlaying(true);
       setIsBuffering(false);
       showControls();
+      onPlayStateChangeRef.current?.(true);
     };
 
     const handlePause = () => {
@@ -584,6 +628,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setIsPlaying(false);
       setIsBuffering(false);
       setControlsVisible(true);
+      onPlayStateChangeRef.current?.(false);
     };
 
     const handleWaiting = () => {
@@ -649,6 +694,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setIsPlaying(false);
       setControlsVisible(true);
+      onPlayStateChangeRef.current?.(false);
     };
 
     const startPlaybackHealthMonitor = () => {
