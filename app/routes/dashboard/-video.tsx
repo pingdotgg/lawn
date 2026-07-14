@@ -19,6 +19,10 @@ import {
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
+import {
+  buildResolveMarkersCsv,
+  buildResolveMarkersFilename,
+} from "@/lib/commentResolveExport";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
@@ -632,6 +636,16 @@ export default function VideoPage() {
     if (!video || !commentsThreaded?.length) return;
 
     triggerTextDownload(buildCommentsCsv(commentsThreaded), buildCommentsCsvFilename(video.title));
+  }, [commentsThreaded, video]);
+
+  const handleExportResolveMarkers = useCallback(() => {
+    if (!video || !commentsThreaded?.length) return;
+
+    // Default 24fps (editorial). Match this to the Resolve timeline fps on import.
+    triggerTextDownload(
+      buildResolveMarkersCsv(commentsThreaded),
+      buildResolveMarkersFilename(video.title),
+    );
   }, [commentsThreaded, video]);
 
   const handleSaveTitle = async () => {
@@ -1250,9 +1264,21 @@ export default function VideoPage() {
                 className="h-7 px-2 text-[10px]"
                 onClick={handleExportComments}
                 disabled={!commentsThreaded?.length}
+                title="Download comments as spreadsheet CSV"
               >
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px]"
+                onClick={handleExportResolveMarkers}
+                disabled={!commentsThreaded?.length}
+                title="Download DaVinci Resolve timeline markers (24fps)"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export for Resolve
               </Button>
             </div>
           </div>
@@ -1297,9 +1323,21 @@ export default function VideoPage() {
                 className="h-8 px-2 text-[10px]"
                 onClick={handleExportComments}
                 disabled={!commentsThreaded?.length}
+                title="Download comments as spreadsheet CSV"
               >
                 <Download className="h-3.5 w-3.5" />
-                Export CSV
+                CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-[10px]"
+                onClick={handleExportResolveMarkers}
+                disabled={!commentsThreaded?.length}
+                title="Download DaVinci Resolve timeline markers (24fps)"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Resolve
               </Button>
               <Button
                 variant="ghost"
