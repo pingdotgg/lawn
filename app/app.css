@@ -590,6 +590,41 @@ body {
 [class~="hover:text-[#2d5a2d]"]:hover {
   color: var(--accent) !important;
 }
+
+/* Auth pages always use the light cream palette */
+.auth-shell {
+  --background: #f0f0e8;
+  --foreground: #1a1a1a;
+  --foreground-muted: #888888;
+  --foreground-inverse: #f0f0e8;
+  --border: #1a1a1a;
+  --border-subtle: #cccccc;
+  --shadow-color: #1a1a1a;
+  --shadow-accent: rgba(45, 90, 45, 1);
+  --accent: #2d5a2d;
+  --accent-hover: #3a6a3a;
+  --accent-light: #7cb87c;
+  color-scheme: light;
+}
+
+.cl-footer {
+  display: none !important;
+}
+
+.auth-footer-text {
+  color: #888888;
+}
+
+.auth-footer-link {
+  color: #1a1a1a;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.auth-footer-link:hover {
+  color: #2d5a2d;
+}
 [class~="group-hover:text-[#1a1a1a]"] {
   transition: color 150ms ease;
 }
