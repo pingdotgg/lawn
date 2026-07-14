@@ -20,6 +20,11 @@ import {
 import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
+import {
+  getOriginalPlaybackFallbackNotice,
+  selectFallbackPlaybackSource,
+  shouldFallbackFromOriginalSource,
+} from "@/lib/originalPlaybackFallback";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
@@ -341,6 +346,7 @@ export default function VideoPage() {
     videoId: Id<"videos">;
     type: VideoPlaybackIssue["type"];
   } | null>(null);
+  const [originalFallbackNoticeDismissed, setOriginalFallbackNoticeDismissed] = useState(false);
   const [playbackResume, setPlaybackResume] = useState<{
     videoId: Id<"videos">;
     currentTime: number;
@@ -350,6 +356,7 @@ export default function VideoPage() {
   const deletePendingRef = useRef(false);
   const muxRecoveryVideoIdRef = useRef<Id<"videos"> | null>(null);
   const playbackRetryTimeoutRef = useRef<number | null>(null);
+  const originalFallbackNoticeTimeoutRef = useRef<number | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const playbackUrl = playbackSession?.url ?? null;
   const playbackRequestAttempt =
@@ -383,6 +390,15 @@ export default function VideoPage() {
     playbackLoadError &&
     playbackRequestAttempt < MAX_AUTOMATIC_PLAYBACK_ATTEMPTS - 1,
   );
+  const originalFallbackNotice =
+    activeOriginalPlaybackIssue && !originalFallbackNoticeDismissed
+      ? getOriginalPlaybackFallbackNotice({
+          issueType: activeOriginalPlaybackIssue.type,
+          hasMuxFallback: Boolean(playbackUrl),
+          muxLoadFailed: Boolean(playbackLoadError),
+          muxRetryPending: isAutomaticPlaybackRetryPending,
+        })
+      : null;
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
   const prewarmTeamIntentHandlers = useRoutePrewarmIntent(() =>
@@ -404,6 +420,7 @@ export default function VideoPage() {
     setSourcePreference(null);
     setFailedOriginalVideoId(null);
     setOriginalPlaybackIssue(null);
+    setOriginalFallbackNoticeDismissed(false);
     setPlaybackResume(null);
     setPlaybackLoadError(null);
     setPlaybackRequest(null);
@@ -411,6 +428,10 @@ export default function VideoPage() {
     if (playbackRetryTimeoutRef.current !== null) {
       window.clearTimeout(playbackRetryTimeoutRef.current);
       playbackRetryTimeoutRef.current = null;
+    }
+    if (originalFallbackNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+      originalFallbackNoticeTimeoutRef.current = null;
     }
   }, [resolvedVideoId]);
 
@@ -419,6 +440,7 @@ export default function VideoPage() {
     setSourcePreference(null);
     setFailedOriginalVideoId(null);
     setOriginalPlaybackIssue(null);
+    setOriginalFallbackNoticeDismissed(false);
     setPlaybackResume(null);
     setPlaybackLoadError(null);
     setPlaybackRequest(null);
@@ -427,7 +449,31 @@ export default function VideoPage() {
       window.clearTimeout(playbackRetryTimeoutRef.current);
       playbackRetryTimeoutRef.current = null;
     }
+    if (originalFallbackNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+      originalFallbackNoticeTimeoutRef.current = null;
+    }
   }, [video?.status]);
+
+  // Brief auto-dismiss once 720p is actually available after an Original failure.
+  useEffect(() => {
+    if (!activeOriginalPlaybackIssue || !playbackUrl || originalFallbackNoticeDismissed) {
+      return;
+    }
+    if (originalFallbackNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+    }
+    originalFallbackNoticeTimeoutRef.current = window.setTimeout(() => {
+      originalFallbackNoticeTimeoutRef.current = null;
+      setOriginalFallbackNoticeDismissed(true);
+    }, 4_500);
+    return () => {
+      if (originalFallbackNoticeTimeoutRef.current !== null) {
+        window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+        originalFallbackNoticeTimeoutRef.current = null;
+      }
+    };
+  }, [activeOriginalPlaybackIssue, originalFallbackNoticeDismissed, playbackUrl]);
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
@@ -557,6 +603,15 @@ export default function VideoPage() {
   const handleOriginalPlaybackIssue = useCallback(
     (issue: VideoPlaybackIssue) => {
       if (!resolvedVideoId) return;
+      if (
+        !shouldFallbackFromOriginalSource({
+          isProgressiveSource: true,
+          issueType: issue.type,
+        })
+      ) {
+        return;
+      }
+
       setPlaybackResume({
         videoId: resolvedVideoId,
         currentTime: issue.currentTime,
@@ -565,7 +620,14 @@ export default function VideoPage() {
       muxRecoveryVideoIdRef.current = resolvedVideoId;
       setFailedOriginalVideoId(resolvedVideoId);
       setOriginalPlaybackIssue({ videoId: resolvedVideoId, type: issue.type });
-      setSourcePreference({ videoId: resolvedVideoId, source: "mux720" });
+      setOriginalFallbackNoticeDismissed(false);
+      setSourcePreference({
+        videoId: resolvedVideoId,
+        source: selectFallbackPlaybackSource({
+          muxUrl: playbackUrl,
+          muxPlaybackReady: isPlayable,
+        }),
+      });
       if (isPlayable && !playbackUrl && !isLoadingPlayback) {
         setPlaybackRequest((request) => ({
           videoId: resolvedVideoId,
@@ -585,15 +647,28 @@ export default function VideoPage() {
           window.clearTimeout(playbackRetryTimeoutRef.current);
           playbackRetryTimeoutRef.current = null;
         }
+        if (originalFallbackNoticeTimeoutRef.current !== null) {
+          window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+          originalFallbackNoticeTimeoutRef.current = null;
+        }
         setFailedOriginalVideoId((failedVideoId) =>
           failedVideoId === resolvedVideoId ? null : failedVideoId,
         );
         setOriginalPlaybackIssue((issue) => (issue?.videoId === resolvedVideoId ? null : issue));
+        setOriginalFallbackNoticeDismissed(false);
       }
       setSourcePreference({ videoId: resolvedVideoId, source: id });
     },
     [resolvedVideoId],
   );
+
+  const dismissOriginalFallbackNotice = useCallback(() => {
+    setOriginalFallbackNoticeDismissed(true);
+    if (originalFallbackNoticeTimeoutRef.current !== null) {
+      window.clearTimeout(originalFallbackNoticeTimeoutRef.current);
+      originalFallbackNoticeTimeoutRef.current = null;
+    }
+  }, []);
 
   const handleRetryPlaybackSession = useCallback(() => {
     if (!resolvedVideoId || !isPlayable || isLoadingPlayback) return;
@@ -1102,26 +1177,26 @@ export default function VideoPage() {
             </div>
           ) : null}
 
-          {activeOriginalPlaybackIssue ? (
+          {originalFallbackNotice ? (
             <div
-              className="flex flex-shrink-0 items-center gap-2 bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
+              className="flex flex-shrink-0 items-center gap-2 border-b-2 border-[#1a1a1a] bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
               role="status"
               aria-live="polite"
               aria-atomic="true"
             >
-              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#f0b45d]" />
-              <span className="font-semibold">
-                {activeOriginalPlaybackIssue.type === "frozen-video"
-                  ? "Original playback stalled."
-                  : "Original playback was unavailable."}
+              <span className="inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-[#f0b45d]" />
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold">{originalFallbackNotice.headline}</span>
+                <span className="text-[#d8c6a8]"> — {originalFallbackNotice.detail}</span>
               </span>
-              <span className="text-[#d8c6a8]">
-                {playbackUrl
-                  ? "Switched to 720p."
-                  : playbackLoadError && !isAutomaticPlaybackRetryPending
-                    ? "720p needs another try."
-                    : "Preparing 720p…"}
-              </span>
+              <button
+                type="button"
+                onClick={dismissOriginalFallbackNotice}
+                className="ml-auto inline-flex h-7 w-7 flex-shrink-0 items-center justify-center border border-[#fff1d5]/35 text-[#fff1d5] transition hover:bg-[#fff1d5]/10"
+                aria-label="Dismiss playback notice"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
             </div>
           ) : null}
 

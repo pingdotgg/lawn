@@ -33,6 +33,7 @@ import {
   observeVideoPlayback,
   resetVideoPlaybackHealthWindow,
 } from "@/lib/videoPlaybackHealth";
+import { classifyPlayFailure } from "@/lib/originalPlaybackFallback";
 
 interface Comment {
   _id: string;
@@ -247,6 +248,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     [applyTime, showControls],
   );
 
+  const reportPlayFailure = useCallback(
+    (video: HTMLVideoElement, error: unknown) => {
+      const classification = classifyPlayFailure({
+        error,
+        mediaError: video.error ? { code: video.error.code, message: video.error.message } : null,
+        isProgressiveSource: !isHlsSource(src),
+      });
+      if (classification.kind !== "media-failure") return;
+
+      // Keep play intent across the host's Original → 720p source swap even though
+      // this element never reached the `playing` state.
+      resumePlaybackOnSourceChangeRef.current = true;
+
+      // Play rejections for unsupported progressive sources (ProRes MOV, etc.)
+      // can leave the control in a dead state if we only listen for `error`.
+      onPlaybackIssueRef.current?.({
+        type: "media-error",
+        currentTime: video.currentTime,
+        wasPlaying: true,
+        code: classification.code,
+        message: classification.message,
+      });
+    },
+    [src],
+  );
+
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -256,14 +283,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     if (video.paused) {
       const playPromise = video.play();
       if (playPromise) {
-        playPromise.catch(() => {
-          // Ignore play errors caused by browser autoplay policies.
+        playPromise.catch((error) => {
+          // Autoplay/abort rejections are ignored; decode/support failures
+          // surface as playback issues so the host can fall back to 720p.
+          reportPlayFailure(video, error);
         });
       }
     } else {
       video.pause();
     }
-  }, [showControls]);
+  }, [reportPlayFailure, showControls]);
 
   const setVideoVolume = useCallback((nextVolume: number) => {
     const video = videoRef.current;
@@ -528,8 +557,25 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       resumePlaybackOnSourceChangeRef.current = false;
       const playPromise = video.play();
       if (playPromise) {
-        playPromise.catch(() => {
-          // A browser may still reject resumed playback after a source swap.
+        playPromise.catch((error) => {
+          // Source swaps can still hit unsupported progressive codecs.
+          // Ignore autoplay/abort; report real media failures.
+          if (cancelled) return;
+          const classification = classifyPlayFailure({
+            error,
+            mediaError: video.error
+              ? { code: video.error.code, message: video.error.message }
+              : null,
+            isProgressiveSource: !isHlsSource(src),
+          });
+          if (classification.kind !== "media-failure") return;
+          reportPlaybackIssue({
+            type: "media-error",
+            currentTime: video.currentTime,
+            wasPlaying: true,
+            code: classification.code,
+            message: classification.message,
+          });
         });
       }
     };
