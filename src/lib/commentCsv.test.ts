@@ -11,10 +11,18 @@ test("exports comments and replies in thread order", () => {
         {
           text: "First reply",
           timestampSeconds: 65,
+          replies: [
+            {
+              text: "Nested reply",
+              timestampSeconds: 66,
+              replies: [],
+            },
+          ],
         },
         {
           text: "Second reply",
           timestampSeconds: 65,
+          replies: [],
         },
       ],
     },
@@ -31,6 +39,7 @@ test("exports comments and replies in thread order", () => {
       "Timestamp,Comment",
       '"1:05","First comment"',
       '"1:05","Reply: First reply"',
+      '"1:06","Reply: Nested reply"',
       '"1:05","Reply: Second reply"',
       '"2:05","Later comment"',
     ].join("\r\n"),
@@ -46,6 +55,7 @@ test("escapes CSV content and neutralizes spreadsheet formulas", () => {
         {
           text: "Reply with a comma, too",
           timestampSeconds: 0,
+          replies: [],
         },
       ],
     },

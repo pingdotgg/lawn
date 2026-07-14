@@ -17,8 +17,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CommentText } from "@/components/comments/CommentText";
+import { NestedReplies } from "@/components/comments/NestedReplies";
 import { triggerDownload } from "@/lib/download";
 import { watchPath } from "@/lib/routes";
+import { walkThreadedComments } from "@/lib/threadedComments";
 import { cn, formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import {
   AlertCircle,
@@ -98,20 +100,13 @@ export default function WatchPage() {
     if (!comments) return [] as Array<{ _id: string; timestampSeconds: number; resolved: boolean }>;
 
     const markers: Array<{ _id: string; timestampSeconds: number; resolved: boolean }> = [];
-    for (const comment of comments) {
+    walkThreadedComments(comments, (comment) => {
       markers.push({
         _id: comment._id,
         timestampSeconds: comment.timestampSeconds,
         resolved: comment.resolved,
       });
-      for (const reply of comment.replies) {
-        markers.push({
-          _id: reply._id,
-          timestampSeconds: reply.timestampSeconds,
-          resolved: reply.resolved,
-        });
-      }
-    }
+    });
     return markers;
   }, [comments]);
 
@@ -393,31 +388,10 @@ export default function WatchPage() {
                       {formatRelativeTime(comment._creationTime)}
                     </p>
 
-                    {comment.replies.length > 0 ? (
-                      <div className="mt-3 ml-4 space-y-2 border-l-2 border-[#1a1a1a] pl-3">
-                        {comment.replies.map((reply) => (
-                          <div key={reply._id} className="text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
-                              <button
-                                type="button"
-                                className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                                onClick={() =>
-                                  playerRef.current?.seekTo(reply.timestampSeconds, {
-                                    play: true,
-                                  })
-                                }
-                              >
-                                {formatTimestamp(reply.timestampSeconds)}
-                              </button>
-                            </div>
-                            <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
-                              <CommentText text={reply.text} />
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
+                    <NestedReplies
+                      replies={comment.replies}
+                      onSeek={(seconds) => playerRef.current?.seekTo(seconds, { play: true })}
+                    />
                   </article>
                 ))}
               </div>
@@ -514,30 +488,13 @@ export default function WatchPage() {
                       {formatRelativeTime(comment._creationTime)}
                     </p>
 
-                    {comment.replies.length > 0 ? (
-                      <div className="mt-3 ml-4 space-y-2 border-l-2 border-[#1a1a1a] pl-3">
-                        {comment.replies.map((reply) => (
-                          <div key={reply._id} className="text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
-                              <button
-                                type="button"
-                                className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                                onClick={() => {
-                                  playerRef.current?.seekTo(reply.timestampSeconds, { play: true });
-                                  setMobileCommentsOpen(false);
-                                }}
-                              >
-                                {formatTimestamp(reply.timestampSeconds)}
-                              </button>
-                            </div>
-                            <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
-                              <CommentText text={reply.text} />
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
+                    <NestedReplies
+                      replies={comment.replies}
+                      onSeek={(seconds) => {
+                        playerRef.current?.seekTo(seconds, { play: true });
+                        setMobileCommentsOpen(false);
+                      }}
+                    />
                   </article>
                 ))}
               </div>

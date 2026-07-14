@@ -35,7 +35,11 @@ interface CommentItemProps {
   onTimestampClick: (seconds: number) => void;
   isHighlighted?: boolean;
   isReply?: boolean;
+  /** Soft-cap for nesting; when false, Reply is hidden. Defaults to true. */
+  canReply?: boolean;
   canResolve?: boolean;
+  /** Shown on nested replies so users see who this is responding to. */
+  replyToName?: string;
 }
 
 export function CommentItem({
@@ -43,7 +47,9 @@ export function CommentItem({
   onTimestampClick,
   isHighlighted = false,
   isReply = false,
+  canReply = true,
   canResolve = false,
+  replyToName,
 }: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false);
   const toggleResolved = useMutation(api.comments.toggleResolved);
@@ -76,14 +82,19 @@ export function CommentItem({
       )}
     >
       <div className="flex items-start gap-3">
-        <Avatar className="h-9 w-9 shadow-sm">
+        <Avatar className={cn("shadow-sm", isReply ? "h-7 w-7" : "h-9 w-9")}>
           <AvatarImage src={comment.userAvatarUrl} />
           <AvatarFallback className="text-[10px]">{getInitials(comment.userName)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span className="truncate text-sm font-bold text-[#1a1a1a]">{comment.userName}</span>
+              {replyToName && (
+                <span className="truncate text-[11px] text-[#888]">
+                  replying to <span className="font-medium text-[#1a1a1a]">{replyToName}</span>
+                </span>
+              )}
               <button
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
                 className="shrink-0 font-mono text-xs font-bold text-[#2d5a2d] hover:text-[#1a1a1a]"
@@ -103,13 +114,13 @@ export function CommentItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {!isReply && (
+                {canReply && (
                   <DropdownMenuItem onClick={() => setIsReplying(true)}>
                     <Reply className="mr-2 h-4 w-4" />
                     Reply
                   </DropdownMenuItem>
                 )}
-                {canResolve && !isReply && (
+                {canResolve && (
                   <DropdownMenuItem onClick={handleToggleResolved}>
                     <Check className="mr-2 h-4 w-4" />
                     {comment.resolved ? "Unresolve" : "Resolve"}
@@ -135,7 +146,7 @@ export function CommentItem({
       </div>
 
       {isReplying && (
-        <div className="mt-3 ml-10">
+        <div className={cn("mt-3", isReply ? "ml-8" : "ml-10")}>
           <CommentInput
             videoId={comment.videoId}
             timestampSeconds={comment.timestampSeconds}

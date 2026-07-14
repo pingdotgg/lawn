@@ -1,22 +1,57 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
 
+type ThreadedComment<T> = T & { replies: ThreadedComment<T>[] };
+
+/**
+ * Build an arbitrarily nested reply tree from a flat comment list.
+ * Top-level comments are sorted by video timestamp; replies by creation time.
+ */
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
->(comments: T[]) {
-  const topLevel = comments
-    .filter((c) => !c.parentId)
-    .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+>(comments: T[]): ThreadedComment<T>[] {
+  const childrenByParent = new Map<string, T[]>();
+  const topLevel: T[] = [];
 
-  return topLevel.map((comment) => ({
-    ...comment,
-    replies: comments
-      .filter((c) => c.parentId === comment._id)
-      .sort((a, b) => a._creationTime - b._creationTime),
-  }));
+  for (const comment of comments) {
+    if (!comment.parentId) {
+      topLevel.push(comment);
+      continue;
+    }
+    const siblings = childrenByParent.get(comment.parentId) ?? [];
+    siblings.push(comment);
+    childrenByParent.set(comment.parentId, siblings);
+  }
+
+  topLevel.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+
+  function buildTree(comment: T): ThreadedComment<T> {
+    const children = childrenByParent.get(comment._id) ?? [];
+    children.sort((a, b) => a._creationTime - b._creationTime);
+    return {
+      ...comment,
+      replies: children.map(buildTree),
+    };
+  }
+
+  return topLevel.map(buildTree);
+}
+
+async function deleteCommentTree(ctx: MutationCtx, commentId: Id<"comments">) {
+  const replies = await ctx.db
+    .query("comments")
+    .withIndex("by_parent", (q) => q.eq("parentId", commentId))
+    .collect();
+
+  for (const reply of replies) {
+    await deleteCommentTree(ctx, reply._id);
+  }
+
+  await ctx.db.delete(commentId);
 }
 
 function toPublicCommentPayload(comment: {
@@ -197,16 +232,8 @@ export const remove = mutation({
       await requireVideoAccess(ctx, comment.videoId, "admin");
     }
 
-    const replies = await ctx.db
-      .query("comments")
-      .withIndex("by_parent", (q) => q.eq("parentId", args.commentId))
-      .collect();
-
-    for (const reply of replies) {
-      await ctx.db.delete(reply._id);
-    }
-
-    await ctx.db.delete(args.commentId);
+    // Cascade so nested reply trees are not orphaned.
+    await deleteCommentTree(ctx, args.commentId);
   },
 });
 

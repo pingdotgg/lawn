@@ -6,7 +6,7 @@ interface CsvComment {
 }
 
 interface CsvCommentThread extends CsvComment {
-  replies: CsvComment[];
+  replies: CsvCommentThread[];
 }
 
 function escapeCsvCell(value: string) {
@@ -14,14 +14,21 @@ function escapeCsvCell(value: string) {
   return `"${spreadsheetSafeValue.replaceAll('"', '""')}"`;
 }
 
+function flattenCommentRows(
+  comment: CsvCommentThread,
+  isReply = false,
+): Array<{ text: string; timestampSeconds: number }> {
+  return [
+    {
+      timestampSeconds: comment.timestampSeconds,
+      text: isReply ? `Reply: ${comment.text}` : comment.text,
+    },
+    ...comment.replies.flatMap((reply) => flattenCommentRows(reply, true)),
+  ];
+}
+
 export function buildCommentsCsv(comments: CsvCommentThread[]) {
-  const rows = comments.flatMap((comment) => [
-    comment,
-    ...comment.replies.map((reply) => ({
-      ...reply,
-      text: `Reply: ${reply.text}`,
-    })),
-  ]);
+  const rows = comments.flatMap((comment) => flattenCommentRows(comment));
 
   return [
     "Timestamp,Comment",
