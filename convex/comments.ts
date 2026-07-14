@@ -4,6 +4,41 @@ import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
 
+/** Max tags on a single comment. */
+export const MAX_COMMENT_TAGS = 8;
+/** Max characters per tag after trim. */
+export const MAX_TAG_LENGTH = 32;
+
+/**
+ * Normalize free-form comment tags for storage.
+ * Trims, collapses internal whitespace, enforces length/count, and dedupes
+ * case-insensitively while preserving the first-seen casing.
+ */
+export function normalizeCommentTags(tags: string[] | undefined): string[] {
+  if (!tags || tags.length === 0) return [];
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of tags) {
+    if (typeof raw !== "string") continue;
+    const tag = raw.trim().replace(/\s+/g, " ");
+    if (!tag) continue;
+    if (tag.length > MAX_TAG_LENGTH) {
+      throw new Error(`Tag must be ${MAX_TAG_LENGTH} characters or fewer`);
+    }
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag);
+    if (result.length > MAX_COMMENT_TAGS) {
+      throw new Error(`Comments can have at most ${MAX_COMMENT_TAGS} tags`);
+    }
+  }
+
+  return result;
+}
+
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
 >(comments: T[]) {
@@ -28,6 +63,7 @@ function toPublicCommentPayload(comment: {
   resolved: boolean;
   userName: string;
   userAvatarUrl?: string;
+  tags?: string[];
 }) {
   return {
     _id: comment._id,
@@ -38,6 +74,7 @@ function toPublicCommentPayload(comment: {
     resolved: comment.resolved,
     userName: comment.userName,
     userAvatarUrl: comment.userAvatarUrl,
+    tags: comment.tags,
   };
 }
 
@@ -67,9 +104,11 @@ export const create = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    // Only applied when the caller has member+ access; viewers cannot tag.
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const { user } = await requireVideoAccess(ctx, args.videoId, "viewer");
+    const { user, membership } = await requireVideoAccess(ctx, args.videoId, "viewer");
 
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
@@ -77,6 +116,13 @@ export const create = mutation({
         throw new Error("Invalid parent comment");
       }
     }
+
+    const canTag =
+      membership.role === "owner" ||
+      membership.role === "admin" ||
+      membership.role === "member";
+    const tags =
+      canTag && args.tags && args.tags.length > 0 ? normalizeCommentTags(args.tags) : undefined;
 
     return await ctx.db.insert("comments", {
       videoId: args.videoId,
@@ -87,6 +133,7 @@ export const create = mutation({
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
+      ...(tags && tags.length > 0 ? { tags } : {}),
     });
   },
 });
@@ -219,6 +266,26 @@ export const toggleResolved = mutation({
     await requireVideoAccess(ctx, comment.videoId, "member");
 
     await ctx.db.patch(args.commentId, { resolved: !comment.resolved });
+  },
+});
+
+/**
+ * Replace the tag list on a comment. Project owners and team members only
+ * (viewer role cannot manage tags).
+ */
+export const setTags = mutation({
+  args: {
+    commentId: v.id("comments"),
+    tags: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment) throw new Error("Comment not found");
+
+    await requireVideoAccess(ctx, comment.videoId, "member");
+
+    const tags = normalizeCommentTags(args.tags);
+    await ctx.db.patch(args.commentId, { tags });
   },
 });
 

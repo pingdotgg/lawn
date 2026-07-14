@@ -135,6 +135,8 @@ export default defineSchema({
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
     resolved: v.boolean(),
+    // Free-form labels for triage. Optional so existing rows need no backfill.
+    tags: v.optional(v.array(v.string())),
   })
     .index("by_video", ["videoId"])
     .index("by_video_and_timestamp", ["videoId", "timestampSeconds"])
