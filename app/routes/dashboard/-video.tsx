@@ -20,6 +20,7 @@ import {
 import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
+import { hasDrawing, type DrawingData } from "@/lib/drawing";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
@@ -310,6 +311,9 @@ export default function VideoPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
+  const [drawMode, setDrawMode] = useState(false);
+  const [draftDrawing, setDraftDrawing] = useState<DrawingData | null>(null);
+  const [viewDrawing, setViewDrawing] = useState<DrawingData | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
@@ -604,10 +608,15 @@ export default function VideoPage() {
     }));
   }, [isLoadingPlayback, isPlayable, resolvedVideoId]);
 
-  const handleMarkerClick = useCallback((comment: { _id: string }) => {
-    setHighlightedCommentId(comment._id as Id<"comments">);
-    setTimeout(() => setHighlightedCommentId(undefined), 3000);
-  }, []);
+  const handleMarkerClick = useCallback(
+    (comment: { _id: string; drawing?: DrawingData | null }) => {
+      setHighlightedCommentId(comment._id as Id<"comments">);
+      setDrawMode(false);
+      setViewDrawing(hasDrawing(comment.drawing) ? (comment.drawing ?? null) : null);
+      setTimeout(() => setHighlightedCommentId(undefined), 3000);
+    },
+    [],
+  );
 
   const requestDownload = useCallback(async () => {
     if (!video || video.status !== "ready" || !resolvedVideoId) return null;
@@ -621,12 +630,35 @@ export default function VideoPage() {
   }, [getDownloadUrl, video, resolvedVideoId]);
 
   const handleTimestampClick = useCallback(
-    (time: number) => {
+    (
+      time: number,
+      options?: { drawing?: DrawingData | null; commentId?: Id<"comments"> },
+    ) => {
       playerRef.current?.seekTo(time);
-      setHighlightedCommentId(undefined);
+      setDrawMode(false);
+      setViewDrawing(hasDrawing(options?.drawing) ? (options?.drawing ?? null) : null);
+      if (options?.commentId) {
+        setHighlightedCommentId(options.commentId);
+        setTimeout(() => setHighlightedCommentId(undefined), 3000);
+      } else {
+        setHighlightedCommentId(undefined);
+      }
     },
-    [playerRef, setHighlightedCommentId],
+    [],
   );
+
+  const handleEnterDrawMode = useCallback(() => {
+    setViewDrawing(null);
+    setDrawMode(true);
+    playerRef.current?.enterDrawMode();
+  }, []);
+
+  // Drop draft/view drawings when switching versions/videos.
+  useEffect(() => {
+    setDrawMode(false);
+    setDraftDrawing(null);
+    setViewDrawing(null);
+  }, [resolvedVideoId]);
 
   const handleExportComments = useCallback(() => {
     if (!video || !commentsThreaded?.length) return;
@@ -1140,6 +1172,13 @@ export default function VideoPage() {
               downloadFilename={`${video.title}.mp4`}
               onRequestDownload={requestDownload}
               controlsBelow
+              drawMode={drawMode}
+              onDrawModeChange={setDrawMode}
+              draftDrawing={draftDrawing}
+              onDraftDrawingChange={setDraftDrawing}
+              viewDrawing={viewDrawing}
+              onClearViewDrawing={() => setViewDrawing(null)}
+              allowDrawing={canComment}
               qualityOptionsConfig={[
                 {
                   id: "mux720",
@@ -1272,6 +1311,10 @@ export default function VideoPage() {
                 timestampSeconds={currentTime}
                 showTimestamp
                 variant="seamless"
+                drawing={draftDrawing}
+                onClearDrawing={() => setDraftDrawing(null)}
+                onRequestDrawMode={handleEnterDrawMode}
+                drawModeActive={drawMode}
               />
             </div>
           )}
@@ -1315,8 +1358,8 @@ export default function VideoPage() {
             <CommentList
               videoId={resolvedVideoId}
               comments={commentsThreaded}
-              onTimestampClick={(time) => {
-                handleTimestampClick(time);
+              onTimestampClick={(time, options) => {
+                handleTimestampClick(time, options);
                 setMobileCommentsOpen(false);
               }}
               highlightedCommentId={highlightedCommentId}
@@ -1330,6 +1373,13 @@ export default function VideoPage() {
                 timestampSeconds={currentTime}
                 showTimestamp
                 variant="seamless"
+                drawing={draftDrawing}
+                onClearDrawing={() => setDraftDrawing(null)}
+                onRequestDrawMode={() => {
+                  setMobileCommentsOpen(false);
+                  handleEnterDrawMode();
+                }}
+                drawModeActive={drawMode}
               />
             </div>
           )}

@@ -135,6 +135,24 @@ export default defineSchema({
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
     resolved: v.boolean(),
+    // Freehand on-frame annotation (normalized strokes). Optional — existing
+    // rows need no backfill.
+    drawing: v.optional(
+      v.object({
+        width: v.number(),
+        height: v.number(),
+        strokes: v.array(
+          v.object({
+            points: v.array(
+              v.object({
+                x: v.number(),
+                y: v.number(),
+              }),
+            ),
+          }),
+        ),
+      }),
+    ),
   })
     .index("by_video", ["videoId"])
     .index("by_video_and_timestamp", ["videoId", "timestampSeconds"])

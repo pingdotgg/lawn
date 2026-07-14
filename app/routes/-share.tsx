@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { triggerDownload } from "@/lib/download";
 import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
+import { hasDrawing, type DrawingData } from "@/lib/drawing";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { CommentText } from "@/components/comments/CommentText";
-import { Lock, Video, AlertCircle, MessageSquare, Clock, Download } from "lucide-react";
+import { Lock, Video, AlertCircle, MessageSquare, Clock, Download, Pencil } from "lucide-react";
 import { useShareData } from "./-share.data";
 
 export default function SharePage() {
@@ -43,7 +44,16 @@ export default function SharePage() {
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [viewDrawing, setViewDrawing] = useState<DrawingData | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+
+  const seekToComment = useCallback(
+    (timestampSeconds: number, drawing?: DrawingData | null) => {
+      playerRef.current?.seekTo(timestampSeconds, { play: false });
+      setViewDrawing(hasDrawing(drawing) ? (drawing ?? null) : null);
+    },
+    [],
+  );
 
   useEffect(() => {
     setIsDownloading(false);
@@ -337,6 +347,9 @@ export default function SharePage() {
               comments={flattenedComments}
               onTimeUpdate={setCurrentTime}
               allowDownload={false}
+              viewDrawing={viewDrawing}
+              onClearViewDrawing={() => setViewDrawing(null)}
+              allowDrawing={false}
             />
           ) : (
             <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
@@ -404,20 +417,37 @@ export default function SharePage() {
               {comments.map((comment) => (
                 <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="truncate text-sm font-bold text-[#1a1a1a]">
+                        {comment.userName}
+                      </div>
+                      {hasDrawing(comment.drawing) ? (
+                        <button
+                          type="button"
+                          onClick={() => seekToComment(comment.timestampSeconds, comment.drawing)}
+                          className="inline-flex shrink-0 items-center gap-1 border border-[#2d5a2d] bg-[#2d5a2d]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2d5a2d] hover:bg-[#2d5a2d] hover:text-[#f0f0e8]"
+                          title="View drawing on frame"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Drawing
+                        </button>
+                      ) : null}
+                    </div>
                     <button
                       type="button"
                       className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                      onClick={() =>
-                        playerRef.current?.seekTo(comment.timestampSeconds, { play: true })
-                      }
+                      onClick={() => seekToComment(comment.timestampSeconds, comment.drawing)}
                     >
                       {formatTimestamp(comment.timestampSeconds)}
                     </button>
                   </div>
-                  <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
-                    <CommentText text={comment.text} />
-                  </p>
+                  {comment.text ? (
+                    <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
+                      <CommentText text={comment.text} />
+                    </p>
+                  ) : hasDrawing(comment.drawing) ? (
+                    <p className="mt-1 text-sm text-[#888] italic">Frame drawing</p>
+                  ) : null}
                   <p className="mt-1 text-[11px] text-[#888]">
                     {formatRelativeTime(comment._creationTime)}
                   </p>
@@ -427,20 +457,29 @@ export default function SharePage() {
                       {comment.replies.map((reply) => (
                         <div key={reply._id} className="text-sm">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
+                            <span className="flex min-w-0 items-center gap-2 font-bold text-[#1a1a1a]">
+                              <span className="truncate">{reply.userName}</span>
+                              {hasDrawing(reply.drawing) ? (
+                                <Pencil className="h-3 w-3 shrink-0 text-[#2d5a2d]" />
+                              ) : null}
+                            </span>
                             <button
                               type="button"
                               className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
                               onClick={() =>
-                                playerRef.current?.seekTo(reply.timestampSeconds, { play: true })
+                                seekToComment(reply.timestampSeconds, reply.drawing)
                               }
                             >
                               {formatTimestamp(reply.timestampSeconds)}
                             </button>
                           </div>
-                          <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
-                            <CommentText text={reply.text} />
-                          </p>
+                          {reply.text ? (
+                            <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
+                              <CommentText text={reply.text} />
+                            </p>
+                          ) : hasDrawing(reply.drawing) ? (
+                            <p className="text-[#888] italic">Frame drawing</p>
+                          ) : null}
                         </div>
                       ))}
                     </div>

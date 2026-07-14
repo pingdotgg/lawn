@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatTimestamp, formatRelativeTime, getInitials, cn } from "@/lib/utils";
-import { Check, MoreVertical, Trash2, Reply } from "lucide-react";
+import { Check, MoreVertical, Pencil, Trash2, Reply } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { CommentInput } from "./CommentInput";
 import { CommentText } from "./CommentText";
+import { hasDrawing, type DrawingData } from "@/lib/drawing";
 
 interface Comment {
   _id: Id<"comments">;
@@ -28,11 +29,17 @@ interface Comment {
   userName: string;
   userAvatarUrl?: string;
   _creationTime: number;
+  drawing?: DrawingData | null;
 }
+
+export type CommentSeekOptions = {
+  drawing?: DrawingData | null;
+  commentId?: Id<"comments">;
+};
 
 interface CommentItemProps {
   comment: Comment;
-  onTimestampClick: (seconds: number) => void;
+  onTimestampClick: (seconds: number, options?: CommentSeekOptions) => void;
   isHighlighted?: boolean;
   isReply?: boolean;
   canResolve?: boolean;
@@ -48,6 +55,7 @@ export function CommentItem({
   const [isReplying, setIsReplying] = useState(false);
   const toggleResolved = useMutation(api.comments.toggleResolved);
   const deleteComment = useMutation(api.comments.remove);
+  const commentHasDrawing = hasDrawing(comment.drawing);
 
   const handleToggleResolved = async () => {
     try {
@@ -64,6 +72,13 @@ export function CommentItem({
     } catch (error) {
       console.error("Failed to delete comment:", error);
     }
+  };
+
+  const handleSeek = () => {
+    onTimestampClick(comment.timestampSeconds, {
+      drawing: comment.drawing ?? null,
+      commentId: comment._id,
+    });
   };
 
   return (
@@ -85,11 +100,22 @@ export function CommentItem({
             <div className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-bold text-[#1a1a1a]">{comment.userName}</span>
               <button
-                onClick={() => onTimestampClick(comment.timestampSeconds)}
+                onClick={handleSeek}
                 className="shrink-0 font-mono text-xs font-bold text-[#2d5a2d] hover:text-[#1a1a1a]"
               >
                 {formatTimestamp(comment.timestampSeconds)}
               </button>
+              {commentHasDrawing && (
+                <button
+                  type="button"
+                  onClick={handleSeek}
+                  className="inline-flex shrink-0 items-center gap-1 border border-[#2d5a2d] bg-[#2d5a2d]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2d5a2d] hover:bg-[#2d5a2d] hover:text-[#f0f0e8]"
+                  title="View drawing on frame"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Drawing
+                </button>
+              )}
               {comment.resolved && (
                 <Badge variant="success" className="shrink-0 text-[10px]">
                   Resolved
@@ -125,9 +151,13 @@ export function CommentItem({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
-            <CommentText text={comment.text} />
-          </p>
+          {comment.text ? (
+            <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
+              <CommentText text={comment.text} />
+            </p>
+          ) : commentHasDrawing ? (
+            <p className="mt-1 text-sm text-[#888] italic">Frame drawing</p>
+          ) : null}
           <p className="mt-1 text-[11px] text-[#888]">
             {formatRelativeTime(comment._creationTime)}
           </p>

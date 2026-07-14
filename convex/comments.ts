@@ -4,6 +4,121 @@ import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
 
+/** Max freehand strokes on a single comment drawing. */
+export const MAX_DRAWING_STROKES = 40;
+/** Max points per stroke. */
+export const MAX_POINTS_PER_STROKE = 400;
+/** Max points across all strokes. */
+export const MAX_TOTAL_DRAWING_POINTS = 4000;
+/** Serialized JSON length cap (~48KB). */
+export const MAX_DRAWING_SERIALIZED_LENGTH = 48_000;
+
+const drawingPointValidator = v.object({
+  x: v.number(),
+  y: v.number(),
+});
+
+const drawingStrokeValidator = v.object({
+  points: v.array(drawingPointValidator),
+});
+
+export const drawingValidator = v.object({
+  width: v.number(),
+  height: v.number(),
+  strokes: v.array(drawingStrokeValidator),
+});
+
+type DrawingInput = {
+  width: number;
+  height: number;
+  strokes: Array<{ points: Array<{ x: number; y: number }> }>;
+};
+
+function clamp01(n: number): number {
+  return Math.min(1, Math.max(0, n));
+}
+
+function round4(n: number): number {
+  return Math.round(n * 10_000) / 10_000;
+}
+
+/**
+ * Validate and normalize an optional drawing payload for storage.
+ * Throws on invalid / oversized drawings. Returns undefined when absent.
+ */
+export function normalizeDrawing(drawing: DrawingInput | undefined): DrawingInput | undefined {
+  if (drawing === undefined) return undefined;
+
+  const width = Number(drawing.width);
+  const height = Number(drawing.height);
+  if (!Number.isFinite(width) || width <= 0 || width > 10_000) {
+    throw new Error("Drawing width is invalid");
+  }
+  if (!Number.isFinite(height) || height <= 0 || height > 10_000) {
+    throw new Error("Drawing height is invalid");
+  }
+  if (!Array.isArray(drawing.strokes)) {
+    throw new Error("Drawing strokes must be an array");
+  }
+  if (drawing.strokes.length > MAX_DRAWING_STROKES) {
+    throw new Error(`Drawing can have at most ${MAX_DRAWING_STROKES} strokes`);
+  }
+
+  let totalPoints = 0;
+  const strokes: DrawingInput["strokes"] = [];
+
+  for (const stroke of drawing.strokes) {
+    if (!stroke || !Array.isArray(stroke.points)) {
+      throw new Error("Stroke points must be an array");
+    }
+    if (stroke.points.length > MAX_POINTS_PER_STROKE) {
+      throw new Error(`Each stroke can have at most ${MAX_POINTS_PER_STROKE} points`);
+    }
+
+    const points: Array<{ x: number; y: number }> = [];
+    for (const point of stroke.points) {
+      const x = Number(point?.x);
+      const y = Number(point?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        throw new Error("Point coordinates must be finite numbers");
+      }
+      points.push({ x: clamp01(round4(x)), y: clamp01(round4(y)) });
+    }
+
+    if (points.length < 2) continue;
+    totalPoints += points.length;
+    if (totalPoints > MAX_TOTAL_DRAWING_POINTS) {
+      throw new Error(`Drawing can have at most ${MAX_TOTAL_DRAWING_POINTS} points`);
+    }
+    strokes.push({ points });
+  }
+
+  if (strokes.length === 0) {
+    throw new Error("Drawing has no strokes");
+  }
+
+  const normalized: DrawingInput = {
+    width: Math.round(width),
+    height: Math.round(height),
+    strokes,
+  };
+
+  // Guard overall document size once serialized.
+  if (JSON.stringify(normalized).length > MAX_DRAWING_SERIALIZED_LENGTH) {
+    throw new Error("Drawing is too large");
+  }
+
+  return normalized;
+}
+
+function requireCommentBody(text: string, drawing: DrawingInput | undefined) {
+  const trimmed = text.trim();
+  if (!trimmed && !drawing) {
+    throw new Error("Comment must include text or a drawing");
+  }
+  return trimmed;
+}
+
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
 >(comments: T[]) {
@@ -28,6 +143,7 @@ function toPublicCommentPayload(comment: {
   resolved: boolean;
   userName: string;
   userAvatarUrl?: string;
+  drawing?: DrawingInput;
 }) {
   return {
     _id: comment._id,
@@ -38,6 +154,7 @@ function toPublicCommentPayload(comment: {
     resolved: comment.resolved,
     userName: comment.userName,
     userAvatarUrl: comment.userAvatarUrl,
+    drawing: comment.drawing,
   };
 }
 
@@ -67,6 +184,7 @@ export const create = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    drawing: v.optional(drawingValidator),
   },
   handler: async (ctx, args) => {
     const { user } = await requireVideoAccess(ctx, args.videoId, "viewer");
@@ -78,15 +196,19 @@ export const create = mutation({
       }
     }
 
+    const drawing = normalizeDrawing(args.drawing);
+    const text = requireCommentBody(args.text, drawing);
+
     return await ctx.db.insert("comments", {
       videoId: args.videoId,
       userClerkId: user.subject,
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
+      ...(drawing ? { drawing } : {}),
     });
   },
 });
@@ -97,6 +219,7 @@ export const createForPublic = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    drawing: v.optional(drawingValidator),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -113,15 +236,19 @@ export const createForPublic = mutation({
       }
     }
 
+    const drawing = normalizeDrawing(args.drawing);
+    const text = requireCommentBody(args.text, drawing);
+
     return await ctx.db.insert("comments", {
       videoId: video._id,
       userClerkId: user.subject,
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
+      ...(drawing ? { drawing } : {}),
     });
   },
 });
@@ -132,6 +259,7 @@ export const createForShareGrant = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    drawing: v.optional(drawingValidator),
   },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
@@ -153,15 +281,19 @@ export const createForShareGrant = mutation({
       }
     }
 
+    const drawing = normalizeDrawing(args.drawing);
+    const text = requireCommentBody(args.text, drawing);
+
     return await ctx.db.insert("comments", {
       videoId: video._id,
       userClerkId: user.subject,
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
+      ...(drawing ? { drawing } : {}),
     });
   },
 });

@@ -20,6 +20,7 @@ import { CommentText } from "@/components/comments/CommentText";
 import { triggerDownload } from "@/lib/download";
 import { watchPath } from "@/lib/routes";
 import { cn, formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
+import { hasDrawing, type DrawingData } from "@/lib/drawing";
 import {
   AlertCircle,
   Layers3,
@@ -28,6 +29,7 @@ import {
   Download,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   X,
 } from "lucide-react";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
@@ -58,7 +60,16 @@ export default function WatchPage() {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
+  const [viewDrawing, setViewDrawing] = useState<DrawingData | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+
+  const seekToComment = useCallback(
+    (timestampSeconds: number, drawing?: DrawingData | null) => {
+      playerRef.current?.seekTo(timestampSeconds, { play: false });
+      setViewDrawing(hasDrawing(drawing) ? (drawing ?? null) : null);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!videoData?.video?.muxPlaybackId) {
@@ -330,6 +341,9 @@ export default function WatchPage() {
               onTimeUpdate={setCurrentTime}
               allowDownload={false}
               controlsBelow
+              viewDrawing={viewDrawing}
+              onClearViewDrawing={() => setViewDrawing(null)}
+              allowDrawing={false}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center">
@@ -375,20 +389,39 @@ export default function WatchPage() {
                 {comments.map((comment) => (
                   <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="truncate text-sm font-bold text-[#1a1a1a]">
+                          {comment.userName}
+                        </div>
+                        {hasDrawing(comment.drawing) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              seekToComment(comment.timestampSeconds, comment.drawing)
+                            }
+                            className="inline-flex shrink-0 items-center gap-1 border border-[#2d5a2d] bg-[#2d5a2d]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2d5a2d] hover:bg-[#2d5a2d] hover:text-[#f0f0e8]"
+                            title="View drawing on frame"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Drawing
+                          </button>
+                        ) : null}
+                      </div>
                       <button
                         type="button"
                         className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
-                        onClick={() =>
-                          playerRef.current?.seekTo(comment.timestampSeconds, { play: true })
-                        }
+                        onClick={() => seekToComment(comment.timestampSeconds, comment.drawing)}
                       >
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
-                      <CommentText text={comment.text} />
-                    </p>
+                    {comment.text ? (
+                      <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
+                        <CommentText text={comment.text} />
+                      </p>
+                    ) : hasDrawing(comment.drawing) ? (
+                      <p className="mt-1 text-sm text-[#888] italic">Frame drawing</p>
+                    ) : null}
                     <p className="mt-1 text-[11px] text-[#888]">
                       {formatRelativeTime(comment._creationTime)}
                     </p>
@@ -398,22 +431,29 @@ export default function WatchPage() {
                         {comment.replies.map((reply) => (
                           <div key={reply._id} className="text-sm">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
+                              <span className="flex min-w-0 items-center gap-2 font-bold text-[#1a1a1a]">
+                                <span className="truncate">{reply.userName}</span>
+                                {hasDrawing(reply.drawing) ? (
+                                  <Pencil className="h-3 w-3 shrink-0 text-[#2d5a2d]" />
+                                ) : null}
+                              </span>
                               <button
                                 type="button"
                                 className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
                                 onClick={() =>
-                                  playerRef.current?.seekTo(reply.timestampSeconds, {
-                                    play: true,
-                                  })
+                                  seekToComment(reply.timestampSeconds, reply.drawing)
                                 }
                               >
                                 {formatTimestamp(reply.timestampSeconds)}
                               </button>
                             </div>
-                            <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
-                              <CommentText text={reply.text} />
-                            </p>
+                            {reply.text ? (
+                              <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
+                                <CommentText text={reply.text} />
+                              </p>
+                            ) : hasDrawing(reply.drawing) ? (
+                              <p className="text-[#888] italic">Frame drawing</p>
+                            ) : null}
                           </div>
                         ))}
                       </div>
@@ -495,21 +535,43 @@ export default function WatchPage() {
                 {comments.map((comment) => (
                   <article key={comment._id} className="border-2 border-[#1a1a1a] bg-[#f0f0e8] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-bold text-[#1a1a1a]">{comment.userName}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="truncate text-sm font-bold text-[#1a1a1a]">
+                          {comment.userName}
+                        </div>
+                        {hasDrawing(comment.drawing) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              seekToComment(comment.timestampSeconds, comment.drawing);
+                              setMobileCommentsOpen(false);
+                            }}
+                            className="inline-flex shrink-0 items-center gap-1 border border-[#2d5a2d] bg-[#2d5a2d]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#2d5a2d] hover:bg-[#2d5a2d] hover:text-[#f0f0e8]"
+                            title="View drawing on frame"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Drawing
+                          </button>
+                        ) : null}
+                      </div>
                       <button
                         type="button"
                         className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
                         onClick={() => {
-                          playerRef.current?.seekTo(comment.timestampSeconds, { play: true });
+                          seekToComment(comment.timestampSeconds, comment.drawing);
                           setMobileCommentsOpen(false);
                         }}
                       >
                         {formatTimestamp(comment.timestampSeconds)}
                       </button>
                     </div>
-                    <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
-                      <CommentText text={comment.text} />
-                    </p>
+                    {comment.text ? (
+                      <p className="mt-1 text-sm break-words whitespace-pre-wrap text-[#1a1a1a]">
+                        <CommentText text={comment.text} />
+                      </p>
+                    ) : hasDrawing(comment.drawing) ? (
+                      <p className="mt-1 text-sm text-[#888] italic">Frame drawing</p>
+                    ) : null}
                     <p className="mt-1 text-[11px] text-[#888]">
                       {formatRelativeTime(comment._creationTime)}
                     </p>
@@ -519,21 +581,30 @@ export default function WatchPage() {
                         {comment.replies.map((reply) => (
                           <div key={reply._id} className="text-sm">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-[#1a1a1a]">{reply.userName}</span>
+                              <span className="flex min-w-0 items-center gap-2 font-bold text-[#1a1a1a]">
+                                <span className="truncate">{reply.userName}</span>
+                                {hasDrawing(reply.drawing) ? (
+                                  <Pencil className="h-3 w-3 shrink-0 text-[#2d5a2d]" />
+                                ) : null}
+                              </span>
                               <button
                                 type="button"
                                 className="font-mono text-xs text-[#2d5a2d] hover:text-[#1a1a1a]"
                                 onClick={() => {
-                                  playerRef.current?.seekTo(reply.timestampSeconds, { play: true });
+                                  seekToComment(reply.timestampSeconds, reply.drawing);
                                   setMobileCommentsOpen(false);
                                 }}
                               >
                                 {formatTimestamp(reply.timestampSeconds)}
                               </button>
                             </div>
-                            <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
-                              <CommentText text={reply.text} />
-                            </p>
+                            {reply.text ? (
+                              <p className="break-words whitespace-pre-wrap text-[#1a1a1a]">
+                                <CommentText text={reply.text} />
+                              </p>
+                            ) : hasDrawing(reply.drawing) ? (
+                              <p className="text-[#888] italic">Frame drawing</p>
+                            ) : null}
                           </div>
                         ))}
                       </div>

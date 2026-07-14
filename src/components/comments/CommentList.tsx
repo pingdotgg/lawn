@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { FunctionReturnType } from "convex/server";
-import { CommentItem } from "./CommentItem";
+import { CommentItem, type CommentSeekOptions } from "./CommentItem";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 type ThreadedComments = FunctionReturnType<typeof api.comments.getThreaded>;
@@ -12,7 +12,7 @@ type ThreadedComments = FunctionReturnType<typeof api.comments.getThreaded>;
 interface CommentListProps {
   videoId: Id<"videos">;
   comments?: ThreadedComments;
-  onTimestampClick: (seconds: number) => void;
+  onTimestampClick: (seconds: number, options?: CommentSeekOptions) => void;
   highlightedCommentId?: Id<"comments">;
   canResolve?: boolean;
 }

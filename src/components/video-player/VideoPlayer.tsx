@@ -24,6 +24,12 @@ import {
   Settings2,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Undo2,
+  Eraser,
+  X,
 } from "lucide-react";
 import { cn, formatDuration, formatTimestamp } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
@@ -33,11 +39,20 @@ import {
   observeVideoPlayback,
   resetVideoPlaybackHealthWindow,
 } from "@/lib/videoPlaybackHealth";
+import {
+  DEFAULT_VIDEO_FPS,
+  formatFrameTimecode,
+  frameDeltaSeconds,
+  nextFrameTime,
+} from "@/lib/frameStep";
+import { hasDrawing, type DrawingData } from "@/lib/drawing";
+import { DrawingOverlay } from "./DrawingOverlay";
 
 interface Comment {
   _id: string;
   timestampSeconds: number;
   resolved: boolean;
+  drawing?: DrawingData | null;
 }
 
 interface DownloadResult {
@@ -72,6 +87,17 @@ interface VideoPlayerProps {
   onSelectQuality?: (id: string) => void;
   /** Render controls below the video frame instead of overlaid. Ideal for mobile. */
   controlsBelow?: boolean;
+  /** Enter freehand draw mode on the video frame. */
+  drawMode?: boolean;
+  onDrawModeChange?: (active: boolean) => void;
+  /** In-progress drawing attached to the next comment. */
+  draftDrawing?: DrawingData | null;
+  onDraftDrawingChange?: (drawing: DrawingData | null) => void;
+  /** Read-only drawing to display (e.g. after seeking to an annotated comment). */
+  viewDrawing?: DrawingData | null;
+  onClearViewDrawing?: () => void;
+  /** Show draw-mode entry control. Defaults to true when draw handlers are provided. */
+  allowDrawing?: boolean;
 }
 
 export type VideoPlaybackIssue =
@@ -90,6 +116,9 @@ export type VideoPlaybackIssue =
 
 export interface VideoPlayerHandle {
   seekTo: (time: number, options?: { play?: boolean }) => void;
+  stepFrame: (direction: 1 | -1) => void;
+  enterDrawMode: () => void;
+  exitDrawMode: () => void;
 }
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -127,6 +156,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     selectedQualityId,
     onSelectQuality,
     controlsBelow = false,
+    drawMode = false,
+    onDrawModeChange,
+    draftDrawing = null,
+    onDraftDrawingChange,
+    viewDrawing = null,
+    onClearViewDrawing,
+    allowDrawing,
   },
   ref,
 ) {
@@ -155,6 +191,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [qualityOptions, setQualityOptions] = useState<QualityLevelOption[]>([]);
   const [selectedQualityLevel, setSelectedQualityLevel] = useState<number>(AUTO_QUALITY_LEVEL);
+  const [detectedFps, setDetectedFps] = useState(DEFAULT_VIDEO_FPS);
+
+  const canDraw =
+    allowDrawing ?? Boolean(onDrawModeChange || onDraftDrawingChange);
+  const showDrawingOverlay =
+    drawMode || hasDrawing(viewDrawing) || hasDrawing(draftDrawing);
 
   const hideControlsTimeoutRef = useRef<number | null>(null);
   const wasPlayingBeforeScrubRef = useRef(false);
@@ -237,7 +279,117 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     [applyTime, showControls],
   );
 
-  useImperativeHandle(ref, () => ({ seekTo }), [seekTo]);
+  const detectFpsFromSources = useCallback(() => {
+    const hls = hlsRef.current;
+    if (hls) {
+      const levelIndex = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+      const level =
+        (levelIndex >= 0 ? hls.levels[levelIndex] : undefined) ?? hls.levels[0];
+      const attrs = level?.attrs as Record<string, string> | undefined;
+      const fromAttr = attrs?.["FRAME-RATE"] ?? attrs?.["frame-rate"];
+      const parsedAttr = fromAttr ? Number.parseFloat(fromAttr) : Number.NaN;
+      if (Number.isFinite(parsedAttr) && parsedAttr > 0 && parsedAttr <= 240) {
+        return parsedAttr;
+      }
+      const levelAny = level as { frameRate?: number } | undefined;
+      if (
+        levelAny?.frameRate &&
+        Number.isFinite(levelAny.frameRate) &&
+        levelAny.frameRate > 0 &&
+        levelAny.frameRate <= 240
+      ) {
+        return levelAny.frameRate;
+      }
+    }
+    return DEFAULT_VIDEO_FPS;
+  }, []);
+
+  const stepFrame = useCallback(
+    (direction: 1 | -1) => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      // Frame step always freezes first so reviewers land on a still frame.
+      if (!video.paused) {
+        video.pause();
+      }
+      if (drawMode) {
+        // Stay in draw mode; stepping while drawing is useful for frame-precise marks.
+      } else {
+        onClearViewDrawing?.();
+      }
+
+      const fps = detectFpsFromSources();
+      if (fps !== detectedFps) {
+        setDetectedFps(fps);
+      }
+
+      const next = nextFrameTime(
+        video.currentTime ?? 0,
+        direction,
+        fps,
+        duration || video.duration || undefined,
+      );
+      applyTime(next);
+      showControls();
+    },
+    [
+      applyTime,
+      detectFpsFromSources,
+      detectedFps,
+      drawMode,
+      duration,
+      onClearViewDrawing,
+      showControls,
+    ],
+  );
+
+  const enterDrawMode = useCallback(() => {
+    if (!canDraw) return;
+    const video = videoRef.current;
+    if (video && !video.paused) {
+      video.pause();
+    }
+    onClearViewDrawing?.();
+    onDrawModeChange?.(true);
+    showControls();
+  }, [canDraw, onClearViewDrawing, onDrawModeChange, showControls]);
+
+  const exitDrawMode = useCallback(() => {
+    onDrawModeChange?.(false);
+    showControls();
+  }, [onDrawModeChange, showControls]);
+
+  const undoLastStroke = useCallback(() => {
+    if (!draftDrawing?.strokes?.length) {
+      onDraftDrawingChange?.(null);
+      return;
+    }
+    const nextStrokes = draftDrawing.strokes.slice(0, -1);
+    if (nextStrokes.length === 0) {
+      onDraftDrawingChange?.(null);
+      return;
+    }
+    onDraftDrawingChange?.({
+      ...draftDrawing,
+      strokes: nextStrokes,
+    });
+  }, [draftDrawing, onDraftDrawingChange]);
+
+  const clearDraftDrawing = useCallback(() => {
+    onDraftDrawingChange?.(null);
+  }, [onDraftDrawingChange]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      seekTo,
+      stepFrame,
+      enterDrawMode,
+      exitDrawMode,
+    }),
+    [seekTo, stepFrame, enterDrawMode, exitDrawMode],
+  );
 
   const handleSeekBy = useCallback(
     (delta: number) => {
@@ -254,6 +406,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     showControls();
 
     if (video.paused) {
+      // Playing dismisses draw mode and read-only annotation overlay.
+      if (drawMode) {
+        onDrawModeChange?.(false);
+      }
+      onClearViewDrawing?.();
       const playPromise = video.play();
       if (playPromise) {
         playPromise.catch(() => {
@@ -263,7 +420,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     } else {
       video.pause();
     }
-  }, [showControls]);
+  }, [drawMode, onClearViewDrawing, onDrawModeChange, showControls]);
 
   const setVideoVolume = useCallback((nextVolume: number) => {
     const video = videoRef.current;
@@ -879,10 +1036,26 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     };
   }, [qualityMenuOpen]);
 
+  // Keep fps in sync when media becomes ready / quality changes.
+  useEffect(() => {
+    if (!isMediaReady) return;
+    const fps = detectFpsFromSources();
+    setDetectedFps(fps);
+  }, [detectFpsFromSources, isMediaReady, selectedQualityLevel, selectedQualityId, src]);
+
+  // Exit draw mode if the parent revokes drawing permission mid-session.
+  useEffect(() => {
+    if (!canDraw && drawMode) {
+      onDrawModeChange?.(false);
+    }
+  }, [canDraw, drawMode, onDrawModeChange]);
+
   const displayTime = isScrubbing ? scrubTime : currentTime;
   const playedPercent = duration > 0 ? clamp(displayTime / duration, 0, 1) : 0;
   const canDownload = allowDownload && (Boolean(downloadUrl) || Boolean(onRequestDownload));
   const isHls = isHlsSource(src);
+  const frameStepSeconds = frameDeltaSeconds(detectedFps);
+  const pausedTimecode = formatFrameTimecode(displayTime, detectedFps);
   const hasExternalQualityOptions = Boolean(
     qualityOptionsConfig && qualityOptionsConfig.length > 0,
   );
@@ -1012,11 +1185,46 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
         <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/90">
           <span className="font-mono">
-            {formatDuration(displayTime)} / {formatDuration(duration || 0)}
+            {isPlaying ? (
+              <>
+                {formatDuration(displayTime)} / {formatDuration(duration || 0)}
+              </>
+            ) : (
+              <>
+                {pausedTimecode}
+                <span className="text-white/50"> / {formatDuration(duration || 0)}</span>
+              </>
+            )}
           </span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              stepFrame(-1);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
+            aria-label="Previous frame"
+            title={`Previous frame (,) · ${frameStepSeconds.toFixed(4)}s`}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              stepFrame(1);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15"
+            aria-label="Next frame"
+            title={`Next frame (.) · ${frameStepSeconds.toFixed(4)}s`}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
           <button
             type="button"
             onClick={(e) => {
@@ -1042,6 +1250,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           >
             <RotateCw className="h-4 w-4" />
           </button>
+
+          {canDraw && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (drawMode) {
+                  exitDrawMode();
+                } else {
+                  enterDrawMode();
+                }
+              }}
+              className={cn(
+                "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium transition",
+                drawMode
+                  ? "border-[#7cb87c]/60 bg-[#2d5a2d] text-[#f0f0e8]"
+                  : "border-white/10 bg-white/5 text-white/95 hover:border-white/25 hover:bg-white/15",
+              )}
+              aria-label={drawMode ? "Exit draw mode" : "Draw on frame"}
+              aria-pressed={drawMode}
+              title={drawMode ? "Exit draw mode" : "Draw on frame"}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{drawMode ? "Drawing" : "Draw"}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1195,9 +1429,32 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           }
         }}
         onKeyDown={(e) => {
+          // Don't steal keys while typing in inputs (shouldn't be focused here, but safe).
+          const target = e.target as HTMLElement | null;
+          if (
+            target &&
+            (target.tagName === "INPUT" ||
+              target.tagName === "TEXTAREA" ||
+              target.isContentEditable)
+          ) {
+            return;
+          }
+
           if (e.key === " " || e.key.toLowerCase() === "k") {
             e.preventDefault();
             togglePlay();
+            return;
+          }
+          // NLE-style frame step (Final Cut / Resolve): comma / period.
+          // Distinct from ArrowLeft/Right which seek by seconds.
+          if (e.key === "," || e.key === "<") {
+            e.preventDefault();
+            stepFrame(-1);
+            return;
+          }
+          if (e.key === "." || e.key === ">") {
+            e.preventDefault();
+            stepFrame(1);
             return;
           }
           if (e.key === "ArrowLeft") {
@@ -1208,6 +1465,20 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           if (e.key === "ArrowRight") {
             e.preventDefault();
             handleSeekBy(5);
+            return;
+          }
+          if (e.key.toLowerCase() === "d" && canDraw) {
+            e.preventDefault();
+            if (drawMode) {
+              exitDrawMode();
+            } else {
+              enterDrawMode();
+            }
+            return;
+          }
+          if (e.key === "Escape" && drawMode) {
+            e.preventDefault();
+            exitDrawMode();
             return;
           }
           if (e.key.toLowerCase() === "f") {
@@ -1243,9 +1514,66 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           preload="auto"
           onClick={(e) => {
             e.stopPropagation();
+            if (drawMode) return;
             togglePlay();
           }}
         />
+
+        {/* Drawing / annotation overlay — only mounted when needed */}
+        {showDrawingOverlay && (
+          <DrawingOverlay
+            mode={drawMode ? "draw" : "view"}
+            value={drawMode ? draftDrawing : (viewDrawing ?? draftDrawing)}
+            onChange={drawMode ? onDraftDrawingChange : undefined}
+          />
+        )}
+
+        {/* Draw-mode toolbar */}
+        {drawMode && (
+          <div className="absolute top-3 left-1/2 z-[25] flex -translate-x-1/2 items-center gap-1 border-2 border-[#1a1a1a] bg-[#f0f0e8] p-1 text-[#1a1a1a] shadow-[3px_3px_0px_0px_#1a1a1a]">
+            <span className="hidden px-2 font-mono text-[10px] font-bold tracking-wide uppercase sm:inline">
+              Draw
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                undoLastStroke();
+              }}
+              disabled={!draftDrawing?.strokes?.length}
+              className="inline-flex h-8 items-center gap-1 px-2 text-xs font-bold transition hover:bg-[#1a1a1a]/10 disabled:opacity-40"
+              title="Undo last stroke"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearDraftDrawing();
+              }}
+              disabled={!draftDrawing?.strokes?.length}
+              className="inline-flex h-8 items-center gap-1 px-2 text-xs font-bold transition hover:bg-[#1a1a1a]/10 disabled:opacity-40"
+              title="Clear drawing"
+            >
+              <Eraser className="h-3.5 w-3.5" />
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                exitDrawMode();
+              }}
+              className="inline-flex h-8 items-center gap-1 bg-[#2d5a2d] px-2 text-xs font-bold text-[#f0f0e8] transition hover:bg-[#3a6a3a]"
+              title="Done drawing — attach via comment"
+            >
+              <X className="h-3.5 w-3.5" />
+              Done
+            </button>
+          </div>
+        )}
 
         {!isMediaReady && (
           <div className="pointer-events-none absolute inset-0 z-[5]">
@@ -1262,8 +1590,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           </div>
         )}
 
-        {/* Big play button */}
-        {!isPlaying && (
+        {/* Big play button — hidden while drawing so the canvas stays clear */}
+        {!isPlaying && !drawMode && (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <button
               type="button"
