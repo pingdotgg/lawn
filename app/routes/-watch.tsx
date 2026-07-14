@@ -17,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CommentText } from "@/components/comments/CommentText";
+import { Input } from "@/components/ui/input";
 import { triggerDownload } from "@/lib/download";
+import { MAX_GUEST_NAME_LENGTH, readStoredGuestName, writeStoredGuestName } from "@/lib/guestName";
 import { watchPath } from "@/lib/routes";
 import { cn, formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils";
 import {
@@ -52,6 +54,7 @@ export default function WatchPage() {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [commentText, setCommentText] = useState("");
+  const [guestName, setGuestName] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -59,6 +62,10 @@ export default function WatchPage() {
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+
+  useEffect(() => {
+    setGuestName(readStoredGuestName());
+  }, []);
 
   useEffect(() => {
     if (!videoData?.video?.muxPlaybackId) {
@@ -115,17 +122,31 @@ export default function WatchPage() {
     return markers;
   }, [comments]);
 
+  const isSignedIn = Boolean(user);
+  const allowGuestComments = videoData?.allowGuestComments === true;
+  const canComment = isSignedIn || allowGuestComments;
+  const guestNameReady = guestName.trim().length > 0;
+  const canSubmitComment =
+    Boolean(commentText.trim()) &&
+    !isSubmittingComment &&
+    (isSignedIn || guestNameReady);
+
   const handleSubmitComment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!commentText.trim() || isSubmittingComment) return;
+    if (!canSubmitComment) return;
 
     setIsSubmittingComment(true);
     setCommentError(null);
     try {
+      const trimmedGuestName = guestName.trim();
+      if (!isSignedIn) {
+        writeStoredGuestName(trimmedGuestName);
+      }
       await createComment({
         publicId,
         text: commentText.trim(),
         timestampSeconds: currentTime,
+        guestName: isSignedIn ? undefined : trimmedGuestName,
       });
       setCommentText("");
     } catch {
@@ -134,6 +155,49 @@ export default function WatchPage() {
       setIsSubmittingComment(false);
     }
   };
+
+  const commentForm = (
+    <form onSubmit={handleSubmitComment} className="space-y-2">
+      <div className="flex items-center gap-2 text-xs text-[#666]">
+        <Clock className="h-3.5 w-3.5" />
+        Comment at {formatTimestamp(currentTime)}
+      </div>
+      {!isSignedIn ? (
+        <Input
+          value={guestName}
+          onChange={(event) => setGuestName(event.target.value.slice(0, MAX_GUEST_NAME_LENGTH))}
+          placeholder="Your name"
+          maxLength={MAX_GUEST_NAME_LENGTH}
+          autoComplete="nickname"
+          aria-label="Your name"
+          className="text-sm"
+        />
+      ) : null}
+      <Textarea
+        value={commentText}
+        onChange={(event) => setCommentText(event.target.value)}
+        placeholder="Leave a comment..."
+        className="min-h-[90px] text-sm"
+      />
+      {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
+      <Button type="submit" size="sm" disabled={!canSubmitComment} className="w-full">
+        <MessageSquare className="mr-1.5 h-4 w-4" />
+        {isSubmittingComment ? "Posting..." : "Post comment"}
+      </Button>
+    </form>
+  );
+
+  const signInToComment = (
+    <a
+      href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
+      className="block"
+    >
+      <Button className="w-full">
+        <MessageSquare className="mr-1.5 h-4 w-4" />
+        Sign in to comment
+      </Button>
+    </a>
+  );
 
   const handleDownload = useCallback(async () => {
     if (isDownloading) return;
@@ -425,40 +489,7 @@ export default function WatchPage() {
           </div>
 
           <div className="flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4">
-            {isUserLoaded && user ? (
-              <form onSubmit={handleSubmitComment} className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-[#666]">
-                  <Clock className="h-3.5 w-3.5" />
-                  Comment at {formatTimestamp(currentTime)}
-                </div>
-                <Textarea
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  placeholder="Leave a comment..."
-                  className="min-h-[90px] text-sm"
-                />
-                {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!commentText.trim() || isSubmittingComment}
-                  className="w-full"
-                >
-                  <MessageSquare className="mr-1.5 h-4 w-4" />
-                  {isSubmittingComment ? "Posting..." : "Post comment"}
-                </Button>
-              </form>
-            ) : (
-              <a
-                href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
-                className="block"
-              >
-                <Button className="w-full">
-                  <MessageSquare className="mr-1.5 h-4 w-4" />
-                  Sign in to comment
-                </Button>
-              </a>
-            )}
+            {!isUserLoaded ? null : canComment ? commentForm : signInToComment}
           </div>
         </aside>
       </div>
@@ -545,40 +576,7 @@ export default function WatchPage() {
           </div>
 
           <div className="pb-safe flex-shrink-0 border-t-2 border-[#1a1a1a] bg-[#f0f0e8] p-4">
-            {isUserLoaded && user ? (
-              <form onSubmit={handleSubmitComment} className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-[#666]">
-                  <Clock className="h-3.5 w-3.5" />
-                  Comment at {formatTimestamp(currentTime)}
-                </div>
-                <Textarea
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  placeholder="Leave a comment..."
-                  className="min-h-[90px] text-sm"
-                />
-                {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={!commentText.trim() || isSubmittingComment}
-                  className="w-full"
-                >
-                  <MessageSquare className="mr-1.5 h-4 w-4" />
-                  {isSubmittingComment ? "Posting..." : "Post comment"}
-                </Button>
-              </form>
-            ) : (
-              <a
-                href={`/sign-in?redirect_url=${encodeURIComponent(`/watch/${publicId}`)}`}
-                className="block"
-              >
-                <Button className="w-full">
-                  <MessageSquare className="mr-1.5 h-4 w-4" />
-                  Sign in to comment
-                </Button>
-              </a>
-            )}
+            {!isUserLoaded ? null : canComment ? commentForm : signInToComment}
           </div>
         </div>
       )}

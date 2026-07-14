@@ -70,6 +70,10 @@ export default defineSchema({
     // version switcher is hidden. Unset/true means viewers can browse versions.
     // Kept consistent across every version in a stack (see setPublicVersionBrowsing).
     allowPublicVersionBrowsing: v.optional(v.boolean()),
+    // When true, anyone with the public or restricted share link can leave a
+    // comment without signing in. Unset/false means signed-in only.
+    // Kept consistent across every version in a stack (see setAllowGuestComments).
+    allowGuestComments: v.optional(v.boolean()),
     // Mux video references
     muxUploadId: v.optional(v.string()),
     muxAssetId: v.optional(v.string()),
@@ -128,7 +132,9 @@ export default defineSchema({
 
   comments: defineTable({
     videoId: v.id("videos"),
-    userClerkId: v.string(),
+    // Missing for guest comments left via public/share links when
+    // allowGuestComments is enabled on the video.
+    userClerkId: v.optional(v.string()),
     userName: v.string(),
     userAvatarUrl: v.optional(v.string()),
     text: v.string(),

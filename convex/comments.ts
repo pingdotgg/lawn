@@ -1,8 +1,27 @@
+import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
+import { components } from "./_generated/api";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
-import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
+import { getUser, identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
-import { resolvePublicVideo } from "./videos";
+import { guestCommentsEnabled, resolvePublicVideo } from "./videos";
+
+const MAX_COMMENT_TEXT_LENGTH = 5000;
+const MAX_GUEST_NAME_LENGTH = 40;
+
+const guestCommentRateLimiter = new RateLimiter(components.rateLimiter, {
+  guestCommentGlobal: {
+    kind: "fixed window",
+    rate: 300,
+    period: MINUTE,
+    shards: 8,
+  },
+  guestCommentByVideo: {
+    kind: "fixed window",
+    rate: 30,
+    period: MINUTE,
+  },
+});
 
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
@@ -47,6 +66,42 @@ async function getPublicVideoByPublicId(ctx: QueryCtx | MutationCtx, publicId: s
   return await resolvePublicVideo(ctx, publicId);
 }
 
+function normalizeCommentText(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error("Comment cannot be empty");
+  }
+  if (trimmed.length > MAX_COMMENT_TEXT_LENGTH) {
+    throw new Error("Comment is too long");
+  }
+  return trimmed;
+}
+
+function normalizeGuestName(guestName: string | undefined) {
+  const trimmed = guestName?.trim() ?? "";
+  if (!trimmed) {
+    throw new Error("Guest name is required");
+  }
+  if (trimmed.length > MAX_GUEST_NAME_LENGTH) {
+    throw new Error("Guest name is too long");
+  }
+  return trimmed;
+}
+
+async function assertGuestCommentRateLimit(ctx: MutationCtx, videoId: string) {
+  const globalLimit = await guestCommentRateLimiter.limit(ctx, "guestCommentGlobal");
+  if (!globalLimit.ok) {
+    throw new Error("Too many comments. Please try again shortly.");
+  }
+
+  const videoLimit = await guestCommentRateLimiter.limit(ctx, "guestCommentByVideo", {
+    key: videoId,
+  });
+  if (!videoLimit.ok) {
+    throw new Error("Too many comments on this video. Please try again shortly.");
+  }
+}
+
 export const list = query({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
@@ -70,6 +125,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireVideoAccess(ctx, args.videoId, "viewer");
+    const text = normalizeCommentText(args.text);
 
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
@@ -83,7 +139,7 @@ export const create = mutation({
       userClerkId: user.subject,
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
@@ -97,15 +153,15 @@ export const createForPublic = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    guestName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
     const video = await getPublicVideoByPublicId(ctx, args.publicId);
-
     if (!video) {
       throw new Error("Video not found");
     }
 
+    const text = normalizeCommentText(args.text);
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.videoId !== video._id) {
@@ -113,12 +169,31 @@ export const createForPublic = mutation({
       }
     }
 
+    const user = await getUser(ctx);
+    if (user) {
+      return await ctx.db.insert("comments", {
+        videoId: video._id,
+        userClerkId: user.subject,
+        userName: identityName(user),
+        userAvatarUrl: identityAvatarUrl(user),
+        text,
+        timestampSeconds: args.timestampSeconds,
+        parentId: args.parentId,
+        resolved: false,
+      });
+    }
+
+    if (!guestCommentsEnabled(video)) {
+      throw new Error("Guest comments are not allowed on this video");
+    }
+
+    const guestName = normalizeGuestName(args.guestName);
+    await assertGuestCommentRateLimit(ctx, video._id);
+
     return await ctx.db.insert("comments", {
       videoId: video._id,
-      userClerkId: user.subject,
-      userName: identityName(user),
-      userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      userName: guestName,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
@@ -132,11 +207,10 @@ export const createForShareGrant = mutation({
     text: v.string(),
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
+    guestName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
     const resolved = await resolveActiveShareGrant(ctx, args.grantToken);
-
     if (!resolved) {
       throw new Error("Invalid share grant");
     }
@@ -146,6 +220,7 @@ export const createForShareGrant = mutation({
       throw new Error("Video not found");
     }
 
+    const text = normalizeCommentText(args.text);
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent || parent.videoId !== video._id) {
@@ -153,12 +228,31 @@ export const createForShareGrant = mutation({
       }
     }
 
+    const user = await getUser(ctx);
+    if (user) {
+      return await ctx.db.insert("comments", {
+        videoId: video._id,
+        userClerkId: user.subject,
+        userName: identityName(user),
+        userAvatarUrl: identityAvatarUrl(user),
+        text,
+        timestampSeconds: args.timestampSeconds,
+        parentId: args.parentId,
+        resolved: false,
+      });
+    }
+
+    if (!guestCommentsEnabled(video)) {
+      throw new Error("Guest comments are not allowed on this video");
+    }
+
+    const guestName = normalizeGuestName(args.guestName);
+    await assertGuestCommentRateLimit(ctx, video._id);
+
     return await ctx.db.insert("comments", {
       videoId: video._id,
-      userClerkId: user.subject,
-      userName: identityName(user),
-      userAvatarUrl: identityAvatarUrl(user),
-      text: args.text,
+      userName: guestName,
+      text,
       timestampSeconds: args.timestampSeconds,
       parentId: args.parentId,
       resolved: false,
@@ -177,11 +271,11 @@ export const update = mutation({
     const comment = await ctx.db.get(args.commentId);
     if (!comment) throw new Error("Comment not found");
 
-    if (comment.userClerkId !== user.subject) {
+    if (!comment.userClerkId || comment.userClerkId !== user.subject) {
       throw new Error("You can only edit your own comments");
     }
 
-    await ctx.db.patch(args.commentId, { text: args.text });
+    await ctx.db.patch(args.commentId, { text: normalizeCommentText(args.text) });
   },
 });
 
@@ -193,7 +287,7 @@ export const remove = mutation({
     const comment = await ctx.db.get(args.commentId);
     if (!comment) throw new Error("Comment not found");
 
-    if (comment.userClerkId !== user.subject) {
+    if (!comment.userClerkId || comment.userClerkId !== user.subject) {
       await requireVideoAccess(ctx, comment.videoId, "admin");
     }
 

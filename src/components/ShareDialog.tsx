@@ -40,10 +40,12 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
   const deleteShareLink = useMutation(api.shareLinks.remove);
   const setVisibility = useMutation(api.videos.setVisibility);
   const setVersionBrowsing = useMutation(api.videos.setPublicVersionBrowsing);
+  const setAllowGuestComments = useMutation(api.videos.setAllowGuestComments);
 
   const [isCreating, setIsCreating] = useState(false);
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [isUpdatingVersionBrowsing, setIsUpdatingVersionBrowsing] = useState(false);
+  const [isUpdatingGuestComments, setIsUpdatingGuestComments] = useState(false);
   const [deletingLinkId, setDeletingLinkId] = useState<Id<"shareLinks"> | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<{
@@ -82,6 +84,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     setIsCreating(false);
     setIsUpdatingVisibility(false);
     setIsUpdatingVersionBrowsing(false);
+    setIsUpdatingGuestComments(false);
     setDeletingLinkId(null);
     setMutationError(null);
     setNewLinkOptions({ expiresInDays: undefined, password: undefined });
@@ -168,6 +171,7 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
   };
 
   const versionBrowsingEnabled = video?.allowPublicVersionBrowsing !== false;
+  const guestCommentsEnabled = video?.allowGuestComments === true;
 
   const handleSetVersionBrowsing = async (enabled: boolean) => {
     if (
@@ -189,6 +193,30 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
     } finally {
       if (isMutationCurrent(contextEpoch, requestVideoId)) {
         setIsUpdatingVersionBrowsing(false);
+      }
+    }
+  };
+
+  const handleSetGuestComments = async (enabled: boolean) => {
+    if (
+      !video ||
+      !canManageSharing ||
+      isUpdatingGuestComments ||
+      guestCommentsEnabled === enabled
+    )
+      return;
+    const contextEpoch = mutationContextEpochRef.current.current();
+    const requestVideoId = videoId;
+    setIsUpdatingGuestComments(true);
+    setMutationError(null);
+    try {
+      await setAllowGuestComments({ videoId, enabled });
+    } catch {
+      if (!isMutationCurrent(contextEpoch, requestVideoId)) return;
+      setMutationError("Could not update guest comments. Please try again.");
+    } finally {
+      if (isMutationCurrent(contextEpoch, requestVideoId)) {
+        setIsUpdatingGuestComments(false);
       }
     }
   };
@@ -263,7 +291,8 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
         <DialogHeader>
           <DialogTitle>Share video</DialogTitle>
           <DialogDescription>
-            Public videos can be viewed by anyone with the URL. Only signed-in users can comment.
+            Public videos can be viewed by anyone with the URL. Enable guest comments to let
+            reviewers leave feedback without signing in.
           </DialogDescription>
         </DialogHeader>
 
@@ -330,6 +359,45 @@ export function ShareDialog({ videoId, open, onOpenChange }: ShareDialogProps) {
           <p className="text-xs text-[#888]">
             Private disables the public URL. Restricted share links still work.
           </p>
+        </div>
+
+        {/* Guest comments */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#1a1a1a]">Allow guest comments</h3>
+            <p className="text-xs text-[#888]">
+              Anyone with the public or restricted link can comment without signing in.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2.5">
+            <span
+              className={cn(
+                "text-xs font-bold tracking-wide uppercase",
+                guestCommentsEnabled ? "text-[#2d5a2d]" : "text-[#888]",
+              )}
+            >
+              {guestCommentsEnabled ? "On" : "Off"}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={guestCommentsEnabled}
+              aria-label="Allow guest comments"
+              disabled={!canManageSharing || isUpdatingGuestComments}
+              onClick={() => void handleSetGuestComments(!guestCommentsEnabled)}
+              className={cn(
+                "relative h-7 w-12 shrink-0 border-2 border-[#1a1a1a] transition-colors disabled:opacity-50",
+                guestCommentsEnabled ? "bg-[#2d5a2d]" : "bg-[#ccc]",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-1 h-4 w-4 border-2 border-[#1a1a1a] bg-[#f0f0e8] transition-all",
+                  guestCommentsEnabled ? "left-[26px]" : "left-0.5",
+                )}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Public URL + version browsing */}

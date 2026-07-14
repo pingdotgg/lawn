@@ -425,6 +425,8 @@ async function insertVersionRecord(
     description: latest.description,
     visibility: latest.visibility,
     publicId: args.publicId,
+    allowPublicVersionBrowsing: latest.allowPublicVersionBrowsing,
+    allowGuestComments: latest.allowGuestComments,
     fileSize: args.fileSize,
     contentType: args.contentType,
     status: "uploading",
@@ -638,6 +640,11 @@ function publicVersionBrowsingEnabled(video: Doc<"videos">) {
   return video.allowPublicVersionBrowsing !== false;
 }
 
+// Guest comments are off unless explicitly enabled (opt-in).
+export function guestCommentsEnabled(video: Pick<Doc<"videos">, "allowGuestComments">) {
+  return video.allowGuestComments === true;
+}
+
 function isPublicReadyVersion(video: Doc<"videos">) {
   return video.visibility === "public" && video.status === "ready";
 }
@@ -762,6 +769,7 @@ export const getByPublicId = query({
       processing: false as const,
       title: video.title,
       allowVersionBrowsing: resolution.allowVersionBrowsing,
+      allowGuestComments: guestCommentsEnabled(video),
       video: {
         _id: video._id,
         publicId: video.publicId,
@@ -875,6 +883,7 @@ export const getByShareGrant = query({
         contentType: video.contentType,
         s3Key: video.s3Key,
       },
+      allowGuestComments: guestCommentsEnabled(video),
       grantExpiresAt: resolved.grant.expiresAt,
     };
   },
@@ -993,6 +1002,27 @@ export const setPublicVersionBrowsing = mutation({
       versions.map((version) =>
         publicVersionBrowsingEnabled(version) !== args.enabled
           ? ctx.db.patch(version._id, { allowPublicVersionBrowsing: args.enabled })
+          : Promise.resolve(),
+      ),
+    );
+  },
+});
+
+export const setAllowGuestComments = mutation({
+  args: {
+    videoId: v.id("videos"),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { video } = await requireVideoAccess(ctx, args.videoId, "member");
+
+    // Guest commenting is a property of the whole video. Keep it consistent
+    // across every version in the stack.
+    const versions = await readStackVersionsForUpdate(ctx, video);
+    await Promise.all(
+      versions.map((version) =>
+        guestCommentsEnabled(version) !== args.enabled
+          ? ctx.db.patch(version._id, { allowGuestComments: args.enabled })
           : Promise.resolve(),
       ),
     );

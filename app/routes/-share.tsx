@@ -13,6 +13,7 @@ import { formatDuration, formatTimestamp, formatRelativeTime } from "@/lib/utils
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { CommentText } from "@/components/comments/CommentText";
+import { MAX_GUEST_NAME_LENGTH, readStoredGuestName, writeStoredGuestName } from "@/lib/guestName";
 import { Lock, Video, AlertCircle, MessageSquare, Clock, Download } from "lucide-react";
 import { useShareData } from "./-share.data";
 
@@ -39,11 +40,16 @@ export default function SharePage() {
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [commentText, setCommentText] = useState("");
+  const [guestName, setGuestName] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+
+  useEffect(() => {
+    setGuestName(readStoredGuestName());
+  }, []);
 
   useEffect(() => {
     setIsDownloading(false);
@@ -147,17 +153,32 @@ export default function SharePage() {
     return markers;
   }, [comments]);
 
+  const isSignedIn = Boolean(user);
+  const allowGuestComments = videoData?.allowGuestComments === true;
+  const canComment = isSignedIn || allowGuestComments;
+  const guestNameReady = guestName.trim().length > 0;
+  const canSubmitComment =
+    Boolean(grantToken) &&
+    Boolean(commentText.trim()) &&
+    !isSubmittingComment &&
+    (isSignedIn || guestNameReady);
+
   const handleSubmitComment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!grantToken || !commentText.trim() || isSubmittingComment) return;
+    if (!grantToken || !canSubmitComment) return;
 
     setIsSubmittingComment(true);
     setCommentError(null);
     try {
+      const trimmedGuestName = guestName.trim();
+      if (!isSignedIn) {
+        writeStoredGuestName(trimmedGuestName);
+      }
       await createComment({
         grantToken,
         text: commentText.trim(),
         timestampSeconds: currentTime,
+        guestName: isSignedIn ? undefined : trimmedGuestName,
       });
       setCommentText("");
     } catch {
@@ -365,12 +386,24 @@ export default function SharePage() {
             <span className="font-mono text-xs text-[#888]">{formatTimestamp(currentTime)}</span>
           </div>
 
-          {isUserLoaded && user ? (
+          {!isUserLoaded ? null : canComment ? (
             <form onSubmit={handleSubmitComment} className="space-y-2">
               <div className="flex items-center gap-2 text-xs text-[#666]">
                 <Clock className="h-3.5 w-3.5" />
                 Comment at {formatTimestamp(currentTime)}
               </div>
+              {!isSignedIn ? (
+                <Input
+                  value={guestName}
+                  onChange={(event) =>
+                    setGuestName(event.target.value.slice(0, MAX_GUEST_NAME_LENGTH))
+                  }
+                  placeholder="Your name"
+                  maxLength={MAX_GUEST_NAME_LENGTH}
+                  autoComplete="nickname"
+                  aria-label="Your name"
+                />
+              ) : null}
               <Textarea
                 value={commentText}
                 onChange={(event) => setCommentText(event.target.value)}
@@ -378,7 +411,7 @@ export default function SharePage() {
                 className="min-h-[90px]"
               />
               {commentError ? <p className="text-xs text-[#dc2626]">{commentError}</p> : null}
-              <Button type="submit" disabled={!commentText.trim() || isSubmittingComment}>
+              <Button type="submit" disabled={!canSubmitComment}>
                 <MessageSquare className="mr-1.5 h-4 w-4" />
                 {isSubmittingComment ? "Posting..." : "Post comment"}
               </Button>
