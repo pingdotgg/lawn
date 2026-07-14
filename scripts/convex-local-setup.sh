@@ -64,7 +64,7 @@ echo "convex-local-setup: seeding deployment environment variables..."
 seed="$(mktemp)"
 trap 'rm -f "$seed"' EXIT
 # Backend runtime secrets only; drop client (VITE_) and selection (CONVEX_) vars.
-grep -hE '^(STRIPE_|CLERK_|CHUNKIFY_|AUTUMN_|RAILWAY_|MUX_)' .env.local .env.convex.local 2>/dev/null \
+grep -hE '^(STRIPE_|CLERK_|CHUNKIFY_|AUTUMN_|RAILWAY_|MUX_|RESEND_|SITE_URL=|APP_URL=)' .env.local .env.convex.local 2>/dev/null \
   | grep -vE '^VITE_' > "$seed" || true
 # Derive CLERK_JWT_ISSUER_DOMAIN from the Clerk publishable key when not provided.
 # A Clerk pk_(test|live)_ key base64-encodes "<frontend-api-host>$"; the JWT

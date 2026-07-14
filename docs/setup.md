@@ -47,3 +47,9 @@ grouped by section (convex, clerk, stripe, mux, storage, autumn, chunkify).
 Stripe webhook endpoint (for the Convex Stripe component):
 
 - `https://<your-deployment>.convex.site/stripe/webhook`
+
+Team invite email (optional — shareable invite links always work):
+
+- `RESEND_API_KEY` — Resend API key for sending invite emails from Convex
+- `RESEND_FROM_EMAIL` — optional from address; defaults to `Lawn <invites@lawn.video>` (set a verified sender if that domain is not verified in Resend)
+- `SITE_URL` or `APP_URL` — public app origin used in invite links (defaults to `https://lawn.video`)

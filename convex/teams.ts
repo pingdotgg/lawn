@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import {
   getUser,
   identityAvatarUrl,
@@ -215,6 +216,11 @@ export const inviteMember = mutation({
   handler: async (ctx, args) => {
     const { user } = await requireTeamAccess(ctx, args.teamId, "admin");
 
+    const team = await ctx.db.get(args.teamId);
+    if (!team) {
+      throw new Error("Team not found");
+    }
+
     const inviteEmail = normalizedEmail(args.email);
 
     const existingMembership = await ctx.db
@@ -239,15 +245,24 @@ export const inviteMember = mutation({
 
     const token = generateToken();
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+    const inviterName = identityName(user);
 
     await ctx.db.insert("teamInvites", {
       teamId: args.teamId,
       email: inviteEmail,
       role: args.role,
       invitedByClerkId: user.subject,
-      invitedByName: identityName(user),
+      invitedByName: inviterName,
       token,
       expiresAt,
+    });
+
+    // Best-effort email: never block invite creation if send fails / is unconfigured.
+    await ctx.scheduler.runAfter(0, internal.inviteEmail.sendInviteEmail, {
+      toEmail: inviteEmail,
+      inviterName,
+      teamName: team.name,
+      token,
     });
 
     return token;

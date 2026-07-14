@@ -38,12 +38,17 @@ const roleLabels: Record<Role, string> = {
   viewer: "Viewer",
 };
 
+function inviteUrlForToken(token: string): string {
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  return `${baseUrl}/invite/${token}`;
+}
+
 export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [isLoading, setIsLoading] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const members = useQuery(api.teams.getMembers, { teamId });
   const invites = useQuery(api.teams.getInvites, { teamId });
@@ -62,8 +67,7 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
         email: email.trim(),
         role,
       });
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-      setInviteLink(`${baseUrl}/invite/${token}`);
+      setInviteLink(inviteUrlForToken(token));
       setEmail("");
     } catch (error) {
       console.error("Failed to invite member:", error);
@@ -72,12 +76,10 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
     }
   };
 
-  const handleCopyLink = () => {
-    if (inviteLink) {
-      navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handleCopyLink = (link: string, key: string) => {
+    navigator.clipboard.writeText(link);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const handleRemoveMember = async (memberId: Id<"teamMembers">) => {
@@ -129,17 +131,29 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
           </div>
           <Button type="submit" disabled={!email.trim() || isLoading} className="w-full">
             <UserPlus className="mr-2 h-4 w-4" />
-            {isLoading ? "Sending..." : "Send invite"}
+            {isLoading ? "Creating invite..." : "Send invite"}
           </Button>
         </form>
 
         {inviteLink && (
           <div className="border-2 border-[#1a1a1a] bg-[#e8e8e0] p-3">
-            <p className="mb-2 text-sm text-[#888]">Share this link with the invitee:</p>
+            <p className="mb-2 text-sm text-[#1a1a1a]">
+              Invite created. We emailed them if email is configured — you can also share this
+              link.
+            </p>
             <div className="flex gap-2">
               <Input value={inviteLink} readOnly className="text-sm" />
-              <Button variant="outline" size="icon" onClick={handleCopyLink}>
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => handleCopyLink(inviteLink, "latest")}
+                aria-label="Copy invite link"
+              >
+                {copiedKey === "latest" ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>
@@ -207,18 +221,37 @@ export function MemberInvite({ teamId, open, onOpenChange }: MemberInviteProps) 
           <div className="space-y-2">
             <h4 className="text-sm font-bold text-[#1a1a1a]">Pending invites</h4>
             <div className="space-y-2">
-              {invites.map((invite) => (
-                <div
-                  key={invite._id}
-                  className="flex items-center justify-between border-2 border-[#1a1a1a] bg-[#e8e8e0] p-2"
-                >
-                  <div>
-                    <p className="text-sm text-[#1a1a1a]">{invite.email}</p>
-                    <p className="text-xs text-[#888]">Invited as {roleLabels[invite.role]}</p>
+              {invites.map((invite) => {
+                const link = inviteUrlForToken(invite.token);
+                const copyKey = invite._id;
+                return (
+                  <div
+                    key={invite._id}
+                    className="flex items-center justify-between gap-2 border-2 border-[#1a1a1a] bg-[#e8e8e0] p-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-[#1a1a1a]">{invite.email}</p>
+                      <p className="text-xs text-[#888]">Invited as {roleLabels[invite.role]}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Badge variant="outline">Pending</Badge>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleCopyLink(link, copyKey)}
+                        aria-label={`Copy invite link for ${invite.email}`}
+                      >
+                        {copiedKey === copyKey ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <Badge variant="outline">Pending</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
