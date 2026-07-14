@@ -607,7 +607,7 @@ body {
   color-scheme: light;
 }
 
-.cl-footer {
+.auth-shell .cl-footer {
   display: none !important;
 }
 
