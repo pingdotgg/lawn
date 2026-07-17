@@ -32,21 +32,20 @@ function dragEventHasFiles(event: DragEvent) {
 
 const DashboardUploadProgressItem = memo(function DashboardUploadProgressItem({
   upload,
-  teamSlug,
   cancelUpload,
   retryProcessing,
   viewUploadedVersion,
 }: {
   upload: ManagedUploadItem;
-  teamSlug?: string;
   cancelUpload: (uploadId: string) => void;
   retryProcessing: (uploadId: string) => void;
-  viewUploadedVersion: (projectId: Id<"projects">, videoId: Id<"videos">) => void;
+  viewUploadedVersion: (teamSlug: string, projectId: Id<"projects">, videoId: Id<"videos">) => void;
 }) {
   const completedVersionId =
     upload.status === "complete" && upload.creationIntent.kind === "version"
       ? upload.videoId
       : undefined;
+  const completedVersionTeamSlug = completedVersionId ? upload.teamSlug : undefined;
 
   return (
     <UploadProgress
@@ -62,8 +61,9 @@ const DashboardUploadProgressItem = memo(function DashboardUploadProgressItem({
       onCancel={() => cancelUpload(upload.id)}
       onRetryProcessing={upload.canRetryProcessing ? () => retryProcessing(upload.id) : undefined}
       onView={
-        completedVersionId && teamSlug
-          ? () => viewUploadedVersion(upload.projectId, completedVersionId)
+        completedVersionId && completedVersionTeamSlug
+          ? () =>
+              viewUploadedVersion(completedVersionTeamSlug, upload.projectId, completedVersionId)
           : undefined
       }
     />
@@ -74,6 +74,7 @@ function DashboardUploadBoundary({
   teamSlug,
   routeProjectId,
   routeVideoId,
+  uploadsEnabled,
   canUploadToCurrentProject,
   currentProjectIsViewer,
   children,
@@ -81,21 +82,26 @@ function DashboardUploadBoundary({
   teamSlug?: string;
   routeProjectId?: Id<"projects">;
   routeVideoId?: Id<"videos">;
+  uploadsEnabled: boolean;
   canUploadToCurrentProject: boolean;
   currentProjectIsViewer: boolean;
   children: ReactNode;
 }) {
   const convex = useConvex();
   const navigate = useNavigate({});
-  const detailVideo = useQuery(api.videos.get, routeVideoId ? { videoId: routeVideoId } : "skip");
+  const detailVideo = useQuery(
+    api.videos.get,
+    uploadsEnabled && routeVideoId ? { videoId: routeVideoId } : "skip",
+  );
   const [isGlobalDragActive, setIsGlobalDragActive] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const dragDepthRef = useRef(0);
   const shouldLoadUploadTargets =
-    projectPickerOpen ||
-    pendingFiles !== null ||
-    (isGlobalDragActive && !routeProjectId && !routeVideoId);
+    uploadsEnabled &&
+    (projectPickerOpen ||
+      pendingFiles !== null ||
+      (isGlobalDragActive && !routeProjectId && !routeVideoId));
   const uploadTargets = useQuery(
     api.projects.listUploadTargets,
     shouldLoadUploadTargets ? (teamSlug ? { teamSlug } : {}) : "skip",
@@ -105,6 +111,7 @@ function DashboardUploadBoundary({
 
   const requestUpload = useCallback(
     (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
+      if (!uploadsEnabled) return;
       const files = inputFiles.filter(isVideoFile);
       if (files.length === 0) return;
 
@@ -113,12 +120,12 @@ function DashboardUploadBoundary({
           window.alert("You need member access to upload to this project.");
           return;
         }
-        void uploadFilesToProject(preferredProjectId, files);
+        void uploadFilesToProject(preferredProjectId, files, teamSlug);
         return;
       }
 
       if (routeProjectId && canUploadToCurrentProject) {
-        void uploadFilesToProject(routeProjectId, files);
+        void uploadFilesToProject(routeProjectId, files, teamSlug);
         return;
       }
 
@@ -139,8 +146,10 @@ function DashboardUploadBoundary({
       canUploadToCurrentProject,
       currentProjectIsViewer,
       routeProjectId,
+      teamSlug,
       uploadFilesToProject,
       uploadTargets,
+      uploadsEnabled,
     ],
   );
 
@@ -148,12 +157,13 @@ function DashboardUploadBoundary({
     (projectId: Id<"projects">) => {
       const files = pendingFiles;
       if (!files || files.length === 0) return;
+      const selectedTarget = uploadTargets?.find((target) => target.projectId === projectId);
 
       setProjectPickerOpen(false);
       setPendingFiles(null);
-      void uploadFilesToProject(projectId, files);
+      void uploadFilesToProject(projectId, files, selectedTarget?.teamSlug);
     },
-    [pendingFiles, uploadFilesToProject],
+    [pendingFiles, uploadFilesToProject, uploadTargets],
   );
 
   const requestVersionUpload = useCallback(
@@ -163,10 +173,11 @@ function DashboardUploadBoundary({
       projectId: Id<"projects">,
       file: File,
     ) => {
+      if (!uploadsEnabled) return;
       if (!isVideoFile(file)) return;
-      void uploadNewVersion(sourceVideoId, versionStackId, projectId, file);
+      void uploadNewVersion(sourceVideoId, versionStackId, projectId, file, teamSlug);
     },
-    [uploadNewVersion],
+    [teamSlug, uploadNewVersion, uploadsEnabled],
   );
 
   const handleProjectPickerOpenChange = useCallback((open: boolean) => {
@@ -177,6 +188,14 @@ function DashboardUploadBoundary({
   }, []);
 
   useEffect(() => {
+    if (!uploadsEnabled) {
+      dragDepthRef.current = 0;
+      setIsGlobalDragActive(false);
+      setProjectPickerOpen(false);
+      setPendingFiles(null);
+      return;
+    }
+
     const handleDragEnter = (event: DragEvent) => {
       if (!dragEventHasFiles(event)) return;
       event.preventDefault();
@@ -250,15 +269,14 @@ function DashboardUploadBoundary({
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [detailVideo, requestUpload, requestVersionUpload, routeVideoId]);
+  }, [detailVideo, requestUpload, requestVersionUpload, routeVideoId, uploadsEnabled]);
 
   const viewUploadedVersion = useCallback(
-    (projectId: Id<"projects">, videoId: Id<"videos">) => {
-      if (!teamSlug) return;
-      prewarmVideo(convex, { teamSlug, projectId, videoId });
-      navigate({ to: videoPath(teamSlug, projectId, videoId) });
+    (uploadTeamSlug: string, projectId: Id<"projects">, videoId: Id<"videos">) => {
+      prewarmVideo(convex, { teamSlug: uploadTeamSlug, projectId, videoId });
+      navigate({ to: videoPath(uploadTeamSlug, projectId, videoId) });
     },
-    [convex, navigate, teamSlug],
+    [convex, navigate],
   );
 
   const uploadCommands = useMemo(
@@ -291,12 +309,11 @@ function DashboardUploadBoundary({
       )}
 
       {uploads.length > 0 && (
-        <div className="fixed top-16 right-4 left-4 z-50 space-y-2 sm:top-auto sm:right-auto sm:bottom-4 sm:w-full sm:max-w-sm">
+        <div className="fixed top-16 right-4 left-4 z-50 max-h-[calc(100dvh-5rem)] space-y-2 overflow-y-auto overscroll-contain sm:top-auto sm:right-auto sm:bottom-4 sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-sm">
           {uploads.map((upload) => (
             <DashboardUploadProgressItem
               key={upload.id}
               upload={upload}
-              teamSlug={teamSlug}
               cancelUpload={cancelUpload}
               retryProcessing={retryProcessing}
               viewUploadedVersion={viewUploadedVersion}
@@ -375,6 +392,7 @@ export default function DashboardLayout() {
   });
   const routeProjectId = access.kind === "dashboard" ? workspaceContext?.project?._id : undefined;
   const routeVideoId = access.kind === "dashboard" ? workspaceContext?.video?._id : undefined;
+  const resolvedTeamSlug = access.kind === "dashboard" ? workspaceContext?.team.slug : undefined;
   const currentTeamRole = access.kind === "dashboard" ? workspaceContext?.team.role : undefined;
   const canUploadToCurrentProject = Boolean(
     routeProjectId && currentTeamRole && currentTeamRole !== "viewer",
@@ -398,28 +416,25 @@ export default function DashboardLayout() {
     }
   }, [pathname, publicRedirectId, searchStr, shouldRedirectToSignIn]);
 
+  let dashboardContent: ReactNode;
   if (access.kind === "loading") {
-    return (
+    dashboardContent = (
       <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
         <div role="status" aria-live="polite" className="text-[#888]">
           Checking access...
         </div>
       </div>
     );
-  }
-
-  if (access.kind === "redirect-public" || access.kind === "redirect-sign-in") {
-    return (
+  } else if (access.kind === "redirect-public" || access.kind === "redirect-sign-in") {
+    dashboardContent = (
       <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
         <div role="status" aria-live="polite" className="text-[#888]">
           Redirecting...
         </div>
       </div>
     );
-  }
-
-  if (access.kind === "auth-unavailable") {
-    return (
+  } else if (access.kind === "auth-unavailable") {
+    dashboardContent = (
       <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
         <div
           role="alert"
@@ -445,10 +460,8 @@ export default function DashboardLayout() {
         </div>
       </div>
     );
-  }
-
-  if (access.kind === "not-found") {
-    return (
+  } else if (access.kind === "not-found") {
+    dashboardContent = (
       <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
         <div role="alert" className="text-center text-[#888]">
           <p>Video or workspace not found</p>
@@ -458,18 +471,21 @@ export default function DashboardLayout() {
         </div>
       </div>
     );
+  } else {
+    dashboardContent = <Outlet />;
   }
 
   return (
     <div className={cn("relative flex h-full flex-col bg-[#f0f0e8]")}>
       <DashboardUploadBoundary
-        teamSlug={teamSlug}
+        teamSlug={resolvedTeamSlug}
         routeProjectId={routeProjectId}
         routeVideoId={routeVideoId}
+        uploadsEnabled={access.kind === "dashboard"}
         canUploadToCurrentProject={canUploadToCurrentProject}
         currentProjectIsViewer={currentProjectIsViewer}
       >
-        <Outlet />
+        {dashboardContent}
       </DashboardUploadBoundary>
     </div>
   );

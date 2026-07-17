@@ -23,6 +23,7 @@ const UPLOAD_FILE_CONCURRENCY = 2;
 
 export interface ManagedUploadItem {
   id: string;
+  teamSlug?: string;
   projectId: Id<"projects">;
   creationIntent: UploadCreationIntent;
   file: File;
@@ -52,10 +53,12 @@ function createQueuedUpload(
   projectId: Id<"projects">,
   file: File,
   creationIntent: UploadCreationIntent,
+  teamSlug?: string,
 ) {
   const tooLarge = isFileTooLarge(file.size);
   return {
     id: createUploadId(),
+    teamSlug,
     projectId,
     creationIntent,
     file,
@@ -351,9 +354,9 @@ export function useVideoUploadManager() {
   );
 
   const uploadFilesToProject = useCallback(
-    async (projectId: Id<"projects">, files: File[]) => {
+    async (projectId: Id<"projects">, files: File[], teamSlug?: string) => {
       const queuedUploads = files.map((file) =>
-        createQueuedUpload(projectId, file, { kind: "standalone", projectId }),
+        createQueuedUpload(projectId, file, { kind: "standalone", projectId }, teamSlug),
       );
 
       updateUploads((prev) => [...prev, ...queuedUploads]);
@@ -374,12 +377,18 @@ export function useVideoUploadManager() {
       versionStackId: Id<"videos">,
       projectId: Id<"projects">,
       file: File,
+      teamSlug?: string,
     ) => {
-      const queuedUpload = createQueuedUpload(projectId, file, {
-        kind: "version" as const,
-        sourceVideoId,
-        versionStackId,
-      });
+      const queuedUpload = createQueuedUpload(
+        projectId,
+        file,
+        {
+          kind: "version" as const,
+          sourceVideoId,
+          versionStackId,
+        },
+        teamSlug,
+      );
 
       updateUploads((prev) => [...prev, queuedUpload]);
       if (queuedUpload.status === "error") return undefined;
@@ -391,6 +400,11 @@ export function useVideoUploadManager() {
   const cancelUpload = useCallback(
     (uploadId: string) => {
       const upload = uploadsRef.current.find((item) => item.id === uploadId);
+      if (upload?.canRetryProcessing) {
+        updateUploads((prev) => prev.filter((item) => item.id !== uploadId));
+        return;
+      }
+
       if (upload?.abortController) {
         upload.abortController.abort();
       }

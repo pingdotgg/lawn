@@ -52,6 +52,11 @@ export default function SharePage() {
   } | null>(null);
   const grantToken = accessGrant?.shareToken === token ? accessGrant.grantToken : null;
   const [hasAttemptedAutoGrant, setHasAttemptedAutoGrant] = useState(false);
+  const [grantError, setGrantError] = useState<{
+    shareToken: string;
+    message: string;
+  } | null>(null);
+  const activeGrantError = grantError?.shareToken === token ? grantError.message : null;
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [grantRequest, setGrantRequest] = useState<GrantRequest | null>(null);
@@ -110,6 +115,7 @@ export default function SharePage() {
     setGrantRequest(null);
     setAccessGrant(null);
     setHasAttemptedAutoGrant(false);
+    setGrantError(null);
     setPasswordInput("");
     setPasswordError(false);
   }, [token]);
@@ -124,6 +130,7 @@ export default function SharePage() {
       };
       activeGrantRequestRef.current = request;
       setGrantRequest(request);
+      setGrantError(null);
       setPasswordError(false);
 
       const isCurrentRequest = () =>
@@ -138,12 +145,26 @@ export default function SharePage() {
             return true;
           }
 
-          setPasswordError(Boolean(password));
+          if (password) {
+            setPasswordError(true);
+          } else {
+            setGrantError({
+              shareToken: token,
+              message: "Unable to open this shared video. Please try again.",
+            });
+          }
           return false;
         })
         .catch(() => {
           if (isCurrentRequest()) {
-            setPasswordError(Boolean(password));
+            if (password) {
+              setPasswordError(true);
+            } else {
+              setGrantError({
+                shareToken: token,
+                message: "Unable to open this shared video. Please try again.",
+              });
+            }
           }
           return false;
         })
@@ -368,6 +389,31 @@ export default function SharePage() {
                 {isRequestingGrant ? "Verifying..." : "View video"}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (shareInfo.status === "ok" && !grantToken && activeGrantError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f0f0e8] p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center border-2 border-[#dc2626] bg-[#dc2626]/10">
+              <AlertCircle className="h-6 w-6 text-[#dc2626]" />
+            </div>
+            <CardTitle>Couldn&apos;t open shared video</CardTitle>
+            <CardDescription>{activeGrantError}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              className="w-full"
+              disabled={isRequestingGrant}
+              onClick={() => void acquireGrant()}
+            >
+              {isRequestingGrant ? "Retrying..." : "Try again"}
+            </Button>
           </CardContent>
         </Card>
       </div>

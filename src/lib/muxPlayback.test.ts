@@ -17,11 +17,14 @@ const recovery: MuxPlaybackRecovery = {
   revision: 2,
 };
 
-test("builds the exact Mux 720p manifest URL used by the server", () => {
+test("builds the exact adaptive Mux manifest URL used by the server", () => {
   assert.equal(
     buildMuxPlaybackHlsUrl("playback-a"),
-    "https://stream.mux.com/playback-a.m3u8?min_resolution=720p&max_resolution=720p",
+    "https://stream.mux.com/playback-a.m3u8?max_resolution=720p",
   );
+  const url = new URL(buildMuxPlaybackHlsUrl("playback-a"));
+  assert.equal(url.searchParams.get("max_resolution"), "720p");
+  assert.equal(url.searchParams.has("min_resolution"), false);
 });
 
 test("builds the public Mux poster URL", () => {
@@ -39,7 +42,7 @@ test("selects a deterministic source without waiting for a recovery action", () 
       recovery: null,
     }),
     {
-      url: "https://stream.mux.com/playback-a.m3u8?min_resolution=720p&max_resolution=720p",
+      url: "https://stream.mux.com/playback-a.m3u8?max_resolution=720p",
       posterUrl: "https://image.mux.com/playback-a/thumbnail.jpg?time=0",
       revision: 0,
     },
@@ -80,10 +83,7 @@ test("ignores a recovery response for a replaced playback ID", () => {
   });
 
   assert.equal(source?.revision, 0);
-  assert.equal(
-    source?.url,
-    "https://stream.mux.com/playback-b.m3u8?min_resolution=720p&max_resolution=720p",
-  );
+  assert.equal(source?.url, "https://stream.mux.com/playback-b.m3u8?max_resolution=720p");
 });
 
 test("does not expose a source before an authorized query returns a playback ID", () => {

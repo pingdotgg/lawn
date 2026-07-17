@@ -153,7 +153,6 @@ function useProjectPresenceViewport(
   const animationFrameRef = useRef<number | null>(null);
   const recomputeSelectionRef = useRef<() => void>(() => {});
   const refCallbacksByVideoIdRef = useRef(new Map<Id<"videos">, RefCallback<HTMLDivElement>>());
-  scopeKeyRef.current = scopeKey;
 
   const recomputeSelection = useCallback(() => {
     const currentScopeKey = scopeKeyRef.current;
@@ -177,7 +176,6 @@ function useProjectPresenceViewport(
         : { scopeKey: currentScopeKey, videoIds },
     );
   }, [rootElement]);
-  recomputeSelectionRef.current = recomputeSelection;
 
   const scheduleSelection = useCallback(() => {
     if (typeof window === "undefined" || animationFrameRef.current !== null) return;
@@ -186,6 +184,12 @@ function useProjectPresenceViewport(
       recomputeSelectionRef.current();
     });
   }, []);
+
+  useEffect(() => {
+    scopeKeyRef.current = scopeKey;
+    recomputeSelectionRef.current = recomputeSelection;
+    scheduleSelection();
+  }, [recomputeSelection, scheduleSelection, scopeKey]);
 
   useEffect(() => {
     nearbyVideoIdsRef.current.clear();
