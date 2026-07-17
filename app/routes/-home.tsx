@@ -1,26 +1,11 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@clerk/tanstack-react-start";
 import { Link } from "@tanstack/react-router";
 import { MarketingFooter } from "@/components/MarketingFooter";
-import { dashboardHomePath } from "@/lib/routes";
 
 function HomeNavActions({ scrolled }: { scrolled: boolean }) {
-  const { isLoaded, userId } = useAuth();
   const startClassName = `inline-flex min-w-[76px] justify-center px-4 py-2 border-2 transition-colors ${scrolled ? "border-[#1a1a1a] hover:bg-[#1a1a1a] hover:text-[#f0f0e8]" : "border-[#f0f0e8] hover:bg-[#f0f0e8] hover:text-[#1a1a1a]"}`;
 
-  if (!isLoaded) {
-    return (
-      <span className={`${startClassName} invisible`} aria-hidden="true">
-        Log in
-      </span>
-    );
-  }
-
-  return userId ? (
-    <Link to={dashboardHomePath()} className={startClassName}>
-      Start
-    </Link>
-  ) : (
+  return (
     <Link to="/sign-in" className={startClassName}>
       Log in
     </Link>
@@ -34,7 +19,8 @@ export default function Homepage() {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 

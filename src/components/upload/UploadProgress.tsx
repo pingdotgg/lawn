@@ -88,6 +88,8 @@ export function UploadProgress({
         </div>
       </div>
 
+      {status === "pending" && <p className="mt-2 text-xs text-[#888]">Queued for upload...</p>}
+
       {status === "uploading" && (
         <div className="mt-3 space-y-1.5">
           <Progress value={progress} />

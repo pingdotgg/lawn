@@ -1,88 +1,6 @@
-/* Fonts */
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=block");
-
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
-
-@font-face {
-  font-family: "Geist";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Regular.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Medium.woff2")
-    format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-SemiBold.woff2")
-    format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Bold.woff2")
-    format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-sans/Geist-Black.woff2")
-    format("woff2");
-  font-weight: 900;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Regular.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Medium.woff2")
-    format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Bold.woff2")
-    format("woff2");
-  font-weight: 700;
-  font-style: normal;
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Geist Mono";
-  src: url("https://cdn.jsdelivr.net/npm/geist@1.2.0/dist/fonts/geist-mono/GeistMono-Black.woff2")
-    format("woff2");
-  font-weight: 900;
-  font-style: normal;
-  font-display: block;
-}
 
 :root {
   /* Core palette - warm cream and dark */
@@ -202,9 +120,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, monospace;
-  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans: "Geist Variable", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-serif: Georgia, serif;
 }
 
 * {
@@ -218,7 +136,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Geist Mono", ui-monospace, monospace;
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -260,73 +178,6 @@ body {
 
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
-}
-
-/* Video.js customizations - keep dark for video player */
-.video-js {
-  font-family: inherit;
-  background-color: #000;
-}
-
-.video-js .vjs-big-play-button {
-  background-color: rgba(0, 0, 0, 0.7);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 0;
-  width: 72px;
-  height: 72px;
-  line-height: 72px;
-  margin-top: -36px;
-  margin-left: -36px;
-  transition: all 0.2s ease;
-}
-
-.video-js .vjs-big-play-button:hover {
-  background-color: var(--accent);
-  border-color: var(--accent);
-}
-
-.video-js .vjs-control-bar {
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.9));
-  height: 44px;
-  padding: 0 8px;
-}
-
-.video-js .vjs-progress-control {
-  position: absolute;
-  bottom: 44px;
-  left: 0;
-  right: 0;
-  width: 100%;
-  height: 12px;
-  padding: 0 12px;
-}
-
-.video-js .vjs-progress-holder {
-  height: 4px;
-  margin: 0;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.video-js .vjs-play-progress {
-  background-color: var(--accent-light);
-}
-
-.video-js .vjs-play-progress:before {
-  display: none;
-}
-
-.video-js .vjs-load-progress {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.video-js .vjs-slider:focus {
-  box-shadow: none;
-}
-
-.video-js .vjs-time-control {
-  font-family: "Geist Mono", monospace;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Animation keyframes */
@@ -445,11 +296,11 @@ body {
 
 /* Font utilities */
 .font-serif {
-  font-family: "Instrument Serif", Georgia, serif;
+  font-family: Georgia, serif;
 }
 
 .font-mono {
-  font-family: "Geist Mono", ui-monospace, monospace;
+  font-family: "Geist Mono Variable", ui-monospace, monospace;
 }
 
 /* Map legacy hardcoded utility tokens to theme vars so dark mode works app-wide */

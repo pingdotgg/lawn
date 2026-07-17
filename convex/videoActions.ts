@@ -221,14 +221,6 @@ function validatePartNumbersOrThrow(
   }
 }
 
-async function getVideoForUpload(ctx: ActionCtx, videoId: Id<"videos">): Promise<Doc<"videos">> {
-  const video = await ctx.runQuery(api.videos.getVideoForPlayback, { videoId });
-  if (!video) {
-    throw new Error("Video not found");
-  }
-  return video;
-}
-
 function canResumeMultipartUpload(
   video: {
     status: string;
@@ -267,11 +259,17 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
   );
 }
 
-async function requireVideoMemberAccess(ctx: ActionCtx, videoId: Id<"videos">) {
-  const video = (await ctx.runQuery(api.videos.get, { videoId })) as { role?: string } | null;
+async function requireVideoMemberAccess(
+  ctx: ActionCtx,
+  videoId: Id<"videos">,
+): Promise<Doc<"videos">> {
+  const video = (await ctx.runQuery(api.videos.get, { videoId })) as
+    | (Doc<"videos"> & { role?: string })
+    | null;
   if (!video || video.role === "viewer") {
     throw new Error("Requires member role or higher");
   }
+  return video;
 }
 
 async function deleteUploadedObject(key: string) {
@@ -414,12 +412,11 @@ export const initiateVideoUpload = action({
   },
   returns: initiateVideoUploadReturns,
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
     const normalizedContentType = validateUploadRequestOrThrow({
       fileSize: args.fileSize,
       contentType: args.contentType,
     });
-    const video = await getVideoForUpload(ctx, args.videoId);
     await ctx.runQuery(internal.videos.assertVideoUploadAllowed, {
       videoId: args.videoId,
       fileSize: args.fileSize,
@@ -546,8 +543,7 @@ export const signUploadParts = action({
     ),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
-    const video = await getVideoForUpload(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
 
     if (
       !video.s3Key ||
@@ -583,8 +579,7 @@ export const completeMultipartUpload = action({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
-    const video = await getVideoForUpload(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
 
     if (
       !video.s3Key ||
@@ -686,8 +681,7 @@ export const abortVideoUpload = action({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
-    const video = await getVideoForUpload(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
 
     try {
       if (video.s3Key && video.s3MultipartUploadId) {
@@ -765,11 +759,7 @@ export const markUploadComplete = action({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
-
-    const video = await ctx.runQuery(api.videos.getVideoForPlayback, {
-      videoId: args.videoId,
-    });
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
 
     if (!video || !video.s3Key) {
       throw new Error("Original bucket file not found for this video");
@@ -862,8 +852,7 @@ export const markUploadFailed = action({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
-    const video = await getVideoForUpload(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
 
     try {
       if (video.s3Key && video.s3MultipartUploadId) {

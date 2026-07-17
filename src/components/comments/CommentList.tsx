@@ -17,15 +17,20 @@ interface CommentListProps {
   canResolve?: boolean;
 }
 
-export function CommentList({
-  videoId,
-  comments: providedComments,
-  onTimestampClick,
-  highlightedCommentId,
-  canResolve = false,
-}: CommentListProps) {
-  const queriedComments = useQuery(api.comments.getThreaded, { videoId });
-  const comments = providedComments ?? queriedComments;
+export function CommentList(props: CommentListProps) {
+  const {
+    videoId,
+    comments: providedComments,
+    onTimestampClick,
+    highlightedCommentId,
+    canResolve = false,
+  } = props;
+  const hasProvidedComments = "comments" in props;
+  const queriedComments = useQuery(
+    api.comments.getThreaded,
+    hasProvidedComments ? "skip" : { videoId },
+  );
+  const comments = hasProvidedComments ? providedComments : queriedComments;
 
   if (comments === undefined) {
     return <div className="p-4 text-center text-[#888]">Loading...</div>;

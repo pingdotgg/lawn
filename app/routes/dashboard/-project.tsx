@@ -1,7 +1,15 @@
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+  type RefCallback,
+} from "react";
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
@@ -63,11 +71,254 @@ import { ExpandableTitle } from "@/components/ExpandableTitle";
 import { sortDashboardItems, type DashboardSort } from "@/lib/dashboardSort";
 
 type ViewMode = "grid" | "list";
+const PROJECT_PRESENCE_VIDEO_LIMIT = 40;
+const PROJECT_PRESENCE_ROOT_MARGIN_PX = 480;
+const PROJECT_THUMBNAIL_WIDTH_PX = 640;
+const EAGER_THUMBNAIL_COUNT = 5;
+
 type ShareToastState = {
   tone: "success" | "error";
   message: string;
   url?: string;
 };
+
+type ProjectPresenceCandidate = {
+  videoId: Id<"videos">;
+  top: number;
+  bottom: number;
+};
+
+type ProjectPresenceSelection = {
+  scopeKey?: string;
+  videoIds: Id<"videos">[];
+};
+
+function sameVideoIds(left: readonly Id<"videos">[], right: readonly Id<"videos">[]) {
+  return left.length === right.length && left.every((videoId, index) => videoId === right[index]);
+}
+
+export function selectProjectPresenceVideoIds(
+  candidates: readonly ProjectPresenceCandidate[],
+  viewport: { top: number; bottom: number },
+  limit = PROJECT_PRESENCE_VIDEO_LIMIT,
+) {
+  const nearestByVideoId = new Map<Id<"videos">, ProjectPresenceCandidate & { distance: number }>();
+
+  for (const candidate of candidates) {
+    if (!Number.isFinite(candidate.top) || !Number.isFinite(candidate.bottom)) continue;
+
+    const distance =
+      candidate.bottom < viewport.top
+        ? viewport.top - candidate.bottom
+        : candidate.top > viewport.bottom
+          ? candidate.top - viewport.bottom
+          : 0;
+    const previous = nearestByVideoId.get(candidate.videoId);
+    if (
+      !previous ||
+      distance < previous.distance ||
+      (distance === previous.distance && candidate.top < previous.top)
+    ) {
+      nearestByVideoId.set(candidate.videoId, { ...candidate, distance });
+    }
+  }
+
+  const selected = [...nearestByVideoId.values()]
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.top - right.top ||
+        String(left.videoId).localeCompare(String(right.videoId)),
+    )
+    .slice(0, Math.max(0, Math.floor(limit)))
+    .map(({ videoId }) => videoId);
+
+  // Convex query arguments are value-sensitive. Keep the same selected set in
+  // a canonical order so layout-only changes do not restart the subscription.
+  return selected.sort((left, right) => String(left).localeCompare(String(right)));
+}
+
+function useProjectPresenceViewport(
+  scopeKey: string | undefined,
+  trackedVideoIds: readonly Id<"videos">[],
+  layoutKey: string,
+) {
+  const [rootElement, setRootElement] = useState<HTMLDivElement | null>(null);
+  const [selection, setSelection] = useState<ProjectPresenceSelection>({ videoIds: [] });
+  const scopeKeyRef = useRef(scopeKey);
+  const nodesByVideoIdRef = useRef(new Map<Id<"videos">, HTMLDivElement>());
+  const videoIdsByNodeRef = useRef(new WeakMap<Element, Id<"videos">>());
+  const nearbyVideoIdsRef = useRef(new Set<Id<"videos">>());
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const recomputeSelectionRef = useRef<() => void>(() => {});
+  const refCallbacksByVideoIdRef = useRef(new Map<Id<"videos">, RefCallback<HTMLDivElement>>());
+  scopeKeyRef.current = scopeKey;
+
+  const recomputeSelection = useCallback(() => {
+    const currentScopeKey = scopeKeyRef.current;
+    const root = rootElement;
+    let videoIds: Id<"videos">[] = [];
+
+    if (currentScopeKey && root) {
+      const rootBounds = root.getBoundingClientRect();
+      const candidates = [...nearbyVideoIdsRef.current].flatMap((videoId) => {
+        const node = nodesByVideoIdRef.current.get(videoId);
+        if (!node?.isConnected) return [];
+        const bounds = node.getBoundingClientRect();
+        return [{ videoId, top: bounds.top, bottom: bounds.bottom }];
+      });
+      videoIds = selectProjectPresenceVideoIds(candidates, rootBounds);
+    }
+
+    setSelection((current) =>
+      current.scopeKey === currentScopeKey && sameVideoIds(current.videoIds, videoIds)
+        ? current
+        : { scopeKey: currentScopeKey, videoIds },
+    );
+  }, [rootElement]);
+  recomputeSelectionRef.current = recomputeSelection;
+
+  const scheduleSelection = useCallback(() => {
+    if (typeof window === "undefined" || animationFrameRef.current !== null) return;
+    animationFrameRef.current = window.requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      recomputeSelectionRef.current();
+    });
+  }, []);
+
+  useEffect(() => {
+    nearbyVideoIdsRef.current.clear();
+
+    if (!rootElement || !scopeKey || typeof IntersectionObserver === "undefined") {
+      scheduleSelection();
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const videoId = videoIdsByNodeRef.current.get(entry.target);
+          if (!videoId || nodesByVideoIdRef.current.get(videoId) !== entry.target) continue;
+
+          if (entry.isIntersecting) {
+            nearbyVideoIdsRef.current.add(videoId);
+          } else {
+            nearbyVideoIdsRef.current.delete(videoId);
+          }
+        }
+        scheduleSelection();
+      },
+      {
+        root: rootElement,
+        rootMargin: `${PROJECT_PRESENCE_ROOT_MARGIN_PX}px 0px`,
+      },
+    );
+    observerRef.current = observer;
+
+    for (const node of nodesByVideoIdRef.current.values()) {
+      observer.observe(node);
+    }
+
+    const handleViewportChange = () => scheduleSelection();
+    rootElement.addEventListener("scroll", handleViewportChange, { passive: true });
+    window.addEventListener("resize", handleViewportChange);
+
+    return () => {
+      rootElement.removeEventListener("scroll", handleViewportChange);
+      window.removeEventListener("resize", handleViewportChange);
+      observer.disconnect();
+      if (observerRef.current === observer) observerRef.current = null;
+      nearbyVideoIdsRef.current.clear();
+    };
+  }, [rootElement, scheduleSelection, scopeKey]);
+
+  useEffect(() => {
+    const tracked = new Set(trackedVideoIds);
+
+    for (const [videoId, node] of nodesByVideoIdRef.current) {
+      if (tracked.has(videoId)) continue;
+      observerRef.current?.unobserve(node);
+      nodesByVideoIdRef.current.delete(videoId);
+      nearbyVideoIdsRef.current.delete(videoId);
+    }
+    for (const videoId of refCallbacksByVideoIdRef.current.keys()) {
+      if (!tracked.has(videoId)) {
+        refCallbacksByVideoIdRef.current.delete(videoId);
+      }
+    }
+
+    scheduleSelection();
+  }, [scheduleSelection, trackedVideoIds]);
+
+  useEffect(() => {
+    scheduleSelection();
+  }, [layoutKey, scheduleSelection]);
+
+  useEffect(
+    () => () => {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+      observerRef.current?.disconnect();
+      nodesByVideoIdRef.current.clear();
+      nearbyVideoIdsRef.current.clear();
+      refCallbacksByVideoIdRef.current.clear();
+    },
+    [],
+  );
+
+  const getVideoPresenceRef = useCallback(
+    (videoId: Id<"videos">) => {
+      const existingCallback = refCallbacksByVideoIdRef.current.get(videoId);
+      if (existingCallback) return existingCallback;
+
+      const callback: RefCallback<HTMLDivElement> = (node) => {
+        const previousNode = nodesByVideoIdRef.current.get(videoId);
+        if (previousNode === node) return;
+
+        if (previousNode) {
+          observerRef.current?.unobserve(previousNode);
+          videoIdsByNodeRef.current.delete(previousNode);
+          nearbyVideoIdsRef.current.delete(videoId);
+        }
+
+        if (node) {
+          nodesByVideoIdRef.current.set(videoId, node);
+          videoIdsByNodeRef.current.set(node, videoId);
+          observerRef.current?.observe(node);
+        } else {
+          nodesByVideoIdRef.current.delete(videoId);
+        }
+        scheduleSelection();
+      };
+      refCallbacksByVideoIdRef.current.set(videoId, callback);
+      return callback;
+    },
+    [scheduleSelection],
+  );
+
+  return {
+    presenceRootRef: setRootElement,
+    getVideoPresenceRef,
+    presenceVideoIds: selection.scopeKey === scopeKey ? selection.videoIds : [],
+  };
+}
+
+export function getProjectThumbnailUrl(thumbnailUrl?: string) {
+  if (!thumbnailUrl?.startsWith("http")) return undefined;
+
+  try {
+    const url = new URL(thumbnailUrl);
+    if (url.hostname !== "image.mux.com") return thumbnailUrl;
+    if (url.searchParams.has("token")) return thumbnailUrl;
+
+    url.searchParams.set("width", String(PROJECT_THUMBNAIL_WIDTH_PX));
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
 
 type VideoIntentTargetProps = {
   className: string;
@@ -79,6 +330,7 @@ type VideoIntentTargetProps = {
   children: ReactNode;
   dragPayload: DragPayload;
   dragDisabled?: boolean;
+  presenceRef?: RefCallback<HTMLDivElement>;
 };
 
 function VideoIntentTarget({
@@ -91,6 +343,7 @@ function VideoIntentTarget({
   children,
   dragPayload,
   dragDisabled,
+  presenceRef,
 }: VideoIntentTargetProps) {
   const convex = useConvex();
   const prewarmIntentHandlers = useRoutePrewarmIntent(() => {
@@ -99,8 +352,8 @@ function VideoIntentTarget({
       projectId,
       videoId,
     });
-    prefetchHlsRuntime();
     if (muxPlaybackId) {
+      prefetchHlsRuntime();
       prefetchMuxPlaybackManifest(muxPlaybackId);
     }
   });
@@ -108,10 +361,17 @@ function VideoIntentTarget({
     payload: dragPayload,
     disabled: dragDisabled,
   });
+  const targetRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      dragRef.current = node;
+      presenceRef?.(node);
+    },
+    [dragRef, presenceRef],
+  );
 
   return (
     <div
-      ref={dragRef}
+      ref={targetRef}
       className={cn("relative", className, isDragging && "opacity-50")}
       onClick={onOpen}
       {...prewarmIntentHandlers}
@@ -141,6 +401,7 @@ export default function ProjectPage({
   const pathname = useLocation().pathname;
   const convex = useConvex();
   const [sort, setSort] = useState<DashboardSort>("last-uploaded");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   const {
     context,
@@ -154,9 +415,29 @@ export default function ProjectPage({
     childFolders,
     breadcrumb,
   } = useProjectData({ teamSlug, projectId, sort });
+  const presenceCandidateVideoIds = useMemo(
+    () => videos?.map((video) => video._id) ?? [],
+    [videos],
+  );
+  const presenceLayoutKey = useMemo(
+    () => `${viewMode}:${sort}:${presenceCandidateVideoIds.join(",")}`,
+    [presenceCandidateVideoIds, sort, viewMode],
+  );
+  const { presenceRootRef, getVideoPresenceRef, presenceVideoIds } = useProjectPresenceViewport(
+    resolvedProjectId,
+    presenceCandidateVideoIds,
+    presenceLayoutKey,
+  );
+  const presenceVideoIdSet = useMemo(() => new Set(presenceVideoIds), [presenceVideoIds]);
+  const thumbnailUrls = useMemo(
+    () => new Map(videos?.map((video) => [video._id, getProjectThumbnailUrl(video.thumbnailUrl)])),
+    [videos],
+  );
   const projectPresenceCounts = useQuery(
     api.videoPresence.listProjectOnlineCounts,
-    resolvedProjectId ? { projectId: resolvedProjectId } : "skip",
+    resolvedProjectId && presenceVideoIds.length > 0
+      ? { projectId: resolvedProjectId, videoIds: presenceVideoIds }
+      : "skip",
   );
   const { requestUpload } = useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.remove);
@@ -168,7 +449,6 @@ export default function ProjectPage({
   const teamId = context?.team?._id;
   const { moveFromDrop } = useMoveActions();
 
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [shareToast, setShareToast] = useState<ShareToastState | null>(null);
   const shareToastTimeoutRef = useRef<number | null>(null);
   const shareRequestEpochRef = useRef(createRequestEpoch());
@@ -478,7 +758,7 @@ export default function ProjectPage({
       </DashboardHeader>
 
       {/* Content */}
-      <div className="relative flex-1 overflow-auto">
+      <div ref={presenceRootRef} className="relative flex-1 overflow-auto">
         {videosSortPending && (
           <div
             className="pointer-events-none sticky top-2 z-20 mr-3 ml-auto h-0 w-fit"
@@ -541,13 +821,14 @@ export default function ProjectPage({
             )}
           >
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {videos?.map((video) => {
-                const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
-                  ? video.thumbnailUrl
-                  : undefined;
+              {videos?.map((video, index) => {
+                const thumbnailSrc = thumbnailUrls.get(video._id);
+                const shouldEagerLoadThumbnail = index < EAGER_THUMBNAIL_COUNT;
                 const canDownload =
                   Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
-                const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
+                const watchingCount = presenceVideoIdSet.has(video._id)
+                  ? projectPresenceCounts?.counts?.[video._id]
+                  : undefined;
                 const isVersionStack = video.versionNumber > 1;
 
                 return (
@@ -558,6 +839,7 @@ export default function ProjectPage({
                     projectId={activeProjectId}
                     videoId={video._id}
                     muxPlaybackId={video.muxPlaybackId}
+                    presenceRef={getVideoPresenceRef(video._id)}
                     dragDisabled={!canUpload || !teamId || !resolvedProjectId}
                     dragPayload={{
                       kind: "video",
@@ -585,6 +867,9 @@ export default function ProjectPage({
                           src={thumbnailSrc}
                           alt={video.title}
                           draggable={false}
+                          loading={shouldEagerLoadThumbnail ? "eager" : "lazy"}
+                          decoding="async"
+                          fetchPriority={index === 0 ? "high" : "auto"}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -701,7 +986,7 @@ export default function ProjectPage({
                             {video.commentCountIsCapped ? "+" : ""}
                           </span>
                         )}
-                        {watchingCount > 0 && (
+                        {watchingCount !== undefined && watchingCount > 0 && (
                           <span className="inline-flex items-center gap-1 text-[11px] text-[#1a1a1a]">
                             <Eye className="h-3 w-3" />
                             {watchingCount}
@@ -725,13 +1010,14 @@ export default function ProjectPage({
               isLoadingData ? "opacity-0" : "opacity-100",
             )}
           >
-            {videos?.map((video) => {
-              const thumbnailSrc = video.thumbnailUrl?.startsWith("http")
-                ? video.thumbnailUrl
-                : undefined;
+            {videos?.map((video, index) => {
+              const thumbnailSrc = thumbnailUrls.get(video._id);
+              const shouldEagerLoadThumbnail = index < EAGER_THUMBNAIL_COUNT;
               const canDownload =
                 Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
-              const watchingCount = projectPresenceCounts?.counts?.[video._id] ?? 0;
+              const watchingCount = presenceVideoIdSet.has(video._id)
+                ? projectPresenceCounts?.counts?.[video._id]
+                : undefined;
               const isVersionStack = video.versionNumber > 1;
 
               return (
@@ -742,6 +1028,7 @@ export default function ProjectPage({
                   projectId={activeProjectId}
                   videoId={video._id}
                   muxPlaybackId={video.muxPlaybackId}
+                  presenceRef={getVideoPresenceRef(video._id)}
                   dragDisabled={!canUpload || !teamId || !resolvedProjectId}
                   dragPayload={{
                     kind: "video",
@@ -770,6 +1057,9 @@ export default function ProjectPage({
                         src={thumbnailSrc}
                         alt={video.title}
                         draggable={false}
+                        loading={shouldEagerLoadThumbnail ? "eager" : "lazy"}
+                        decoding="async"
+                        fetchPriority={index === 0 ? "high" : "auto"}
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -820,7 +1110,7 @@ export default function ProjectPage({
                           {video.commentCountIsCapped ? "+" : ""}
                         </span>
                       )}
-                      {watchingCount > 0 && (
+                      {watchingCount !== undefined && watchingCount > 0 && (
                         <span className="inline-flex items-center gap-1 text-xs text-[#1a1a1a]">
                           <Eye className="h-3.5 w-3.5" />
                           {watchingCount}

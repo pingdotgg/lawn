@@ -31,7 +31,22 @@ import {
   X,
 } from "lucide-react";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
+import {
+  prefetchHlsRuntime,
+  selectMuxPlaybackSource,
+  type MuxPlaybackRecovery,
+} from "@/lib/muxPlayback";
 import { useWatchData } from "./-watch.data";
+
+type PlaybackRecoveryRequest = {
+  scopeKey: string;
+  playbackId: string;
+  revision: number;
+};
+
+type PlaybackRecoveryError = PlaybackRecoveryRequest & {
+  message: string;
+};
 
 export default function WatchPage() {
   const params = useParams({ strict: false });
@@ -44,12 +59,11 @@ export default function WatchPage() {
   const getDownloadUrl = useAction(api.videoActions.getPublicDownloadUrl);
 
   const { videoData, versions, comments } = useWatchData({ publicId });
-  const [playbackSession, setPlaybackSession] = useState<{
-    url: string;
-    posterUrl: string;
-  } | null>(null);
-  const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [playbackRecovery, setPlaybackRecovery] = useState<MuxPlaybackRecovery | null>(null);
+  const [playbackRequest, setPlaybackRequest] = useState<PlaybackRecoveryRequest | null>(null);
+  const [playbackRecoveryError, setPlaybackRecoveryError] = useState<PlaybackRecoveryError | null>(
+    null,
+  );
   const [currentTime, setCurrentTime] = useState(0);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -59,35 +73,94 @@ export default function WatchPage() {
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+  const muxPlaybackId = videoData?.video?.muxPlaybackId ?? null;
+  const playbackSource = selectMuxPlaybackSource({
+    scopeKey: publicId,
+    playbackId: muxPlaybackId,
+    recovery: playbackRecovery,
+  });
+  const activePlaybackRequest =
+    playbackRequest?.scopeKey === publicId && playbackRequest.playbackId === muxPlaybackId
+      ? playbackRequest
+      : null;
+  const activePlaybackError =
+    playbackRecoveryError?.scopeKey === publicId &&
+    playbackRecoveryError.playbackId === muxPlaybackId
+      ? playbackRecoveryError.message
+      : null;
+  const isLoadingPlayback = activePlaybackRequest !== null;
 
   useEffect(() => {
-    if (!videoData?.video?.muxPlaybackId) {
-      setPlaybackSession(null);
+    if (!muxPlaybackId) return;
+    prefetchHlsRuntime();
+  }, [muxPlaybackId]);
+
+  const requestPlaybackRecovery = useCallback(() => {
+    if (!muxPlaybackId) return;
+    setPlaybackRecoveryError(null);
+    setPlaybackRequest((request) => {
+      if (request?.scopeKey === publicId && request.playbackId === muxPlaybackId) {
+        return request;
+      }
+      return {
+        scopeKey: publicId,
+        playbackId: muxPlaybackId,
+        revision: (playbackSource?.revision ?? 0) + 1,
+      };
+    });
+  }, [muxPlaybackId, playbackSource?.revision, publicId]);
+
+  const handlePlaybackIssue = useCallback(() => {
+    if (!muxPlaybackId || !playbackSource || activePlaybackRequest) return;
+    if (playbackSource.revision > 0) {
+      setPlaybackRecoveryError({
+        scopeKey: publicId,
+        playbackId: muxPlaybackId,
+        revision: playbackSource.revision,
+        message: "Unable to load the stream.",
+      });
       return;
     }
+    requestPlaybackRecovery();
+  }, [activePlaybackRequest, muxPlaybackId, playbackSource, publicId, requestPlaybackRecovery]);
+
+  useEffect(() => {
+    if (!activePlaybackRequest) return;
 
     let cancelled = false;
-    setIsLoadingPlayback(true);
-    setPlaybackError(null);
+    const request = activePlaybackRequest;
 
     void getPlaybackSession({ publicId })
       .then((session) => {
         if (cancelled) return;
-        setPlaybackSession(session);
+        setPlaybackRecovery({
+          ...request,
+          ...session,
+        });
+        setPlaybackRecoveryError(null);
       })
       .catch(() => {
         if (cancelled) return;
-        setPlaybackError("Unable to load playback session.");
+        setPlaybackRecoveryError({
+          ...request,
+          message: "Unable to load playback session.",
+        });
       })
       .finally(() => {
         if (cancelled) return;
-        setIsLoadingPlayback(false);
+        setPlaybackRequest((current) =>
+          current?.scopeKey === request.scopeKey &&
+          current.playbackId === request.playbackId &&
+          current.revision === request.revision
+            ? null
+            : current,
+        );
       });
 
     return () => {
       cancelled = true;
     };
-  }, [getPlaybackSession, publicId, videoData?.video?.muxPlaybackId]);
+  }, [activePlaybackRequest, getPlaybackSession, publicId]);
 
   useEffect(() => {
     setIsDownloading(false);
@@ -321,22 +394,40 @@ export default function WatchPage() {
             </div>
           ) : null}
 
-          {playbackSession?.url ? (
-            <VideoPlayer
-              ref={playerRef}
-              src={playbackSession.url}
-              poster={playbackSession.posterUrl}
-              comments={flattenedComments}
-              onTimeUpdate={setCurrentTime}
-              allowDownload={false}
-              controlsBelow
-            />
+          {playbackSource ? (
+            <>
+              {isLoadingPlayback || activePlaybackError ? (
+                <div
+                  className="flex flex-shrink-0 items-center justify-between gap-3 bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span>{isLoadingPlayback ? "Repairing playback…" : activePlaybackError}</span>
+                  {activePlaybackError && !isLoadingPlayback ? (
+                    <Button variant="outline" size="sm" onClick={requestPlaybackRecovery}>
+                      Retry
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              <VideoPlayer
+                ref={playerRef}
+                src={playbackSource.url}
+                sourceRevision={playbackSource.revision}
+                poster={playbackSource.posterUrl}
+                comments={flattenedComments}
+                onTimeUpdate={setCurrentTime}
+                onPlaybackIssue={handlePlaybackIssue}
+                allowDownload={false}
+                controlsBelow
+              />
+            </>
           ) : (
             <div className="flex flex-1 items-center justify-center">
               <div className="flex flex-col items-center gap-3 text-white">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
                 <p className="text-sm font-medium text-white/85">
-                  {playbackError ??
+                  {activePlaybackError ??
                     (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
                 </p>
               </div>

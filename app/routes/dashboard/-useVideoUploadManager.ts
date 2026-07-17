@@ -1,5 +1,5 @@
 import { useAction, useMutation } from "convex/react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import type { UploadStatus } from "@/components/upload/UploadProgress";
@@ -11,7 +11,15 @@ import {
   type UploadCreationIntent,
   uploadCreationIntentsMatch,
 } from "@/lib/uploadResumeDb";
-import { isProcessingRetryError, isResumableUploadError, uploadVideoFile } from "@/lib/videoUpload";
+import {
+  createAsyncTaskQueue,
+  isProcessingRetryError,
+  isResumableUploadError,
+  uploadVideoFile,
+} from "@/lib/videoUpload";
+
+// Multipart uploads already use four parallel part PUTs, so two files bound the browser at eight.
+const UPLOAD_FILE_CONCURRENCY = 2;
 
 export interface ManagedUploadItem {
   id: string;
@@ -40,6 +48,26 @@ function isMissingVideoError(error: unknown) {
   return error instanceof Error && error.message.includes("Video not found");
 }
 
+function createQueuedUpload(
+  projectId: Id<"projects">,
+  file: File,
+  creationIntent: UploadCreationIntent,
+) {
+  const tooLarge = isFileTooLarge(file.size);
+  return {
+    id: createUploadId(),
+    projectId,
+    creationIntent,
+    file,
+    progress: 0,
+    status: tooLarge ? ("error" as const) : ("pending" as const),
+    error: tooLarge
+      ? `Video file is too large. Maximum size is ${formatMaxUploadSize()}.`
+      : undefined,
+    abortController: new AbortController(),
+  } satisfies ManagedUploadItem;
+}
+
 export function useVideoUploadManager() {
   const createVideo = useMutation(api.videos.create);
   const createVersion = useMutation(api.videos.createVersion);
@@ -50,48 +78,74 @@ export function useVideoUploadManager() {
   const markUploadFailed = useAction(api.videoActions.markUploadFailed);
   const abortVideoUpload = useAction(api.videoActions.abortVideoUpload);
   const [uploads, setUploads] = useState<ManagedUploadItem[]>([]);
+  const uploadsRef = useRef<ManagedUploadItem[]>([]);
+  const claimedResumeVideoIdsRef = useRef(new Set<Id<"videos">>());
+  const uploadQueueRef = useRef<ReturnType<typeof createAsyncTaskQueue> | null>(null);
+  uploadQueueRef.current ??= createAsyncTaskQueue(UPLOAD_FILE_CONCURRENCY);
+  const uploadQueue = uploadQueueRef.current;
 
-  const uploadFile = useCallback(
-    async (projectId: Id<"projects">, file: File, creationIntent: UploadCreationIntent) => {
-      const uploadId = createUploadId();
-      const abortController = new AbortController();
+  const updateUploads = useCallback(
+    (updater: (currentUploads: ManagedUploadItem[]) => ManagedUploadItem[]) => {
+      setUploads((currentUploads) => {
+        const nextUploads = updater(currentUploads);
+        uploadsRef.current = nextUploads;
+        return nextUploads;
+      });
+    },
+    [],
+  );
 
-      if (isFileTooLarge(file.size)) {
-        setUploads((prev) => [
-          ...prev,
-          {
-            id: uploadId,
-            projectId,
-            creationIntent,
-            file,
-            progress: 0,
-            status: "error",
-            error: `Video file is too large. Maximum size is ${formatMaxUploadSize()}.`,
-            abortController,
-          },
-        ]);
-        return;
+  const processUpload = useCallback(
+    async (queuedUpload: ManagedUploadItem) => {
+      const { id: uploadId, file, creationIntent, abortController } = queuedUpload;
+      if (!abortController || abortController.signal.aborted || queuedUpload.status === "error") {
+        return undefined;
       }
 
-      const fingerprint = await buildFileFingerprint(file);
-      const existingResume = await findUploadResumeSessionByFingerprint(
-        fingerprint,
-        creationIntent,
-      );
+      const preparedUpload = await (async () => {
+        const fingerprint = await buildFileFingerprint(file);
+        if (abortController.signal.aborted) throw new Error("Upload cancelled");
 
-      setUploads((prev) => [
-        ...prev,
-        {
-          id: uploadId,
-          projectId,
+        const resumeCandidate = await findUploadResumeSessionByFingerprint(
+          fingerprint,
           creationIntent,
-          file,
-          progress: 0,
-          status: "pending",
-          abortController,
-          resuming: Boolean(existingResume),
-        },
-      ]);
+        );
+        if (abortController.signal.aborted) throw new Error("Upload cancelled");
+
+        const existingResume =
+          resumeCandidate && !claimedResumeVideoIdsRef.current.has(resumeCandidate.videoId)
+            ? resumeCandidate
+            : undefined;
+        if (existingResume) {
+          claimedResumeVideoIdsRef.current.add(existingResume.videoId);
+        }
+        return { fingerprint, existingResume };
+      })().catch((error) => {
+        if (abortController.signal.aborted) {
+          updateUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+        } else {
+          updateUploads((prev) =>
+            prev.map((upload) =>
+              upload.id === uploadId
+                ? {
+                    ...upload,
+                    status: "error",
+                    error: error instanceof Error ? error.message : "Upload failed",
+                  }
+                : upload,
+            ),
+          );
+        }
+        return undefined;
+      });
+      if (!preparedUpload) return undefined;
+      const { fingerprint, existingResume } = preparedUpload;
+
+      updateUploads((prev) =>
+        prev.map((upload) =>
+          upload.id === uploadId ? { ...upload, resuming: Boolean(existingResume) } : upload,
+        ),
+      );
 
       const createVideoForIntent = async () => {
         if (creationIntent.kind === "version") {
@@ -117,6 +171,9 @@ export function useVideoUploadManager() {
         if (!createdVideoId) {
           createdVideoId = await createVideoForIntent();
         }
+        if (abortController.signal.aborted) {
+          throw new Error("Upload cancelled");
+        }
 
         const loadedResume = await loadUploadResumeSession(createdVideoId);
         let resumeSession =
@@ -128,7 +185,7 @@ export function useVideoUploadManager() {
         }
 
         const runUpload = async (videoId: Id<"videos">, currentResume: typeof resumeSession) => {
-          setUploads((prev) =>
+          updateUploads((prev) =>
             prev.map((upload) =>
               upload.id === uploadId
                 ? {
@@ -155,12 +212,12 @@ export function useVideoUploadManager() {
             resumeSession: currentResume,
             fileFingerprint: fingerprint,
             onResumingChange: (resuming) => {
-              setUploads((prev) =>
+              updateUploads((prev) =>
                 prev.map((upload) => (upload.id === uploadId ? { ...upload, resuming } : upload)),
               );
             },
             onProgress: (update) => {
-              setUploads((prev) =>
+              updateUploads((prev) =>
                 prev.map((upload) =>
                   upload.id === uploadId
                     ? {
@@ -174,7 +231,7 @@ export function useVideoUploadManager() {
               );
             },
             onProcessing: () => {
-              setUploads((prev) =>
+              updateUploads((prev) =>
                 prev.map((upload) =>
                   upload.id === uploadId
                     ? {
@@ -208,7 +265,7 @@ export function useVideoUploadManager() {
           await runUpload(createdVideoId, resumeSession);
         }
 
-        setUploads((prev) =>
+        updateUploads((prev) =>
           prev.map((upload) =>
             upload.id === uploadId
               ? { ...upload, status: "complete", progress: 100, resuming: false }
@@ -218,7 +275,7 @@ export function useVideoUploadManager() {
 
         setTimeout(
           () => {
-            setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+            updateUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
           },
           creationIntent.kind === "version" ? 10_000 : 3000,
         );
@@ -230,7 +287,7 @@ export function useVideoUploadManager() {
         const resumable = isResumableUploadError(error);
         const canRetryProcessing = isProcessingRetryError(error);
 
-        setUploads((prev) =>
+        updateUploads((prev) =>
           prev.map((upload) =>
             upload.id === uploadId
               ? {
@@ -245,7 +302,11 @@ export function useVideoUploadManager() {
 
         if (cancelled) {
           if (createdVideoId) {
-            await deleteUploadResumeSession(createdVideoId);
+            try {
+              await deleteUploadResumeSession(createdVideoId);
+            } catch (cleanupError) {
+              console.error(cleanupError);
+            }
             try {
               await abortVideoUpload({ videoId: createdVideoId });
             } catch (cleanupError) {
@@ -254,9 +315,13 @@ export function useVideoUploadManager() {
               }
             }
           }
-          setUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
+          updateUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
         } else if (createdVideoId && !resumable && !canRetryProcessing) {
-          await deleteUploadResumeSession(createdVideoId);
+          try {
+            await deleteUploadResumeSession(createdVideoId);
+          } catch (cleanupError) {
+            console.error(cleanupError);
+          }
           try {
             await markUploadFailed({ videoId: createdVideoId });
           } catch (cleanupError) {
@@ -265,8 +330,11 @@ export function useVideoUploadManager() {
             }
           }
         }
-
         return undefined;
+      } finally {
+        if (existingResume) {
+          claimedResumeVideoIdsRef.current.delete(existingResume.videoId);
+        }
       }
     },
     [
@@ -278,16 +346,26 @@ export function useVideoUploadManager() {
       markUploadComplete,
       markUploadFailed,
       abortVideoUpload,
+      updateUploads,
     ],
   );
 
   const uploadFilesToProject = useCallback(
     async (projectId: Id<"projects">, files: File[]) => {
-      for (const file of files) {
-        await uploadFile(projectId, file, { kind: "standalone", projectId });
-      }
+      const queuedUploads = files.map((file) =>
+        createQueuedUpload(projectId, file, { kind: "standalone", projectId }),
+      );
+
+      updateUploads((prev) => [...prev, ...queuedUploads]);
+      await Promise.all(
+        queuedUploads.map((upload) =>
+          upload.status === "error"
+            ? Promise.resolve(undefined)
+            : uploadQueue.add(() => processUpload(upload)),
+        ),
+      );
     },
-    [uploadFile],
+    [processUpload, updateUploads, uploadQueue],
   );
 
   const uploadNewVersion = useCallback(
@@ -297,18 +375,22 @@ export function useVideoUploadManager() {
       projectId: Id<"projects">,
       file: File,
     ) => {
-      return await uploadFile(projectId, file, {
-        kind: "version",
+      const queuedUpload = createQueuedUpload(projectId, file, {
+        kind: "version" as const,
         sourceVideoId,
         versionStackId,
       });
+
+      updateUploads((prev) => [...prev, queuedUpload]);
+      if (queuedUpload.status === "error") return undefined;
+      return await uploadQueue.add(() => processUpload(queuedUpload));
     },
-    [uploadFile],
+    [processUpload, updateUploads, uploadQueue],
   );
 
   const cancelUpload = useCallback(
     (uploadId: string) => {
-      const upload = uploads.find((item) => item.id === uploadId);
+      const upload = uploadsRef.current.find((item) => item.id === uploadId);
       if (upload?.abortController) {
         upload.abortController.abort();
       }
@@ -320,17 +402,17 @@ export function useVideoUploadManager() {
         });
         deleteUploadResumeSession(upload.videoId).catch(console.error);
       }
-      setUploads((prev) => prev.filter((item) => item.id !== uploadId));
+      updateUploads((prev) => prev.filter((item) => item.id !== uploadId));
     },
-    [uploads, abortVideoUpload],
+    [abortVideoUpload, updateUploads],
   );
 
   const retryProcessing = useCallback(
     async (uploadId: string) => {
-      const upload = uploads.find((item) => item.id === uploadId);
+      const upload = uploadsRef.current.find((item) => item.id === uploadId);
       if (!upload?.videoId || !upload.canRetryProcessing) return;
 
-      setUploads((prev) =>
+      updateUploads((prev) =>
         prev.map((item) =>
           item.id === uploadId
             ? {
@@ -346,7 +428,7 @@ export function useVideoUploadManager() {
       try {
         await markUploadComplete({ videoId: upload.videoId });
         await deleteUploadResumeSession(upload.videoId);
-        setUploads((prev) =>
+        updateUploads((prev) =>
           prev.map((item) =>
             item.id === uploadId
               ? { ...item, status: "complete", progress: 100, resuming: false }
@@ -355,7 +437,7 @@ export function useVideoUploadManager() {
         );
         setTimeout(
           () => {
-            setUploads((prev) => prev.filter((item) => item.id !== uploadId));
+            updateUploads((prev) => prev.filter((item) => item.id !== uploadId));
           },
           upload.creationIntent.kind === "version" ? 10_000 : 3000,
         );
@@ -365,7 +447,7 @@ export function useVideoUploadManager() {
         if (!canRetryProcessing) {
           await deleteUploadResumeSession(upload.videoId);
         }
-        setUploads((prev) =>
+        updateUploads((prev) =>
           prev.map((item) =>
             item.id === uploadId
               ? {
@@ -379,7 +461,7 @@ export function useVideoUploadManager() {
         );
       }
     },
-    [uploads, markUploadComplete],
+    [markUploadComplete, updateUploads],
   );
 
   return {

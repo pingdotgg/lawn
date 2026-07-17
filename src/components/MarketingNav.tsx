@@ -1,21 +1,8 @@
-import { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 
 export function MarketingNav() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   return (
-    <nav
-      className={`fixed top-0 z-50 flex w-full items-center justify-between px-6 py-4 transition-all duration-200 ${scrolled ? "border-b-2 border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a]" : "border-b-2 border-[#1a1a1a] bg-[#f0f0e8] text-[#1a1a1a]"}`}
-    >
+    <nav className="fixed top-0 z-50 flex w-full items-center justify-between border-b-2 border-[#1a1a1a] bg-[#f0f0e8] px-6 py-4 text-[#1a1a1a] transition-all duration-200">
       <div className="flex items-center gap-4">
         <Link to="/" className="text-xl font-black tracking-tighter">
           lawn.

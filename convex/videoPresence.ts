@@ -7,6 +7,7 @@ import { findShareLinkByToken } from "./shareAccess";
 
 const presence = new Presence(components.presence);
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000;
+const MAX_PROJECT_PRESENCE_VIDEOS = 40;
 
 const watcherDataValidator = v.object({
   kind: v.union(v.literal("member"), v.literal("guest")),
@@ -200,6 +201,7 @@ export const disconnect = mutation({
 export const listProjectOnlineCounts = query({
   args: {
     projectId: v.id("projects"),
+    videoIds: v.array(v.id("videos")),
   },
   returns: v.object({
     counts: v.record(v.string(), v.number()),
@@ -207,19 +209,29 @@ export const listProjectOnlineCounts = query({
   handler: async (ctx, args) => {
     await requireProjectAccess(ctx, args.projectId, "viewer");
 
-    const videos = await ctx.db
-      .query("videos")
-      .withIndex("by_project_and_superseded_by_video_id", (q) =>
-        q.eq("projectId", args.projectId).eq("supersededByVideoId", undefined),
-      )
-      .collect();
+    if (args.videoIds.length > MAX_PROJECT_PRESENCE_VIDEOS) {
+      throw new ConvexError({
+        code: "BAD_REQUEST",
+        message: `Presence counts are limited to ${MAX_PROJECT_PRESENCE_VIDEOS} videos.`,
+      });
+    }
+
+    const videoIds = [...new Set(args.videoIds)];
+    const videos = await Promise.all(videoIds.map((videoId) => ctx.db.get(videoId)));
+
+    if (videos.some((video) => !video || video.projectId !== args.projectId)) {
+      throw new ConvexError({
+        code: "FORBIDDEN",
+        message: "One or more videos are not available in this project.",
+      });
+    }
 
     const counts: Record<string, number> = {};
 
     await Promise.all(
-      videos.map(async (video) => {
-        const onlineUsers = await presence.listRoom(ctx, roomIdForVideo(video._id), true);
-        counts[video._id] = onlineUsers.length;
+      videoIds.map(async (videoId) => {
+        const onlineUsers = await presence.listRoom(ctx, roomIdForVideo(videoId), true);
+        counts[videoId] = onlineUsers.length;
       }),
     );
 

@@ -14,7 +14,27 @@ import { useVideoPresence } from "@/lib/useVideoPresence";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
 import { CommentText } from "@/components/comments/CommentText";
 import { Lock, Video, AlertCircle, MessageSquare, Clock, Download } from "lucide-react";
+import {
+  prefetchHlsRuntime,
+  selectMuxPlaybackSource,
+  type MuxPlaybackRecovery,
+} from "@/lib/muxPlayback";
 import { useShareData } from "./-share.data";
+
+type PlaybackRecoveryRequest = {
+  scopeKey: string;
+  playbackId: string;
+  revision: number;
+};
+
+type PlaybackRecoveryError = PlaybackRecoveryRequest & {
+  message: string;
+};
+
+type GrantRequest = {
+  shareToken: string;
+  requestId: number;
+};
 
 export default function SharePage() {
   const params = useParams({ strict: false });
@@ -26,17 +46,20 @@ export default function SharePage() {
   const getPlaybackSession = useAction(api.videoActions.getSharedPlaybackSession);
   const getDownloadUrl = useAction(api.videoActions.getSharedDownloadUrl);
 
-  const [grantToken, setGrantToken] = useState<string | null>(null);
+  const [accessGrant, setAccessGrant] = useState<{
+    shareToken: string;
+    grantToken: string;
+  } | null>(null);
+  const grantToken = accessGrant?.shareToken === token ? accessGrant.grantToken : null;
   const [hasAttemptedAutoGrant, setHasAttemptedAutoGrant] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState(false);
-  const [isRequestingGrant, setIsRequestingGrant] = useState(false);
-  const [playbackSession, setPlaybackSession] = useState<{
-    url: string;
-    posterUrl: string;
-  } | null>(null);
-  const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [grantRequest, setGrantRequest] = useState<GrantRequest | null>(null);
+  const [playbackRecovery, setPlaybackRecovery] = useState<MuxPlaybackRecovery | null>(null);
+  const [playbackRequest, setPlaybackRequest] = useState<PlaybackRecoveryRequest | null>(null);
+  const [playbackRecoveryError, setPlaybackRecoveryError] = useState<PlaybackRecoveryError | null>(
+    null,
+  );
   const [currentTime, setCurrentTime] = useState(0);
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -44,6 +67,9 @@ export default function SharePage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
+  const grantRequestIdRef = useRef(0);
+  const activeGrantRequestRef = useRef<GrantRequest | null>(null);
+  const isRequestingGrant = grantRequest?.shareToken === token;
 
   useEffect(() => {
     setIsDownloading(false);
@@ -51,7 +77,22 @@ export default function SharePage() {
   }, [token]);
 
   const { shareInfo, videoData, comments } = useShareData({ token, grantToken });
-  const canTrackPresence = Boolean(playbackSession?.url && videoData?.video?._id);
+  const muxPlaybackId = grantToken ? (videoData?.video?.muxPlaybackId ?? null) : null;
+  const playbackSource = selectMuxPlaybackSource({
+    scopeKey: token,
+    playbackId: muxPlaybackId,
+    recovery: playbackRecovery,
+  });
+  const activePlaybackRequest =
+    playbackRequest?.scopeKey === token && playbackRequest.playbackId === muxPlaybackId
+      ? playbackRequest
+      : null;
+  const activePlaybackError =
+    playbackRecoveryError?.scopeKey === token && playbackRecoveryError.playbackId === muxPlaybackId
+      ? playbackRecoveryError.message
+      : null;
+  const isLoadingPlayback = activePlaybackRequest !== null;
+  const canTrackPresence = Boolean(playbackSource && videoData?.video?._id);
   const { watchers } = useVideoPresence({
     videoId: videoData?.video?._id,
     enabled: canTrackPresence,
@@ -59,72 +100,138 @@ export default function SharePage() {
   });
 
   useEffect(() => {
-    setGrantToken(null);
+    if (!muxPlaybackId) return;
+    prefetchHlsRuntime();
+  }, [muxPlaybackId]);
+
+  useEffect(() => {
+    grantRequestIdRef.current += 1;
+    activeGrantRequestRef.current = null;
+    setGrantRequest(null);
+    setAccessGrant(null);
     setHasAttemptedAutoGrant(false);
+    setPasswordInput("");
+    setPasswordError(false);
   }, [token]);
 
   const acquireGrant = useCallback(
-    async (password?: string) => {
-      if (isRequestingGrant) return;
-      setIsRequestingGrant(true);
+    (password?: string) => {
+      if (activeGrantRequestRef.current?.shareToken === token) return null;
+
+      const request = {
+        shareToken: token,
+        requestId: ++grantRequestIdRef.current,
+      };
+      activeGrantRequestRef.current = request;
+      setGrantRequest(request);
       setPasswordError(false);
 
-      try {
-        const result = await issueAccessGrant({ token, password });
-        if (result.ok && result.grantToken) {
-          setGrantToken(result.grantToken);
-          return true;
-        }
+      const isCurrentRequest = () =>
+        activeGrantRequestRef.current?.requestId === request.requestId &&
+        activeGrantRequestRef.current.shareToken === request.shareToken;
 
-        setPasswordError(Boolean(password));
-        return false;
-      } catch {
-        setPasswordError(Boolean(password));
-        return false;
-      } finally {
-        setIsRequestingGrant(false);
-      }
+      return issueAccessGrant({ token, password })
+        .then((result) => {
+          if (!isCurrentRequest()) return false;
+          if (result.ok && result.grantToken) {
+            setAccessGrant({ shareToken: token, grantToken: result.grantToken });
+            return true;
+          }
+
+          setPasswordError(Boolean(password));
+          return false;
+        })
+        .catch(() => {
+          if (isCurrentRequest()) {
+            setPasswordError(Boolean(password));
+          }
+          return false;
+        })
+        .finally(() => {
+          if (!isCurrentRequest()) return;
+          activeGrantRequestRef.current = null;
+          setGrantRequest(null);
+        });
     },
-    [isRequestingGrant, issueAccessGrant, token],
+    [issueAccessGrant, token],
   );
 
   useEffect(() => {
     if (!shareInfo || grantToken) return;
     if (shareInfo.status !== "ok" || hasAttemptedAutoGrant) return;
 
+    const request = acquireGrant();
+    if (!request) return;
     setHasAttemptedAutoGrant(true);
-    void acquireGrant();
+    void request;
   }, [acquireGrant, grantToken, hasAttemptedAutoGrant, shareInfo]);
 
-  useEffect(() => {
-    if (!grantToken) {
-      setPlaybackSession(null);
-      setPlaybackError(null);
+  const requestPlaybackRecovery = useCallback(() => {
+    if (!grantToken || !muxPlaybackId) return;
+    setPlaybackRecoveryError(null);
+    setPlaybackRequest((request) => {
+      if (request?.scopeKey === token && request.playbackId === muxPlaybackId) {
+        return request;
+      }
+      return {
+        scopeKey: token,
+        playbackId: muxPlaybackId,
+        revision: (playbackSource?.revision ?? 0) + 1,
+      };
+    });
+  }, [grantToken, muxPlaybackId, playbackSource?.revision, token]);
+
+  const handlePlaybackIssue = useCallback(() => {
+    if (!muxPlaybackId || !playbackSource || activePlaybackRequest) return;
+    if (playbackSource.revision > 0) {
+      setPlaybackRecoveryError({
+        scopeKey: token,
+        playbackId: muxPlaybackId,
+        revision: playbackSource.revision,
+        message: "Unable to load the stream.",
+      });
       return;
     }
+    requestPlaybackRecovery();
+  }, [activePlaybackRequest, muxPlaybackId, playbackSource, requestPlaybackRecovery, token]);
+
+  useEffect(() => {
+    if (!grantToken || !activePlaybackRequest) return;
 
     let cancelled = false;
-    setIsLoadingPlayback(true);
-    setPlaybackError(null);
+    const request = activePlaybackRequest;
 
     void getPlaybackSession({ grantToken })
       .then((session) => {
         if (cancelled) return;
-        setPlaybackSession(session);
+        setPlaybackRecovery({
+          ...request,
+          ...session,
+        });
+        setPlaybackRecoveryError(null);
       })
       .catch(() => {
         if (cancelled) return;
-        setPlaybackError("Unable to load playback session.");
+        setPlaybackRecoveryError({
+          ...request,
+          message: "Unable to load playback session.",
+        });
       })
       .finally(() => {
         if (cancelled) return;
-        setIsLoadingPlayback(false);
+        setPlaybackRequest((current) =>
+          current?.scopeKey === request.scopeKey &&
+          current.playbackId === request.playbackId &&
+          current.revision === request.revision
+            ? null
+            : current,
+        );
       });
 
     return () => {
       cancelled = true;
     };
-  }, [getPlaybackSession, grantToken]);
+  }, [activePlaybackRequest, getPlaybackSession, grantToken]);
 
   const flattenedComments = useMemo(() => {
     if (!comments) return [] as Array<{ _id: string; timestampSeconds: number; resolved: boolean }>;
@@ -329,20 +436,38 @@ export default function SharePage() {
         </div>
 
         <div className="overflow-hidden border-2 border-[#1a1a1a]">
-          {playbackSession?.url ? (
-            <VideoPlayer
-              ref={playerRef}
-              src={playbackSession.url}
-              poster={playbackSession.posterUrl}
-              comments={flattenedComments}
-              onTimeUpdate={setCurrentTime}
-              allowDownload={false}
-            />
+          {playbackSource ? (
+            <>
+              {isLoadingPlayback || activePlaybackError ? (
+                <div
+                  className="flex items-center justify-between gap-3 bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span>{isLoadingPlayback ? "Repairing playback…" : activePlaybackError}</span>
+                  {activePlaybackError && !isLoadingPlayback ? (
+                    <Button variant="outline" size="sm" onClick={requestPlaybackRecovery}>
+                      Retry
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+              <VideoPlayer
+                ref={playerRef}
+                src={playbackSource.url}
+                sourceRevision={playbackSource.revision}
+                poster={playbackSource.posterUrl}
+                comments={flattenedComments}
+                onTimeUpdate={setCurrentTime}
+                onPlaybackIssue={handlePlaybackIssue}
+                allowDownload={false}
+              />
+            </>
           ) : (
             <div className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800/80 bg-black shadow-[0_10px_40px_rgba(0,0,0,0.45)]">
-              {playbackSession?.posterUrl || video.thumbnailUrl?.startsWith("http") ? (
+              {video.thumbnailUrl?.startsWith("http") ? (
                 <img
-                  src={playbackSession?.posterUrl ?? video.thumbnailUrl}
+                  src={video.thumbnailUrl}
                   alt={`${video.title} thumbnail`}
                   className="h-full w-full object-cover blur-[4px]"
                 />
@@ -351,7 +476,7 @@ export default function SharePage() {
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
                 <p className="text-sm font-medium text-white/85">
-                  {playbackError ??
+                  {activePlaybackError ??
                     (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
                 </p>
               </div>
