@@ -56,6 +56,7 @@ import { projectPath, teamHomePath, videoPath } from "@/lib/routes";
 import { findPreferredReplacementVideoId } from "@/lib/videoVersionDeletion";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import {
+  selectDashboardPlaybackPreferenceAfterOriginalLoad,
   selectDashboardPlaybackUrl,
   type DashboardPlaybackSource,
 } from "@/lib/dashboardPlaybackSource";
@@ -314,8 +315,11 @@ export default function VideoPage() {
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const [playbackSession, setPlaybackSession] = useState<{
-    url: string;
-    posterUrl: string;
+    videoId: Id<"videos">;
+    session: {
+      url: string;
+      posterUrl: string;
+    };
   } | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
   const [playbackLoadError, setPlaybackLoadError] = useState<string | null>(null);
@@ -323,7 +327,10 @@ export default function VideoPage() {
     videoId: Id<"videos">;
     attempt: number;
   } | null>(null);
-  const [originalPlaybackUrl, setOriginalPlaybackUrl] = useState<string | null>(null);
+  const [originalPlayback, setOriginalPlayback] = useState<{
+    videoId: Id<"videos">;
+    url: string;
+  } | null>(null);
   const [isLoadingOriginalPlayback, setIsLoadingOriginalPlayback] = useState(false);
   const [isRetryingFailedProcessing, setIsRetryingFailedProcessing] = useState(false);
   const [retryFailedProcessingError, setRetryFailedProcessingError] = useState<string | null>(null);
@@ -350,8 +357,15 @@ export default function VideoPage() {
   const deletePendingRef = useRef(false);
   const muxRecoveryVideoIdRef = useRef<Id<"videos"> | null>(null);
   const playbackRetryTimeoutRef = useRef<number | null>(null);
+  // Survives effect re-runs so a processing -> ready flip mid-request can't
+  // drop the Original session lock for a page opened during processing.
+  const sawProcessingVideoIdRef = useRef<Id<"videos"> | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
-  const playbackUrl = playbackSession?.url ?? null;
+  const activePlaybackSession =
+    playbackSession?.videoId === resolvedVideoId ? playbackSession.session : null;
+  const playbackUrl = activePlaybackSession?.url ?? null;
+  const originalPlaybackUrl =
+    originalPlayback?.videoId === resolvedVideoId ? originalPlayback.url : null;
   const playbackRequestAttempt =
     playbackRequest?.videoId === resolvedVideoId ? playbackRequest.attempt : 0;
   const processingFailed = video?.status === "failed";
@@ -407,6 +421,9 @@ export default function VideoPage() {
     setPlaybackResume(null);
     setPlaybackLoadError(null);
     setPlaybackRequest(null);
+    setOriginalPlayback(null);
+    setIsLoadingOriginalPlayback(false);
+    sawProcessingVideoIdRef.current = null;
     muxRecoveryVideoIdRef.current = null;
     if (playbackRetryTimeoutRef.current !== null) {
       window.clearTimeout(playbackRetryTimeoutRef.current);
@@ -422,6 +439,7 @@ export default function VideoPage() {
     setPlaybackResume(null);
     setPlaybackLoadError(null);
     setPlaybackRequest(null);
+    sawProcessingVideoIdRef.current = null;
     muxRecoveryVideoIdRef.current = null;
     if (playbackRetryTimeoutRef.current !== null) {
       window.clearTimeout(playbackRetryTimeoutRef.current);
@@ -479,7 +497,7 @@ export default function VideoPage() {
     void getPlaybackSession({ videoId: resolvedVideoId })
       .then((session) => {
         if (cancelled) return;
-        setPlaybackSession(session);
+        setPlaybackSession({ videoId: resolvedVideoId, session });
       })
       .catch(() => {
         if (cancelled) return;
@@ -523,22 +541,46 @@ export default function VideoPage() {
 
   useEffect(() => {
     if (!resolvedVideoId || !video || video.status === "uploading" || video.status === "failed") {
-      setOriginalPlaybackUrl(null);
+      setOriginalPlayback(null);
       setIsLoadingOriginalPlayback(false);
       return;
     }
+    if (originalPlaybackUrl) return;
 
+    // Remember that this page session saw the video processing. The status can
+    // flip to "ready" while the Original URL request is still in flight, which
+    // cancels and restarts this effect — the restarted request must still
+    // commit the Original session lock or the player would unmount while the
+    // 720p session loads.
+    if (video.status === "processing") {
+      sawProcessingVideoIdRef.current = resolvedVideoId;
+    }
+    const startedWhileProcessing = sawProcessingVideoIdRef.current === resolvedVideoId;
     let cancelled = false;
     setIsLoadingOriginalPlayback(true);
 
     void getOriginalPlaybackUrl({ videoId: resolvedVideoId })
       .then((result) => {
         if (cancelled) return;
-        setOriginalPlaybackUrl(result.url);
+        if (result.url) {
+          setOriginalPlayback({ videoId: resolvedVideoId, url: result.url });
+        } else {
+          setOriginalPlayback(null);
+        }
+        setSourcePreference((preference) => {
+          const currentPreference =
+            preference?.videoId === resolvedVideoId ? preference.source : null;
+          const nextPreference = selectDashboardPlaybackPreferenceAfterOriginalLoad({
+            currentPreference,
+            startedWhileProcessing,
+            originalUrl: result.url,
+          });
+          return nextPreference ? { videoId: resolvedVideoId, source: nextPreference } : preference;
+        });
       })
       .catch(() => {
         if (cancelled) return;
-        setOriginalPlaybackUrl(null);
+        setOriginalPlayback(null);
       })
       .finally(() => {
         if (cancelled) return;
@@ -548,7 +590,7 @@ export default function VideoPage() {
     return () => {
       cancelled = true;
     };
-  }, [getOriginalPlaybackUrl, resolvedVideoId, video?.status, video?.s3Key]);
+  }, [getOriginalPlaybackUrl, originalPlaybackUrl, resolvedVideoId, video?.status, video?.s3Key]);
 
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
@@ -1122,6 +1164,33 @@ export default function VideoPage() {
                     ? "720p needs another try."
                     : "Preparing 720p…"}
               </span>
+              {playbackLoadError && !isLoadingPlayback && !isAutomaticPlaybackRetryPending ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={handleRetryPlaybackSession}
+                >
+                  Retry 720p
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {activePlaybackUrl &&
+          !activeOriginalPlaybackIssue &&
+          isPlayable &&
+          playbackLoadError &&
+          !isLoadingPlayback &&
+          !isAutomaticPlaybackRetryPending ? (
+            <div
+              className="flex flex-shrink-0 items-center justify-between gap-3 bg-[#2a2114] px-4 py-2 text-sm text-[#fff1d5]"
+              role="status"
+            >
+              <span>{playbackLoadError} Original playback is continuing.</span>
+              <Button variant="outline" size="sm" onClick={handleRetryPlaybackSession}>
+                Retry 720p
+              </Button>
             </div>
           ) : null}
 
@@ -1132,7 +1201,7 @@ export default function VideoPage() {
               src={activePlaybackUrl}
               initialTime={activePlaybackResume?.currentTime}
               initialPlay={activePlaybackResume?.wasPlaying}
-              poster={playbackSession?.posterUrl}
+              poster={activePlaybackSession?.posterUrl}
               comments={comments || []}
               onTimeUpdate={handleTimeUpdate}
               onMarkerClick={handleMarkerClick}
