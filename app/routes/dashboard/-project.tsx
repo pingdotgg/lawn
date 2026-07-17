@@ -18,6 +18,7 @@ import {
   Eye,
   FolderPlus,
   FolderInput,
+  Share2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -60,6 +61,7 @@ import { DashboardHeader } from "@/components/DashboardHeader";
 import { createRequestEpoch } from "@/lib/requestEpoch";
 import { DashboardSortControl } from "@/components/DashboardSortControl";
 import { ExpandableTitle } from "@/components/ExpandableTitle";
+import { FolderShareDialog } from "@/components/projects/FolderShareDialog";
 import { sortDashboardItems, type DashboardSort } from "@/lib/dashboardSort";
 
 type ViewMode = "grid" | "list";
@@ -175,6 +177,7 @@ export default function ProjectPage({
   const sharePendingRef = useRef(false);
   const [sharePending, setSharePending] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [folderShareProjectId, setFolderShareProjectId] = useState<Id<"projects"> | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [moveTarget, setMoveTarget] = useState<{
@@ -205,6 +208,10 @@ export default function ProjectPage({
     const timeout = window.setTimeout(() => setDndError(null), 3000);
     return () => window.clearTimeout(timeout);
   }, [dndError]);
+
+  useEffect(() => {
+    setFolderShareProjectId(null);
+  }, [projectId]);
 
   const shouldCanonicalize =
     !!context && !context.isCanonical && pathname !== context.canonicalPath;
@@ -379,7 +386,7 @@ export default function ProjectPage({
     );
   }
 
-  const canUpload = project?.role !== "viewer";
+  const canUpload = Boolean(project && project.role !== "viewer");
   const canDeleteVideo = project?.role === "owner" || project?.role === "admin";
   const activeProjectId = project?._id ?? resolvedProjectId ?? projectId;
   const hasChildFolders = (childFolders?.length ?? 0) > 0;
@@ -436,6 +443,16 @@ export default function ProjectPage({
           )}
         >
           <DashboardSortControl value={sort} onChange={setSort} />
+          {canUpload && (
+            <Button
+              variant="outline"
+              aria-label="Share folder"
+              onClick={() => setFolderShareProjectId(activeProjectId)}
+            >
+              <Share2 className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Share folder</span>
+            </Button>
+          )}
           {canUpload && (
             <Button variant="outline" onClick={() => setCreateFolderOpen(true)}>
               <FolderPlus className="h-4 w-4 sm:mr-1.5" />
@@ -991,6 +1008,15 @@ export default function ProjectPage({
           </form>
         </DialogContent>
       </Dialog>
+
+      {canUpload && project ? (
+        <FolderShareDialog
+          projectId={activeProjectId}
+          folderName={project.name}
+          open={folderShareProjectId === activeProjectId}
+          onOpenChange={(open) => setFolderShareProjectId(open ? activeProjectId : null)}
+        />
+      ) : null}
 
       {teamId && (
         <MoveProjectDialog

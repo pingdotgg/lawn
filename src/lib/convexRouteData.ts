@@ -13,18 +13,31 @@ export type RouteQuerySpec<Query extends FunctionReference<"query">> = {
   key: string;
 };
 
-export function buildQueryKey(queryName: string, args: unknown): string {
-  return `${queryName}:${JSON.stringify(convexToJson(args as Value))}`;
+// Dedupe keys can end up in console warnings; hash the serialized args so
+// secrets passed as query args (e.g. share grant tokens) never appear there.
+function fingerprintQueryArgs(value: string) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${(hash >>> 0).toString(36)}:${value.length}`;
+}
+
+function buildQueryKey(queryName: string, args: unknown): string {
+  const serializedArgs = JSON.stringify(convexToJson(args as Value));
+  return `${queryName}:${fingerprintQueryArgs(serializedArgs)}`;
 }
 
 export function makeRouteQuerySpec<Query extends FunctionReference<"query">>(
   query: Query,
   args: FunctionArgs<Query>,
+  dedupeKey?: string,
 ): RouteQuerySpec<Query> {
   return {
     query,
     args,
-    key: buildQueryKey(getFunctionName(query), args),
+    key: dedupeKey ?? buildQueryKey(getFunctionName(query), args),
   };
 }
 
@@ -58,12 +71,9 @@ export function prewarmSpecs(
         args: spec.args,
         extendSubscriptionFor,
       });
-    } catch (error) {
+    } catch {
       // Prewarm failures should never block navigation.
-      console.warn("Convex prewarm failed", {
-        key: spec.key,
-        error,
-      });
+      console.warn("Convex prewarm failed", { key: spec.key });
     }
   }
 }

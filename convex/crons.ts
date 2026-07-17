@@ -27,4 +27,10 @@ crons.interval(
   internal.shareAccess.sweepExpiredShareAccessGrants,
 );
 
+crons.interval(
+  "sweep expired folder share access grants",
+  { hours: 1 },
+  internal.folderShareAccess.sweepExpiredFolderShareAccessGrants,
+);
+
 export default crons;

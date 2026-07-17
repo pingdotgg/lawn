@@ -23,6 +23,7 @@ import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as ForVideoEditorsRouteImport } from './routes/for.video-editors'
 import { Route as ForAgenciesRouteImport } from './routes/for.agencies'
+import { Route as FolderShareTokenRouteImport } from './routes/folder-share.$token'
 import { Route as DashboardTeamSlugRouteImport } from './routes/dashboard/$teamSlug'
 import { Route as CompareWipsterRouteImport } from './routes/compare.wipster'
 import { Route as CompareFrameioRouteImport } from './routes/compare.frameio'
@@ -102,6 +103,11 @@ const ForAgenciesRoute = ForAgenciesRouteImport.update({
   path: '/for/agencies',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FolderShareTokenRoute = FolderShareTokenRouteImport.update({
+  id: '/folder-share/$token',
+  path: '/folder-share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardTeamSlugRoute = DashboardTeamSlugRouteImport.update({
   id: '/$teamSlug',
   path: '/$teamSlug',
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/compare/frameio': typeof CompareFrameioRoute
   '/compare/wipster': typeof CompareWipsterRoute
   '/dashboard/$teamSlug': typeof DashboardTeamSlugRouteWithChildren
+  '/folder-share/$token': typeof FolderShareTokenRoute
   '/for/agencies': typeof ForAgenciesRoute
   '/for/video-editors': typeof ForVideoEditorsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/sign-up': typeof SignUpRouteWithChildren
   '/compare/frameio': typeof CompareFrameioRoute
   '/compare/wipster': typeof CompareWipsterRoute
+  '/folder-share/$token': typeof FolderShareTokenRoute
   '/for/agencies': typeof ForAgenciesRoute
   '/for/video-editors': typeof ForVideoEditorsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/compare/frameio': typeof CompareFrameioRoute
   '/compare/wipster': typeof CompareWipsterRoute
   '/dashboard/$teamSlug': typeof DashboardTeamSlugRouteWithChildren
+  '/folder-share/$token': typeof FolderShareTokenRoute
   '/for/agencies': typeof ForAgenciesRoute
   '/for/video-editors': typeof ForVideoEditorsRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/compare/frameio'
     | '/compare/wipster'
     | '/dashboard/$teamSlug'
+    | '/folder-share/$token'
     | '/for/agencies'
     | '/for/video-editors'
     | '/invite/$token'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/compare/frameio'
     | '/compare/wipster'
+    | '/folder-share/$token'
     | '/for/agencies'
     | '/for/video-editors'
     | '/invite/$token'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/compare/frameio'
     | '/compare/wipster'
     | '/dashboard/$teamSlug'
+    | '/folder-share/$token'
     | '/for/agencies'
     | '/for/video-editors'
     | '/invite/$token'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   SignUpRoute: typeof SignUpRouteWithChildren
   CompareFrameioRoute: typeof CompareFrameioRoute
   CompareWipsterRoute: typeof CompareWipsterRoute
+  FolderShareTokenRoute: typeof FolderShareTokenRoute
   ForAgenciesRoute: typeof ForAgenciesRoute
   ForVideoEditorsRoute: typeof ForVideoEditorsRoute
   InviteTokenRoute: typeof InviteTokenRoute
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       path: '/for/agencies'
       fullPath: '/for/agencies'
       preLoaderRoute: typeof ForAgenciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/folder-share/$token': {
+      id: '/folder-share/$token'
+      path: '/folder-share/$token'
+      fullPath: '/folder-share/$token'
+      preLoaderRoute: typeof FolderShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/$teamSlug': {
@@ -541,6 +561,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignUpRoute: SignUpRouteWithChildren,
   CompareFrameioRoute: CompareFrameioRoute,
   CompareWipsterRoute: CompareWipsterRoute,
+  FolderShareTokenRoute: FolderShareTokenRoute,
   ForAgenciesRoute: ForAgenciesRoute,
   ForVideoEditorsRoute: ForVideoEditorsRoute,
   InviteTokenRoute: InviteTokenRoute,

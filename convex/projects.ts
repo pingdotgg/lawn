@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
+import { deleteFolderShareLink } from "./folderShares";
 import { deleteVideoAndDependentsBatch } from "./videos";
 
 // Maximum folder nesting. depth(root) == 0; a folder may be created/moved under
@@ -43,6 +44,18 @@ async function collectAncestors(
     steps++;
   }
   return ancestors;
+}
+
+function assertProjectPathIsNotBeingDeleted(
+  project: Doc<"projects">,
+  ancestors: Doc<"projects">[],
+) {
+  if (
+    project.deletionStartedAt !== undefined ||
+    ancestors.some((ancestor) => ancestor.deletionStartedAt !== undefined)
+  ) {
+    throw new Error("Folder is being deleted");
+  }
 }
 
 async function assertSubtreeFitsDepth(
@@ -360,7 +373,7 @@ export const update = mutation({
 /**
  * Moves a folder under a new parent, or to the top level when `newParentId` is
  * omitted. Rejects moves that would create a cycle (moving a folder into its own
- * descendant) or cross teams.
+ * descendant), cross teams, or move into or out of a hierarchy being deleted.
  *
  * Cycle safety under concurrency relies on Convex's optimistic concurrency: the
  * ancestor walk reads (`ctx.db.get`) the parent pointer of every node on the
@@ -375,41 +388,44 @@ export const move = mutation({
   handler: async (ctx, args) => {
     const { project } = await requireProjectAccess(ctx, args.projectId, "member");
 
-    if (args.newParentId) {
-      if (args.newParentId === args.projectId) {
-        throw new Error("A folder can't be moved into itself");
-      }
-      const { project: newParent } = await requireProjectAccess(ctx, args.newParentId, "member");
-      if (newParent.teamId !== project.teamId) {
-        throw new Error("Can't move a folder to a different team");
-      }
+    if (!args.newParentId) {
+      const currentAncestors = await collectAncestors(ctx, project);
+      assertProjectPathIsNotBeingDeleted(project, currentAncestors);
+      if (!project.parentId) return; // no-op
+      await ctx.db.patch(args.projectId, { parentId: undefined });
+      return;
+    }
 
-      // Reject moving into one of the folder's own descendants before doing
-      // the wider subtree-height scan.
-      let current: Doc<"projects"> | null = newParent;
-      let steps = 0;
-      while (current && steps <= ANCESTOR_WALK_LIMIT) {
-        if (current._id === args.projectId) {
-          throw new Error("Can't move a folder into its own subfolder");
-        }
-        if (!current.parentId) break;
-        current = await ctx.db.get(current.parentId);
-        steps++;
-      }
+    if (args.newParentId === args.projectId) {
+      throw new Error("A folder can't be moved into itself");
+    }
+    const { project: newParent } = await requireProjectAccess(ctx, args.newParentId, "member");
+    if (newParent.teamId !== project.teamId) {
+      throw new Error("Can't move a folder to a different team");
+    }
 
-      const [currentDepth, newParentDepth] = await Promise.all([
-        collectAncestors(ctx, project),
-        collectAncestors(ctx, newParent),
-      ]);
-      const currentDepthLength = currentDepth.length;
-      const newParentDepthLength = newParentDepth.length;
-      const newDepth = newParentDepthLength + 1;
-      if (newDepth > MAX_FOLDER_DEPTH) {
-        throw new Error(`Folders can only be nested ${MAX_FOLDER_DEPTH} levels deep`);
-      }
-      if (newDepth > currentDepthLength) {
-        await assertSubtreeFitsDepth(ctx, project, newDepth);
-      }
+    const [currentAncestors, newParentAncestors] = await Promise.all([
+      collectAncestors(ctx, project),
+      collectAncestors(ctx, newParent),
+    ]);
+    assertProjectPathIsNotBeingDeleted(project, currentAncestors);
+    assertProjectPathIsNotBeingDeleted(newParent, newParentAncestors);
+
+    // Reject moving into one of the folder's own descendants before doing
+    // the wider subtree-height scan. This reuses the bounded destination
+    // ancestry read that also protects against concurrent re-parenting.
+    if (newParentAncestors.some((ancestor) => ancestor._id === args.projectId)) {
+      throw new Error("Can't move a folder into its own subfolder");
+    }
+
+    const currentDepthLength = currentAncestors.length;
+    const newParentDepthLength = newParentAncestors.length;
+    const newDepth = newParentDepthLength + 1;
+    if (newDepth > MAX_FOLDER_DEPTH) {
+      throw new Error(`Folders can only be nested ${MAX_FOLDER_DEPTH} levels deep`);
+    }
+    if (newDepth > currentDepthLength) {
+      await assertSubtreeFitsDepth(ctx, project, newDepth);
     }
 
     if (project.parentId === args.newParentId) return; // no-op
@@ -476,6 +492,7 @@ async function runSubtreeDeleteBatch(
 
   if (budget === 0) return { done: false };
 
+  await deleteFolderShareLink(ctx, leaf._id);
   await ctx.db.delete(leaf._id);
   return { done: leaf._id === rootProjectId };
 }
@@ -484,6 +501,15 @@ export const remove = mutation({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { project } = await requireProjectAccess(ctx, args.projectId, "admin");
+
+    // Commit the tombstone in the same transaction that starts the deletion.
+    // Separately shared descendants then fail their ancestor checks even while
+    // another branch is being drained by a scheduled continuation.
+    await ctx.db.patch(args.projectId, { deletionStartedAt: Date.now() });
+
+    // Invalidate the root's public link before a potentially multi-batch
+    // subtree deletion begins. Descendant links are removed with each leaf.
+    await deleteFolderShareLink(ctx, args.projectId);
 
     const result = await runSubtreeDeleteBatch(ctx, project.teamId, args.projectId);
     if (!result.done) {

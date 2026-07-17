@@ -51,6 +51,7 @@ interface VideoPlayerProps {
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
   onMarkerClick?: (comment: Comment) => void;
+  onReadyChange?: (ready: boolean) => void;
   initialTime?: number;
   initialPlay?: boolean;
   onPlaybackIssue?: (issue: VideoPlaybackIssue) => void;
@@ -115,6 +116,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     comments = [],
     onTimeUpdate,
     onMarkerClick,
+    onReadyChange,
     initialTime,
     initialPlay = false,
     onPlaybackIssue,
@@ -166,10 +168,15 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
   const hasAttachedSourceRef = useRef(false);
   const onPlaybackIssueRef = useRef(onPlaybackIssue);
+  const onReadyChangeRef = useRef(onReadyChange);
 
   useEffect(() => {
     onPlaybackIssueRef.current = onPlaybackIssue;
   }, [onPlaybackIssue]);
+
+  useEffect(() => {
+    onReadyChangeRef.current = onReadyChange;
+  }, [onReadyChange]);
 
   const groupedMarkers = useMemo(() => {
     if (!duration || comments.length === 0) return [] as { position: number; comment: Comment }[];
@@ -557,6 +564,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setIsMediaReady(true);
       setIsBuffering(false);
+      onReadyChangeRef.current?.(true);
     };
 
     const handleDurationChange = () => {
@@ -595,11 +603,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setIsMediaReady(true);
       setIsBuffering(false);
+      onReadyChangeRef.current?.(true);
     };
 
     const handleCanPlay = () => {
       if (cancelled) return;
       setIsMediaReady(true);
+      onReadyChangeRef.current?.(true);
       resumePlaybackIfReady();
     };
 
@@ -607,6 +617,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       setIsMediaReady(true);
       setIsBuffering(false);
+      onReadyChangeRef.current?.(false);
       const mediaError = video.error;
       reportPlaybackIssue({
         type: "media-error",
@@ -707,6 +718,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setCurrentTime(0);
       setBufferedPercent(0);
       setIsMediaReady(false);
+      onReadyChangeRef.current?.(false);
       setIsBuffering(false);
       setQualityMenuOpen(false);
       setQualityOptions([]);

@@ -13,6 +13,8 @@ import type * as billing from "../billing.js";
 import type * as billingHelpers from "../billingHelpers.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
+import type * as folderShareAccess from "../folderShareAccess.js";
+import type * as folderShares from "../folderShares.js";
 import type * as http from "../http.js";
 import type * as mux from "../mux.js";
 import type * as muxActions from "../muxActions.js";
@@ -41,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   billingHelpers: typeof billingHelpers;
   comments: typeof comments;
   crons: typeof crons;
+  folderShareAccess: typeof folderShareAccess;
+  folderShares: typeof folderShares;
   http: typeof http;
   mux: typeof mux;
   muxActions: typeof muxActions;
