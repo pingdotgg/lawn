@@ -1,5 +1,21 @@
 export type DashboardPlaybackSource = "mux720" | "original";
 
+export function selectDashboardPlaybackPreferenceAfterOriginalLoad({
+  currentPreference,
+  startedWhileProcessing,
+  originalUrl,
+}: {
+  currentPreference: DashboardPlaybackSource | null;
+  startedWhileProcessing: boolean;
+  originalUrl: string | null;
+}): DashboardPlaybackSource | null {
+  if (currentPreference || !startedWhileProcessing || !originalUrl) {
+    return currentPreference;
+  }
+
+  return "original";
+}
+
 export function selectDashboardPlaybackUrl({
   preferredSource,
   muxPlaybackReady,
