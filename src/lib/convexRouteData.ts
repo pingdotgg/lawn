@@ -11,9 +11,10 @@ export type RouteQuerySpec<Query extends FunctionReference<"query">> = {
   query: Query;
   args: FunctionArgs<Query>;
   key: string;
-  redactErrorDetails?: boolean;
 };
 
+// Dedupe keys can end up in console warnings; hash the serialized args so
+// secrets passed as query args (e.g. share grant tokens) never appear there.
 function fingerprintQueryArgs(value: string) {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
@@ -23,7 +24,7 @@ function fingerprintQueryArgs(value: string) {
   return `${(hash >>> 0).toString(36)}:${value.length}`;
 }
 
-export function buildQueryKey(queryName: string, args: unknown): string {
+function buildQueryKey(queryName: string, args: unknown): string {
   const serializedArgs = JSON.stringify(convexToJson(args as Value));
   return `${queryName}:${fingerprintQueryArgs(serializedArgs)}`;
 }
@@ -37,7 +38,6 @@ export function makeRouteQuerySpec<Query extends FunctionReference<"query">>(
     query,
     args,
     key: dedupeKey ?? buildQueryKey(getFunctionName(query), args),
-    redactErrorDetails: true,
   };
 }
 

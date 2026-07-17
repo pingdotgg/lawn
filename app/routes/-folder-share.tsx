@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type MouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -28,15 +27,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { VideoPlayer, type VideoPlayerHandle } from "@/components/video-player/VideoPlayer";
 import { folderSharePath } from "@/lib/routes";
 import { sortDashboardItems } from "@/lib/dashboardSort";
-import {
-  findFolderShareReturnFocus,
-  folderShareFolderFocusId,
-  folderShareRouteKey,
-  folderShareVideoFocusId,
-  type FolderShareFocusId,
-  type FolderShareNavigationOrigin,
-  type FolderShareRouteKey,
-} from "@/lib/folderShareNavigation";
 import { prefetchHlsRuntime } from "@/lib/muxPlayback";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "@/lib/utils";
@@ -48,8 +38,6 @@ type FolderSharePageProps = {
   videoId?: string;
 };
 
-const FOLDER_SHARE_RENEWAL_LEAD_MS = 60_000;
-const FOLDER_SHARE_RENEWAL_RETRY_MS = 10_000;
 const FOLDER_SHARE_PLAYBACK_REFRESH_LEAD_MS = 60_000;
 const FOLDER_SHARE_PLAYBACK_REFRESH_RETRY_MS = 10_000;
 
@@ -58,32 +46,13 @@ type SharedFolderLinkProps = {
   grantToken: string;
   folderId: Id<"projects">;
   rootFolderId?: Id<"projects">;
-  focusId?: FolderShareFocusId;
-  onNavigate?: () => void;
   className?: string;
   children: ReactNode;
 };
 
-function isUnmodifiedNavigation(event: MouseEvent<HTMLAnchorElement>) {
-  return (
-    !event.defaultPrevented &&
-    event.button === 0 &&
-    !event.metaKey &&
-    !event.ctrlKey &&
-    !event.shiftKey &&
-    !event.altKey
-  );
-}
-
-function findSharedCard(focusId: FolderShareFocusId) {
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-folder-share-focus-id]")).find(
-    (element) => element.dataset.folderShareFocusId === focusId,
-  );
-}
-
 const SharedFolderLink = forwardRef<HTMLAnchorElement, SharedFolderLinkProps>(
   function SharedFolderLink(
-    { token, grantToken, folderId, rootFolderId, focusId, onNavigate, className, children },
+    { token, grantToken, folderId, rootFolderId, className, children },
     ref,
   ) {
     const convex = useConvex();
@@ -98,10 +67,6 @@ const SharedFolderLink = forwardRef<HTMLAnchorElement, SharedFolderLinkProps>(
         to={folderSharePath(token, { folderId: destinationFolderId })}
         preload="intent"
         className={className}
-        data-folder-share-focus-id={focusId}
-        onClick={(event) => {
-          if (onNavigate && isUnmodifiedNavigation(event)) onNavigate();
-        }}
         {...prewarmIntentHandlers}
       >
         {children}
@@ -118,17 +83,14 @@ type SharedFolderCardProps = {
     name: string;
     description?: string;
   };
-  onNavigate: () => void;
 };
 
-function SharedFolderCard({ token, grantToken, folder, onNavigate }: SharedFolderCardProps) {
+function SharedFolderCard({ token, grantToken, folder }: SharedFolderCardProps) {
   return (
     <SharedFolderLink
       token={token}
       grantToken={grantToken}
       folderId={folder._id}
-      focusId={folderShareFolderFocusId(folder._id)}
-      onNavigate={onNavigate}
       className="group block border-2 border-[#1a1a1a] bg-[#f0f0e8] p-4 shadow-[5px_5px_0px_0px_var(--shadow-color)] transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:bg-[#e8e8e0] hover:shadow-[3px_3px_0px_0px_var(--shadow-color)] focus:outline-2 focus:outline-offset-4 focus:outline-[#2d5a2d]"
     >
       <div className="flex items-start gap-3">
@@ -162,10 +124,9 @@ type SharedVideoCardProps = {
     createdAt: number;
     versionNumber: number;
   };
-  onNavigate: () => void;
 };
 
-function SharedVideoCard({ token, grantToken, folderId, video, onNavigate }: SharedVideoCardProps) {
+function SharedVideoCard({ token, grantToken, folderId, video }: SharedVideoCardProps) {
   const convex = useConvex();
   const prewarmIntentHandlers = useRoutePrewarmIntent(() => {
     prewarmSharedVideo(convex, { grantToken, videoId: video._id });
@@ -177,10 +138,6 @@ function SharedVideoCard({ token, grantToken, folderId, video, onNavigate }: Sha
       to={folderSharePath(token, { folderId, videoId: video._id })}
       preload="intent"
       className="group block focus:outline-2 focus:outline-offset-4 focus:outline-[#2d5a2d]"
-      data-folder-share-focus-id={folderShareVideoFocusId(video._id)}
-      onClick={(event) => {
-        if (isUnmodifiedNavigation(event)) onNavigate();
-      }}
       {...prewarmIntentHandlers}
     >
       <div className="relative aspect-video overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] shadow-[5px_5px_0px_0px_var(--shadow-color)] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px] group-hover:shadow-[3px_3px_0px_0px_var(--shadow-color)]">
@@ -255,37 +212,24 @@ function ShareUnavailable({
 
 export default function FolderSharePage({ token, folderId, videoId }: FolderSharePageProps) {
   const issueAccessGrant = useMutation(api.folderShares.issueAccessGrant);
-  const renewAccessGrant = useMutation(api.folderShares.renewAccessGrant);
   const getPlaybackSession = useAction(api.videoActions.getFolderSharedPlaybackSession);
   const [grantToken, setGrantToken] = useState<string | null>(null);
-  const [grantExpiresAt, setGrantExpiresAt] = useState<number | null>(null);
   const [hasAttemptedGrant, setHasAttemptedGrant] = useState(false);
   const grantRequestPendingRef = useRef(false);
   const [grantError, setGrantError] = useState(false);
-  const [grantRenewalFailureCount, setGrantRenewalFailureCount] = useState(0);
   const [playbackSession, setPlaybackSession] = useState<{
     videoId: string;
-    grantToken: string;
     url: string;
     posterUrl: string;
     expiresAt: number;
   } | null>(null);
   const [playbackLoading, setPlaybackLoading] = useState(false);
-  const [playbackRequestGrantToken, setPlaybackRequestGrantToken] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [playbackRefreshFailureCount, setPlaybackRefreshFailureCount] = useState(0);
   const [playbackReady, setPlaybackReady] = useState(false);
   const playbackRequestSequenceRef = useRef(0);
   const playbackVideoIdRef = useRef<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
-  const folderHeadingRef = useRef<HTMLHeadingElement | null>(null);
-  const videoHeadingRef = useRef<HTMLHeadingElement | null>(null);
-  const currentRouteKey = folderShareRouteKey({ folderId, videoId });
-  const activeRouteKeyRef = useRef(currentRouteKey);
-  const navigationOriginsRef = useRef(new Map<FolderShareRouteKey, FolderShareNavigationOrigin>());
-  const pendingFocusRef = useRef<
-    { kind: "heading" } | { kind: "origin"; focusId: FolderShareFocusId } | null
-  >(null);
 
   const {
     shareInfo,
@@ -300,33 +244,12 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     loadMoreVideos,
     video,
   } = useFolderShareData({ token, grantToken, folderId, videoId });
-  const [lastAuthorizedVideo, setLastAuthorizedVideo] = useState<{
-    videoId: string;
-    value: NonNullable<typeof video>;
-  } | null>(null);
-
-  useEffect(() => {
-    if (videoId && video) {
-      setLastAuthorizedVideo({ videoId, value: video });
-      return;
-    }
-    if (!videoId || (video === null && (!grantExpiresAt || grantExpiresAt > Date.now()))) {
-      setLastAuthorizedVideo(null);
-    }
-  }, [grantExpiresAt, video, videoId]);
-
-  const retainedVideo =
-    playbackSession?.videoId === videoId && lastAuthorizedVideo?.videoId === videoId
-      ? lastAuthorizedVideo.value
-      : undefined;
-  const renderedVideo = video === undefined ? retainedVideo : video;
+  const renderedVideo = video;
 
   useEffect(() => {
     setGrantToken(null);
-    setGrantExpiresAt(null);
     setHasAttemptedGrant(false);
     setGrantError(false);
-    setGrantRenewalFailureCount(0);
     grantRequestPendingRef.current = false;
   }, [token]);
 
@@ -337,16 +260,12 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     setGrantError(false);
     try {
       const result = await issueAccessGrant({ token });
-      if (result.ok && result.grantToken && result.expiresAt) {
+      if (result.ok && result.grantToken) {
         setGrantToken(result.grantToken);
-        setGrantExpiresAt(result.expiresAt);
-        setGrantRenewalFailureCount(0);
       } else {
-        setGrantExpiresAt(null);
         setGrantError(true);
       }
     } catch {
-      setGrantExpiresAt(null);
       setGrantError(true);
     } finally {
       grantRequestPendingRef.current = false;
@@ -357,46 +276,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     if (grantToken || hasAttemptedGrant) return;
     void acquireGrant();
   }, [acquireGrant, grantToken, hasAttemptedGrant]);
-
-  const renewGrant = useCallback(async () => {
-    if (!grantToken || !grantExpiresAt || grantRequestPendingRef.current) return;
-    grantRequestPendingRef.current = true;
-    try {
-      const renewed = await renewAccessGrant({ token, grantToken });
-      if (renewed.ok && renewed.expiresAt) {
-        setGrantExpiresAt(renewed.expiresAt);
-        setGrantRenewalFailureCount(0);
-        return;
-      }
-
-      if (grantExpiresAt <= Date.now()) {
-        const replacement = await issueAccessGrant({ token });
-        if (replacement.ok && replacement.grantToken && replacement.expiresAt) {
-          setPlaybackRefreshFailureCount(0);
-          setGrantToken(replacement.grantToken);
-          setGrantExpiresAt(replacement.expiresAt);
-          setGrantRenewalFailureCount(0);
-          return;
-        }
-      }
-
-      setGrantRenewalFailureCount((failureCount) => failureCount + 1);
-    } catch {
-      setGrantRenewalFailureCount((failureCount) => failureCount + 1);
-    } finally {
-      grantRequestPendingRef.current = false;
-    }
-  }, [grantExpiresAt, grantToken, issueAccessGrant, renewAccessGrant, token]);
-
-  useEffect(() => {
-    if (shareInfo?.status !== "ok" || !grantToken || !grantExpiresAt) return;
-    const delay =
-      grantRenewalFailureCount > 0
-        ? FOLDER_SHARE_RENEWAL_RETRY_MS
-        : Math.max(grantExpiresAt - Date.now() - FOLDER_SHARE_RENEWAL_LEAD_MS, 0);
-    const timeout = window.setTimeout(() => void renewGrant(), delay);
-    return () => window.clearTimeout(timeout);
-  }, [grantExpiresAt, grantRenewalFailureCount, grantToken, renewGrant, shareInfo?.status]);
 
   const loadPlayback = useCallback(
     (preserveCurrentSession = false) => {
@@ -410,12 +289,10 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
         setPlaybackRefreshFailureCount(0);
       }
       if (!grantToken || !videoId) {
-        setPlaybackRequestGrantToken(null);
         setPlaybackLoading(false);
         return;
       }
 
-      setPlaybackRequestGrantToken(grantToken);
       setPlaybackLoading(true);
       void getPlaybackSession({ grantToken, videoId })
         .then((result) => {
@@ -431,7 +308,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
           }
           setPlaybackSession({
             videoId,
-            grantToken,
             url: result.url,
             posterUrl: result.posterUrl,
             expiresAt: result.expiresAt,
@@ -450,7 +326,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
         })
         .finally(() => {
           if (requestSequence === playbackRequestSequenceRef.current) {
-            setPlaybackRequestGrantToken(null);
             setPlaybackLoading(false);
           }
         });
@@ -462,7 +337,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     playbackRequestSequenceRef.current += 1;
     playbackVideoIdRef.current = null;
     setPlaybackSession(null);
-    setPlaybackRequestGrantToken(null);
     setPlaybackLoading(false);
     setPlaybackReady(false);
     setPlaybackRefreshFailureCount(0);
@@ -484,8 +358,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
       !renderedVideo ||
       !playbackSession ||
       playbackSession.videoId !== videoId ||
-      playbackRequestGrantToken === grantToken ||
-      (playbackSession.grantToken !== grantToken && playbackRefreshFailureCount === 0)
+      playbackLoading
     ) {
       return;
     }
@@ -501,7 +374,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
   }, [
     loadPlayback,
     grantToken,
-    playbackRequestGrantToken,
+    playbackLoading,
     playbackRefreshFailureCount,
     playbackSession,
     shareInfo?.status,
@@ -525,62 +398,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
     ]);
   }, [renderedVideo]);
   const sortedFolders = useMemo(() => sortDashboardItems(folders, "alphabetical"), [folders]);
-
-  const recordNavigationOrigin = useCallback(
-    (destinationRouteKey: FolderShareRouteKey, focusId: FolderShareFocusId) => {
-      navigationOriginsRef.current.set(destinationRouteKey, {
-        routeKey: currentRouteKey,
-        focusId,
-      });
-    },
-    [currentRouteKey],
-  );
-
-  useEffect(() => {
-    const previousRouteKey = activeRouteKeyRef.current;
-    if (previousRouteKey === currentRouteKey) return;
-
-    const returnFocusId = findFolderShareReturnFocus(
-      navigationOriginsRef.current,
-      previousRouteKey,
-      currentRouteKey,
-    );
-    pendingFocusRef.current = returnFocusId
-      ? { kind: "origin", focusId: returnFocusId }
-      : { kind: "heading" };
-    activeRouteKeyRef.current = currentRouteKey;
-  }, [currentRouteKey]);
-
-  useEffect(() => {
-    const pendingFocus = pendingFocusRef.current;
-    if (!pendingFocus) return;
-
-    if (pendingFocus.kind === "origin") {
-      if (videoId || !folder) return;
-      const frame = window.requestAnimationFrame(() => {
-        if (pendingFocusRef.current !== pendingFocus) return;
-        const target = findSharedCard(pendingFocus.focusId);
-        if (!target) return;
-
-        target.scrollIntoView({ block: "nearest" });
-        target.focus({ preventScroll: true });
-        pendingFocusRef.current = null;
-      });
-      return () => window.cancelAnimationFrame(frame);
-    }
-
-    if ((videoId && !renderedVideo) || (!videoId && !folder)) return;
-    const target = videoId ? videoHeadingRef.current : folderHeadingRef.current;
-    if (!target) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      if (pendingFocusRef.current !== pendingFocus || !target.isConnected) return;
-      target.scrollIntoView({ block: "start" });
-      target.focus({ preventScroll: true });
-      pendingFocusRef.current = null;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [currentRouteKey, folder, folders, renderedVideo, videoId, videos]);
 
   const bootstrapping =
     shareInfo === undefined ||
@@ -664,11 +481,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
 
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1
-                ref={videoHeadingRef}
-                tabIndex={-1}
-                className="text-2xl font-black tracking-tight focus:outline-2 focus:outline-offset-4 focus:outline-[#2d5a2d] sm:text-3xl"
-              >
+              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
                 {video.video.title}
               </h1>
               {video.video.description ? (
@@ -855,13 +668,7 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
         </nav>
 
         <div className="mb-7 max-w-3xl">
-          <h1
-            ref={folderHeadingRef}
-            tabIndex={-1}
-            className="text-3xl font-black tracking-tight focus:outline-2 focus:outline-offset-4 focus:outline-[#2d5a2d] sm:text-4xl"
-          >
-            {folder.current.name}
-          </h1>
+          <h1 className="text-3xl font-black tracking-tight sm:text-4xl">{folder.current.name}</h1>
           {folder.current.description ? (
             <p className="mt-2 text-sm leading-relaxed text-[#666] sm:text-base">
               {folder.current.description}
@@ -889,12 +696,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
                   token={token}
                   grantToken={grantToken}
                   folder={child}
-                  onNavigate={() =>
-                    recordNavigationOrigin(
-                      folderShareRouteKey({ folderId: child._id }),
-                      folderShareFolderFocusId(child._id),
-                    )
-                  }
                 />
               ))}
             </div>
@@ -937,15 +738,6 @@ export default function FolderSharePage({ token, folderId, videoId }: FolderShar
                   grantToken={grantToken}
                   folderId={currentFolderSearchId}
                   video={sharedVideo}
-                  onNavigate={() =>
-                    recordNavigationOrigin(
-                      folderShareRouteKey({
-                        folderId: currentFolderSearchId,
-                        videoId: sharedVideo._id,
-                      }),
-                      folderShareVideoFocusId(sharedVideo._id),
-                    )
-                  }
                 />
               ))}
             </div>

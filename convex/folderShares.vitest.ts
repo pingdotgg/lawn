@@ -257,90 +257,6 @@ test("folder and video reads stay inside the shared descendant subtree", async (
   ).resolves.toBeNull();
 });
 
-test("active access grants renew in place without interrupting folder reads", async () => {
-  vi.useFakeTimers();
-  try {
-    const startedAt = Date.UTC(2026, 6, 8, 12);
-    vi.setSystemTime(startedAt);
-    const { t, rootId } = await seedFolderShareFixture();
-    const { shareToken, grantToken } = await createShareAndGrant(t, rootId);
-    const before = await t.run((ctx) =>
-      ctx.db
-        .query("folderShareAccessGrants")
-        .withIndex("by_token", (q) => q.eq("token", grantToken))
-        .unique(),
-    );
-    expect(before).not.toBeNull();
-
-    vi.setSystemTime(startedAt + 30 * 60 * 1000);
-    await expect(
-      t.mutation(api.folderShares.renewAccessGrant, {
-        token: "x".repeat(32),
-        grantToken,
-      }),
-    ).resolves.toEqual({ ok: false, expiresAt: null });
-    const renewed = await t.mutation(api.folderShares.renewAccessGrant, {
-      token: shareToken,
-      grantToken,
-    });
-    expect(renewed).toEqual({
-      ok: true,
-      expiresAt: startedAt + 90 * 60 * 1000,
-    });
-
-    const after = await t.run((ctx) =>
-      ctx.db
-        .query("folderShareAccessGrants")
-        .withIndex("by_token", (q) => q.eq("token", grantToken))
-        .unique(),
-    );
-    expect(after).toMatchObject({
-      _id: before!._id,
-      token: grantToken,
-      expiresAt: renewed.expiresAt,
-    });
-
-    vi.setSystemTime(before!.expiresAt + 1);
-    await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toMatchObject({
-      current: { _id: rootId },
-      grantExpiresAt: renewed.expiresAt,
-    });
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
-test("renewal aggregate limits cannot be bypassed with fresh grants", async () => {
-  const { t, rootId } = await seedFolderShareFixture();
-  const created = await t
-    .withIdentity({ subject: "member", name: "Member" })
-    .mutation(api.folderShares.create, { projectId: rootId });
-  const grantTokens: string[] = [];
-  for (let index = 0; index < 13; index += 1) {
-    const grant = await t.mutation(api.folderShares.issueAccessGrant, { token: created.token });
-    expect(grant.ok).toBe(true);
-    grantTokens.push(grant.grantToken!);
-  }
-
-  for (const grantToken of grantTokens.slice(0, 12)) {
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-      await expect(
-        t.mutation(api.folderShares.renewAccessGrant, {
-          token: created.token,
-          grantToken,
-        }),
-      ).resolves.toMatchObject({ ok: true, expiresAt: expect.any(Number) });
-    }
-  }
-
-  await expect(
-    t.mutation(api.folderShares.renewAccessGrant, {
-      token: created.token,
-      grantToken: grantTokens[12],
-    }),
-  ).resolves.toEqual({ ok: false, expiresAt: null });
-});
-
 test("playback claims expose only the authorized modern or legacy Mux input", async () => {
   const { t, rootId, rootVideoId, childVideoId } = await seedFolderShareFixture();
   const { grantToken } = await createShareAndGrant(t, rootId);
@@ -783,18 +699,9 @@ test("revocation invalidates existing grants and folder deletion removes the lin
     await expect(
       t.query(api.folderShares.getFolder, { grantToken: expiredGrantToken }),
     ).resolves.toBeNull();
-    await expect(
-      t.mutation(api.folderShares.renewAccessGrant, {
-        token: shareToken,
-        grantToken: expiredGrantToken,
-      }),
-    ).resolves.toEqual({ ok: false, expiresAt: null });
 
     await member.mutation(api.folderShares.revoke, { projectId: rootId });
     await expect(t.query(api.folderShares.getFolder, { grantToken })).resolves.toBeNull();
-    await expect(
-      t.mutation(api.folderShares.renewAccessGrant, { token: shareToken, grantToken }),
-    ).resolves.toEqual({ ok: false, expiresAt: null });
     await expect(
       t.mutation(internal.folderShares.claimVideoForPlayback, {
         grantToken,

@@ -6,7 +6,7 @@ import { generateUniqueToken } from "./security";
 
 type ReadCtx = QueryCtx | MutationCtx;
 
-export const FOLDER_SHARE_ACCESS_GRANT_TTL_MS = 60 * 60 * 1000;
+const FOLDER_SHARE_ACCESS_GRANT_TTL_MS = 24 * 60 * 60 * 1000;
 export const FOLDER_SHARE_ANCESTRY_WALK_LIMIT = 12;
 export const FOLDER_SHARE_GRANT_TOKEN_LENGTH = 40;
 const EXPIRED_GRANT_SWEEP_BATCH_SIZE = 200;

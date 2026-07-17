@@ -12,7 +12,6 @@ import {
 } from "./_generated/server";
 import { identityName, requireProjectAccess } from "./auth";
 import {
-  FOLDER_SHARE_ACCESS_GRANT_TTL_MS,
   FOLDER_SHARE_ANCESTRY_WALK_LIMIT,
   FOLDER_SHARE_GRANT_TOKEN_LENGTH,
   findFolderShareLinkByToken,
@@ -45,22 +44,6 @@ const folderShareRateLimiter = new RateLimiter(components.rateLimiter, {
   grantByToken: {
     kind: "fixed window",
     rate: 60,
-    period: MINUTE,
-  },
-  renewalGlobal: {
-    kind: "fixed window",
-    rate: 600,
-    period: MINUTE,
-    shards: 8,
-  },
-  renewalByGrant: {
-    kind: "fixed window",
-    rate: 10,
-    period: MINUTE,
-  },
-  renewalByLink: {
-    kind: "fixed window",
-    rate: 120,
     period: MINUTE,
   },
   playbackGlobal: {
@@ -352,51 +335,6 @@ export const issueAccessGrant = mutation({
       grantToken: grant.token,
       expiresAt: grant.expiresAt,
     };
-  },
-});
-
-export const renewAccessGrant = mutation({
-  args: {
-    token: v.string(),
-    grantToken: v.string(),
-  },
-  returns: v.object({
-    ok: v.boolean(),
-    expiresAt: v.union(v.number(), v.null()),
-  }),
-  handler: async (ctx, args) => {
-    if (
-      args.token.length !== FOLDER_SHARE_TOKEN_LENGTH ||
-      args.grantToken.length !== FOLDER_SHARE_GRANT_TOKEN_LENGTH
-    ) {
-      return { ok: false, expiresAt: null };
-    }
-
-    const resolved = await resolveActiveFolderShareGrant(ctx, args.grantToken);
-    if (!resolved || resolved.shareLink.token !== args.token) {
-      return { ok: false, expiresAt: null };
-    }
-
-    const grantLimit = await folderShareRateLimiter.limit(ctx, "renewalByGrant", {
-      key: resolved.grant._id,
-    });
-    if (!grantLimit.ok) {
-      return { ok: false, expiresAt: null };
-    }
-    const linkLimit = await folderShareRateLimiter.limit(ctx, "renewalByLink", {
-      key: resolved.shareLink._id,
-    });
-    if (!linkLimit.ok) {
-      return { ok: false, expiresAt: null };
-    }
-    const globalLimit = await folderShareRateLimiter.limit(ctx, "renewalGlobal");
-    if (!globalLimit.ok) {
-      return { ok: false, expiresAt: null };
-    }
-
-    const expiresAt = Date.now() + FOLDER_SHARE_ACCESS_GRANT_TTL_MS;
-    await ctx.db.patch(resolved.grant._id, { expiresAt });
-    return { ok: true, expiresAt };
   },
 });
 

@@ -39,7 +39,6 @@ test("custom prewarm keys can redact bearer arguments", () => {
 
   assert.equal(spec.key, "folder-share:folder:folder-id:metadata");
   assert.equal(spec.key.includes("sensitive-grant"), false);
-  assert.equal(spec.redactErrorDetails, true);
 });
 
 test("default prewarm keys and warnings do not expose bearer arguments", () => {
@@ -47,7 +46,6 @@ test("default prewarm keys and warnings do not expose bearer arguments", () => {
   const token = "sensitive-default-token";
   const spec = makeRouteQuerySpec(api.shareLinks.getByToken, { token });
   assert.equal(spec.key.includes(token), false);
-  assert.equal(spec.redactErrorDetails, true);
 
   const warnings: unknown[][] = [];
   const originalWarn = console.warn;
