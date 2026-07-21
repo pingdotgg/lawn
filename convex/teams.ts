@@ -1,15 +1,22 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query, MutationCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import {
   getUser,
+  findTeamMembership,
   identityAvatarUrl,
   identityEmail,
+  identityKey,
+  identityMatches,
   identityName,
+  listMembershipsForIdentity,
   requireUser,
   requireTeamAccess,
 } from "./auth";
 import { getTeamSubscriptionState } from "./billingHelpers";
-import { deleteVideoAndDependents } from "./videos";
+import { deleteProjectSubtreeBatch } from "./projects";
+import { generateUniqueToken } from "./security";
 
 function normalizedEmail(value: string) {
   return value.trim().toLowerCase();
@@ -23,13 +30,15 @@ function generateSlug(name: string): string {
     .substring(0, 50);
 }
 
-function generateToken(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 32; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+async function generateInviteToken(ctx: MutationCtx) {
+  return await generateUniqueToken(
+    32,
+    async (candidate) =>
+      (await ctx.db
+        .query("teamInvites")
+        .withIndex("by_token", (q) => q.eq("token", candidate))
+        .unique()) !== null,
+  );
 }
 
 export const create = mutation({
@@ -59,6 +68,7 @@ export const create = mutation({
       name: args.name,
       slug,
       ownerClerkId: user.subject,
+      ownerIdentity: identityKey(user),
       plan: "basic",
       billingStatus: "not_subscribed",
     });
@@ -66,6 +76,7 @@ export const create = mutation({
     await ctx.db.insert("teamMembers", {
       teamId,
       userClerkId: user.subject,
+      userIdentity: identityKey(user),
       userEmail: normalizedEmail(identityEmail(user)),
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
@@ -85,10 +96,7 @@ export const list = query({
     const user = await getUser(ctx);
     if (!user) return [];
 
-    const memberships = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
-      .collect();
+    const memberships = await listMembershipsForIdentity(ctx, user);
 
     const teams = await Promise.all(
       memberships.map(async (membership) => {
@@ -107,10 +115,7 @@ export const listWithProjects = query({
     const user = await getUser(ctx);
     if (!user) return [];
 
-    const memberships = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
-      .collect();
+    const memberships = await listMembershipsForIdentity(ctx, user);
 
     const teams = await Promise.all(
       memberships.map(async (membership) => {
@@ -237,7 +242,7 @@ export const inviteMember = mutation({
       await ctx.db.delete(existingInvite._id);
     }
 
-    const token = generateToken();
+    const token = await generateInviteToken(ctx);
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
 
     await ctx.db.insert("teamInvites", {
@@ -245,6 +250,7 @@ export const inviteMember = mutation({
       email: inviteEmail,
       role: args.role,
       invitedByClerkId: user.subject,
+      invitedByIdentity: identityKey(user),
       invitedByName: identityName(user),
       token,
       expiresAt,
@@ -290,12 +296,7 @@ export const acceptInvite = mutation({
       throw new Error("Invite is for a different email address");
     }
 
-    const existingMembership = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_team_and_user", (q) =>
-        q.eq("teamId", invite.teamId).eq("userClerkId", user.subject),
-      )
-      .unique();
+    const existingMembership = await findTeamMembership(ctx, invite.teamId, user);
 
     if (existingMembership) {
       throw new Error("You are already a member of this team");
@@ -304,6 +305,7 @@ export const acceptInvite = mutation({
     await ctx.db.insert("teamMembers", {
       teamId: invite.teamId,
       userClerkId: user.subject,
+      userIdentity: identityKey(user),
       userEmail: normalizedEmail(identityEmail(user)),
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
@@ -361,11 +363,11 @@ export const removeMember = mutation({
       throw new Error("User is not a member of this team");
     }
 
-    if (team.ownerClerkId === membership.userClerkId) {
+    if (membership.role === "owner") {
       throw new Error("Cannot remove the team owner");
     }
 
-    if (membership.userClerkId === user.subject) {
+    if (identityMatches(user, membership.userIdentity, membership.userClerkId)) {
       throw new Error("Cannot remove yourself. Use leave instead.");
     }
 
@@ -391,7 +393,7 @@ export const updateMemberRole = mutation({
       throw new Error("User is not a member of this team");
     }
 
-    if (team.ownerClerkId === membership.userClerkId) {
+    if (membership.role === "owner") {
       throw new Error("Cannot change the team owner's role");
     }
 
@@ -402,12 +404,9 @@ export const updateMemberRole = mutation({
 export const leave = mutation({
   args: { teamId: v.id("teams") },
   handler: async (ctx, args) => {
-    const { user, membership } = await requireTeamAccess(ctx, args.teamId);
+    const { membership } = await requireTeamAccess(ctx, args.teamId);
 
-    const team = await ctx.db.get(args.teamId);
-    if (!team) return;
-
-    if (team.ownerClerkId === user.subject) {
+    if (membership.role === "owner") {
       throw new Error("Team owner cannot leave. Transfer ownership first.");
     }
 
@@ -426,45 +425,60 @@ export const deleteTeam = mutation({
       );
     }
 
-    // Delete all team members
-    const members = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .collect();
-    for (const member of members) {
-      await ctx.db.delete(member._id);
+    const result = await deleteTeamBatch(ctx, args.teamId);
+    if (!result.done) {
+      await ctx.scheduler.runAfter(0, internal.teams.continueTeamDelete, {
+        teamId: args.teamId,
+      });
     }
+  },
+});
 
-    // Delete all invites
-    const invites = await ctx.db
-      .query("teamInvites")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .collect();
-    for (const invite of invites) {
-      await ctx.db.delete(invite._id);
+const TEAM_DELETE_BATCH_SIZE = 500;
+
+async function deleteTeamBatch(ctx: MutationCtx, teamId: Id<"teams">) {
+  const team = await ctx.db.get(teamId);
+  if (!team) return { done: true };
+
+  const project = await ctx.db
+    .query("projects")
+    .withIndex("by_team", (q) => q.eq("teamId", teamId))
+    .first();
+  if (project) {
+    await deleteProjectSubtreeBatch(ctx, teamId, project._id);
+    return { done: false };
+  }
+
+  let remaining = TEAM_DELETE_BATCH_SIZE;
+  const invites = await ctx.db
+    .query("teamInvites")
+    .withIndex("by_team", (q) => q.eq("teamId", teamId))
+    .take(remaining);
+  for (const invite of invites) await ctx.db.delete(invite._id);
+  remaining -= invites.length;
+  if (remaining === 0) return { done: false };
+
+  const members = await ctx.db
+    .query("teamMembers")
+    .withIndex("by_team", (q) => q.eq("teamId", teamId))
+    .take(remaining);
+  for (const member of members) await ctx.db.delete(member._id);
+  remaining -= members.length;
+  if (remaining === 0) return { done: false };
+
+  await ctx.db.delete(teamId);
+  return { done: true };
+}
+
+export const continueTeamDelete = internalMutation({
+  args: { teamId: v.id("teams") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const result = await deleteTeamBatch(ctx, args.teamId);
+    if (!result.done) {
+      await ctx.scheduler.runAfter(0, internal.teams.continueTeamDelete, args);
     }
-
-    // Delete all projects and their videos/comments. by_team is intentionally
-    // team-wide here, so it already covers nested folders regardless of depth.
-    const projects = await ctx.db
-      .query("projects")
-      .withIndex("by_team", (q) => q.eq("teamId", args.teamId))
-      .collect();
-
-    for (const project of projects) {
-      const videos = await ctx.db
-        .query("videos")
-        .withIndex("by_project", (q) => q.eq("projectId", project._id))
-        .collect();
-
-      for (const video of videos) {
-        await deleteVideoAndDependents(ctx, video._id);
-      }
-
-      await ctx.db.delete(project._id);
-    }
-
-    await ctx.db.delete(args.teamId);
+    return null;
   },
 });
 

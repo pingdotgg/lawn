@@ -75,6 +75,7 @@ export default function DashboardLayout() {
   const [isGlobalDragActive, setIsGlobalDragActive] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
   const dragDepthRef = useRef(0);
   const uploadableProjectIds = useMemo(
     () => new Set((uploadTargets ?? []).map((target) => target.projectId)),
@@ -83,6 +84,12 @@ export default function DashboardLayout() {
   const canUploadToCurrentProject = routeProjectId
     ? uploadableProjectIds.has(routeProjectId)
     : false;
+
+  useEffect(() => {
+    if (!dropError) return;
+    const timeout = window.setTimeout(() => setDropError(null), 4_000);
+    return () => window.clearTimeout(timeout);
+  }, [dropError]);
 
   const requestUpload = useCallback(
     (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
@@ -100,7 +107,7 @@ export default function DashboardLayout() {
       }
 
       if (uploadTargets && uploadTargets.length === 0) {
-        window.alert("You do not have upload access to any projects.");
+        setDropError("You do not have upload access to any projects.");
         return;
       }
 
@@ -175,20 +182,20 @@ export default function DashboardLayout() {
 
       if (routeVideoId) {
         if (droppedFiles.length !== 1) {
-          window.alert("Drop one video at a time to upload a new version.");
+          setDropError("Drop one video at a time to upload a new version.");
           return;
         }
         const file = droppedFiles[0];
         if (!isVideoFile(file)) {
-          window.alert("Choose a single video file to upload as a new version.");
+          setDropError("Choose a single video file to upload as a new version.");
           return;
         }
         if (!detailVideo) {
-          window.alert("Use the New version action when this video is ready for uploads.");
+          setDropError("Use the New version action when this video is ready for uploads.");
           return;
         }
         if (detailVideo.role === "viewer") {
-          window.alert("You need member access to upload a new version.");
+          setDropError("You need member access to upload a new version.");
           return;
         }
         requestVersionUpload(
@@ -372,6 +379,15 @@ export default function DashboardLayout() {
               />
             );
           })}
+        </div>
+      )}
+
+      {dropError && (
+        <div
+          role="alert"
+          className="fixed right-4 bottom-4 z-50 max-w-sm border-2 border-[#1a1a1a] bg-[#f0f0e8] px-4 py-3 text-sm font-bold text-[#1a1a1a] shadow-[4px_4px_0px_0px_var(--shadow-color)]"
+        >
+          {dropError}
         </div>
       )}
 

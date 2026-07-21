@@ -110,7 +110,7 @@ export default function TeamSettingsPage() {
     });
   }, [reconcileTeamSubscription, team]);
 
-  if (context === undefined || shouldCanonicalize) {
+  if (context === undefined || team === undefined || shouldCanonicalize) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-[#888]">Loading...</div>
@@ -118,7 +118,7 @@ export default function TeamSettingsPage() {
     );
   }
 
-  if (context === null) {
+  if (context === null || !team) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-[#888]">Team not found</div>

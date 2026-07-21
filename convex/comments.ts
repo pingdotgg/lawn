@@ -1,21 +1,40 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
-import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
+import {
+  identityAvatarUrl,
+  identityKey,
+  identityMatches,
+  identityName,
+  requireVideoAccess,
+  requireUser,
+} from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
 
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
 >(comments: T[]) {
-  const topLevel = comments
-    .filter((c) => !c.parentId)
-    .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+  const topLevel: T[] = [];
+  const repliesByParent = new Map<string, T[]>();
+
+  for (const comment of comments) {
+    if (!comment.parentId) {
+      topLevel.push(comment);
+      continue;
+    }
+
+    const replies = repliesByParent.get(comment.parentId) ?? [];
+    replies.push(comment);
+    repliesByParent.set(comment.parentId, replies);
+  }
+
+  topLevel.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
 
   return topLevel.map((comment) => ({
     ...comment,
-    replies: comments
-      .filter((c) => c.parentId === comment._id)
-      .sort((a, b) => a._creationTime - b._creationTime),
+    replies: (repliesByParent.get(comment._id) ?? []).sort(
+      (a, b) => a._creationTime - b._creationTime,
+    ),
   }));
 }
 
@@ -47,20 +66,6 @@ async function getPublicVideoByPublicId(ctx: QueryCtx | MutationCtx, publicId: s
   return await resolvePublicVideo(ctx, publicId);
 }
 
-export const list = query({
-  args: { videoId: v.id("videos") },
-  handler: async (ctx, args) => {
-    await requireVideoAccess(ctx, args.videoId);
-
-    const comments = await ctx.db
-      .query("comments")
-      .withIndex("by_video_and_timestamp", (q) => q.eq("videoId", args.videoId))
-      .collect();
-
-    return comments;
-  },
-});
-
 export const create = mutation({
   args: {
     videoId: v.id("videos"),
@@ -81,6 +86,7 @@ export const create = mutation({
     return await ctx.db.insert("comments", {
       videoId: args.videoId,
       userClerkId: user.subject,
+      userIdentity: identityKey(user),
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
       text: args.text,
@@ -116,6 +122,7 @@ export const createForPublic = mutation({
     return await ctx.db.insert("comments", {
       videoId: video._id,
       userClerkId: user.subject,
+      userIdentity: identityKey(user),
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
       text: args.text,
@@ -156,6 +163,7 @@ export const createForShareGrant = mutation({
     return await ctx.db.insert("comments", {
       videoId: video._id,
       userClerkId: user.subject,
+      userIdentity: identityKey(user),
       userName: identityName(user),
       userAvatarUrl: identityAvatarUrl(user),
       text: args.text,
@@ -177,7 +185,7 @@ export const update = mutation({
     const comment = await ctx.db.get(args.commentId);
     if (!comment) throw new Error("Comment not found");
 
-    if (comment.userClerkId !== user.subject) {
+    if (!identityMatches(user, comment.userIdentity, comment.userClerkId)) {
       throw new Error("You can only edit your own comments");
     }
 
@@ -193,7 +201,7 @@ export const remove = mutation({
     const comment = await ctx.db.get(args.commentId);
     if (!comment) throw new Error("Comment not found");
 
-    if (comment.userClerkId !== user.subject) {
+    if (!identityMatches(user, comment.userIdentity, comment.userClerkId)) {
       await requireVideoAccess(ctx, comment.videoId, "admin");
     }
 

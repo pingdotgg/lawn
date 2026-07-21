@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { getUser } from "./auth";
+import { findTeamMembership, getUser } from "./auth";
 import { Doc } from "./_generated/dataModel";
 
 function buildCanonicalPath(input: { teamSlug: string; projectId?: string; videoId?: string }) {
@@ -61,12 +61,7 @@ export const resolveContext = query({
       return null;
     }
 
-    const membership = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_team_and_user", (q) =>
-        q.eq("teamId", team._id).eq("userClerkId", user.subject),
-      )
-      .unique();
+    const membership = await findTeamMembership(ctx, team._id, user);
 
     if (!membership) return null;
 

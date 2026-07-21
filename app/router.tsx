@@ -15,7 +15,6 @@ function DefaultNotFound() {
 }
 
 export function getRouter() {
-  // @ts-expect-error TanStack Router's typings require strictNullChecks=true.
   const router = createRouter({
     routeTree,
     defaultPreload: "intent",

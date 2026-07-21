@@ -3,6 +3,7 @@
 import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -24,7 +25,7 @@ test("video pages remain accessible and expose capped comment counts", async () 
       role: "owner",
     });
     const projectId = await ctx.db.insert("projects", { teamId, name: "Campaign" });
-    const videoIds = [];
+    const videoIds: Id<"videos">[] = [];
     for (let index = 0; index < 45; index += 1) {
       videoIds.push(
         await ctx.db.insert("videos", {

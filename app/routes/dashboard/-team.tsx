@@ -243,9 +243,9 @@ export default function TeamPage() {
             {sortedProjects.map((project) => (
               <ProjectCard
                 key={project._id}
-                teamSlug={team.slug}
+                teamSlug={teamSlug}
                 project={project}
-                onOpen={() => navigate({ to: projectPath(team.slug, project._id) })}
+                onOpen={() => navigate({ to: projectPath(teamSlug, project._id) })}
                 onDelete={canCreateProject ? handleDeleteProject : undefined}
                 onMove={canCreateProject ? (p) => setMoveTarget(p) : undefined}
                 dnd={

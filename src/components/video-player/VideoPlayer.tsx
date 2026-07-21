@@ -504,7 +504,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     function stopPlaybackHealthMonitor() {
       healthMonitoringActive = false;
       if (frameCallbackId !== null) {
-        video.cancelVideoFrameCallback(frameCallbackId);
+        videoRef.current?.cancelVideoFrameCallback(frameCallbackId);
         frameCallbackId = null;
       }
       if (healthIntervalId !== null) {

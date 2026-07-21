@@ -272,7 +272,7 @@ export default function ProjectPage({
       setNewFolderName("");
     } catch (error) {
       console.error("Failed to create folder:", error);
-      window.alert(error instanceof Error ? error.message : "Failed to create folder");
+      setDndError(error instanceof Error ? error.message : "Failed to create folder");
     } finally {
       setIsCreatingFolder(false);
     }
