@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { FunctionReturnType } from "convex/server";
@@ -10,23 +9,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 type ThreadedComments = FunctionReturnType<typeof api.comments.getThreaded>;
 
 interface CommentListProps {
-  videoId: Id<"videos">;
-  comments?: ThreadedComments;
+  comments: ThreadedComments | undefined;
   onTimestampClick: (seconds: number) => void;
   highlightedCommentId?: Id<"comments">;
   canResolve?: boolean;
 }
 
 export function CommentList({
-  videoId,
-  comments: providedComments,
+  comments,
   onTimestampClick,
   highlightedCommentId,
   canResolve = false,
 }: CommentListProps) {
-  const queriedComments = useQuery(api.comments.getThreaded, { videoId });
-  const comments = providedComments ?? queriedComments;
-
   if (comments === undefined) {
     return <div className="p-4 text-center text-[#888]">Loading...</div>;
   }

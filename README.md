@@ -19,3 +19,11 @@ My team is using lawn every day already. We intend to continue, and we intend to
 - [Setup](docs/setup.md)
 - [Deployment](docs/deployment.md)
 - [Philosophy](docs/philosophy.md)
+
+## Development
+
+```bash
+bun install --frozen-lockfile
+bun run dev
+bun run check
+```

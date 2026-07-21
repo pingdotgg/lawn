@@ -30,9 +30,10 @@ bun run start
 ## Quality checks
 
 ```bash
-bun run typecheck
-bun run lint
+bun run check
 ```
+
+This runs formatting, frontend and Convex typechecks, lint, and both test suites.
 
 ## Environment variables
 

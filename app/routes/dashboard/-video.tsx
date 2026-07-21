@@ -1,7 +1,7 @@
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -290,12 +290,15 @@ export default function VideoPage() {
     video,
     versions,
     comments,
-    commentsThreaded,
   } = useVideoData({
     teamSlug,
     projectId,
     videoId,
   });
+  const flatComments = useMemo(
+    () => comments?.flatMap((comment) => [comment, ...comment.replies]),
+    [comments],
+  );
   const updateVideo = useMutation(api.videos.update);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const deleteVideo = useMutation(api.videos.remove);
@@ -352,11 +355,13 @@ export default function VideoPage() {
   const playbackRetryTimeoutRef = useRef<number | null>(null);
   const isPlayable = video?.status === "ready" && Boolean(video?.muxPlaybackId);
   const playbackUrl = playbackSession?.url ?? null;
-  const playbackRequestAttempt =
-    playbackRequest?.videoId === resolvedVideoId ? playbackRequest.attempt : 0;
+  const activePlaybackRequest =
+    playbackRequest?.videoId === resolvedVideoId ? playbackRequest : null;
+  const playbackRequestAttempt = activePlaybackRequest?.attempt ?? 0;
   const processingFailed = video?.status === "failed";
-  const preferredSource =
-    sourcePreference?.videoId === resolvedVideoId ? sourcePreference.source : "mux720";
+  const activeSourcePreference =
+    sourcePreference?.videoId === resolvedVideoId ? sourcePreference : null;
+  const preferredSource = activeSourcePreference?.source ?? "mux720";
   const originalPlaybackFailed = !processingFailed && failedOriginalVideoId === resolvedVideoId;
   const usableOriginalPlaybackUrl = originalPlaybackFailed ? null : originalPlaybackUrl;
   const activePlaybackUrl = processingFailed
@@ -629,10 +634,10 @@ export default function VideoPage() {
   );
 
   const handleExportComments = useCallback(() => {
-    if (!video || !commentsThreaded?.length) return;
+    if (!video || !comments?.length) return;
 
-    triggerTextDownload(buildCommentsCsv(commentsThreaded), buildCommentsCsvFilename(video.title));
-  }, [commentsThreaded, video]);
+    triggerTextDownload(buildCommentsCsv(comments), buildCommentsCsvFilename(video.title));
+  }, [comments, video]);
 
   const handleSaveTitle = async () => {
     if (!editedTitle.trim() || !video || !resolvedVideoId) return;
@@ -727,23 +732,12 @@ export default function VideoPage() {
             ? findPreferredReplacementVideoId(versions, versionToDelete._id)
             : null;
 
-        if (isCurrentVersion) {
-          if (preferredReplacementVideoId) {
-            prewarmVideo(convex, {
-              teamSlug: resolvedTeamSlug,
-              projectId: resolvedProjectId,
-              videoId: preferredReplacementVideoId,
-            });
-            await navigate({
-              to: videoPath(resolvedTeamSlug, resolvedProjectId, preferredReplacementVideoId),
-              replace: true,
-            });
-          } else {
-            await navigate({
-              to: projectPath(resolvedTeamSlug, resolvedProjectId),
-              replace: true,
-            });
-          }
+        if (preferredReplacementVideoId) {
+          prewarmVideo(convex, {
+            teamSlug: resolvedTeamSlug,
+            projectId: resolvedProjectId,
+            videoId: preferredReplacementVideoId,
+          });
         }
 
         const outcome = await (nonCurrentDeleteRequest ?? requestDelete());
@@ -763,35 +757,31 @@ export default function VideoPage() {
         });
 
         if (isCurrentVersion) {
-          if (result.replacementVideoId !== preferredReplacementVideoId) {
-            if (result.replacementVideoId) {
+          if (result.replacementVideoId) {
+            if (result.replacementVideoId !== preferredReplacementVideoId) {
               prewarmVideo(convex, {
                 teamSlug: resolvedTeamSlug,
                 projectId: resolvedProjectId,
                 videoId: result.replacementVideoId,
               });
-              await navigate({
-                to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
-                replace: true,
-              });
-            } else {
-              await navigate({
-                to: projectPath(resolvedTeamSlug, resolvedProjectId),
-                replace: true,
-              });
             }
+            await navigate({
+              to: videoPath(resolvedTeamSlug, resolvedProjectId, result.replacementVideoId),
+              replace: true,
+            });
+          } else {
+            await navigate({
+              to: projectPath(resolvedTeamSlug, resolvedProjectId),
+              replace: true,
+            });
           }
         }
       } catch (error) {
         console.error("Failed to delete video version:", error);
-        if (isCurrentVersion) {
-          window.alert("Couldn't delete that video version. Please try again.");
-        } else {
-          setDeleteNotice({
-            tone: "error",
-            message: "Couldn't delete that video version. Please try again.",
-          });
-        }
+        setDeleteNotice({
+          tone: "error",
+          message: "Couldn't delete that video version. Please try again.",
+        });
       } finally {
         deletePendingRef.current = false;
         setDeletingVideoId(null);
@@ -966,7 +956,7 @@ export default function VideoPage() {
               </DropdownMenuItem>
               <DropdownMenuItem className="xl:hidden" onSelect={() => setMobileCommentsOpen(true)}>
                 <MessageSquare className="mr-2 h-4 w-4" />
-                Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
+                Comments{flatComments?.length ? ` (${flatComments.length})` : ""}
               </DropdownMenuItem>
               {canDelete && !showVersionSelector && (
                 <DropdownMenuItem
@@ -1062,7 +1052,7 @@ export default function VideoPage() {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setMobileCommentsOpen(true)}>
                 <MessageSquare className="mr-2 h-4 w-4" />
-                Comments{comments && comments.length > 0 ? ` (${comments.length})` : ""}
+                Comments{flatComments?.length ? ` (${flatComments.length})` : ""}
               </DropdownMenuItem>
               {canDelete && !showVersionSelector && (
                 <DropdownMenuItem
@@ -1133,7 +1123,7 @@ export default function VideoPage() {
               initialTime={activePlaybackResume?.currentTime}
               initialPlay={activePlaybackResume?.wasPlaying}
               poster={playbackSession?.posterUrl}
-              comments={comments || []}
+              comments={flatComments || []}
               onTimeUpdate={handleTimeUpdate}
               onMarkerClick={handleMarkerClick}
               allowDownload={video.status === "ready"}
@@ -1239,9 +1229,9 @@ export default function VideoPage() {
               Discussion
             </h2>
             <div className="flex items-center gap-2">
-              {comments && comments.length > 0 && (
+              {flatComments && flatComments.length > 0 && (
                 <span className="rounded-full bg-[#1a1a1a]/5 px-2 py-0.5 text-[11px] font-medium text-[#888] dark:bg-white/5">
-                  {comments.length} {comments.length === 1 ? "comment" : "comments"}
+                  {flatComments.length} {flatComments.length === 1 ? "comment" : "comments"}
                 </span>
               )}
               <Button
@@ -1249,7 +1239,7 @@ export default function VideoPage() {
                 size="sm"
                 className="h-7 px-2 text-[10px]"
                 onClick={handleExportComments}
-                disabled={!commentsThreaded?.length}
+                disabled={!comments?.length}
               >
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
@@ -1258,8 +1248,7 @@ export default function VideoPage() {
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
-              videoId={resolvedVideoId}
-              comments={commentsThreaded}
+              comments={comments}
               onTimestampClick={handleTimestampClick}
               highlightedCommentId={highlightedCommentId}
               canResolve={canEdit}
@@ -1284,9 +1273,9 @@ export default function VideoPage() {
           <div className="flex flex-shrink-0 items-center justify-between border-b-2 border-[#1a1a1a] px-5 py-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#1a1a1a]">
               Discussion
-              {comments && comments.length > 0 && (
+              {flatComments && flatComments.length > 0 && (
                 <span className="rounded-full bg-[#1a1a1a]/5 px-2 py-0.5 text-[11px] font-medium text-[#888]">
-                  {comments.length}
+                  {flatComments.length}
                 </span>
               )}
             </h2>
@@ -1296,7 +1285,7 @@ export default function VideoPage() {
                 size="sm"
                 className="h-8 px-2 text-[10px]"
                 onClick={handleExportComments}
-                disabled={!commentsThreaded?.length}
+                disabled={!comments?.length}
               >
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
@@ -1313,8 +1302,7 @@ export default function VideoPage() {
           </div>
           <div className="flex-1 overflow-hidden">
             <CommentList
-              videoId={resolvedVideoId}
-              comments={commentsThreaded}
+              comments={comments}
               onTimestampClick={(time) => {
                 handleTimestampClick(time);
                 setMobileCommentsOpen(false);

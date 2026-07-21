@@ -9,7 +9,7 @@ import {
   QueryCtx,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
+import { identityKey, identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Doc, Id } from "./_generated/dataModel";
 import { generateUniqueToken } from "./security";
 import { resolveActiveShareGrant } from "./shareAccess";
@@ -209,6 +209,15 @@ async function generatePublicId(ctx: MutationCtx) {
   );
 }
 
+async function scheduleVideoAssetCleanup(ctx: MutationCtx, video: Doc<"videos">) {
+  if (!video.s3Key && !video.muxAssetId) return;
+
+  await ctx.scheduler.runAfter(0, internal.videoActions.deleteVideoAssets, {
+    s3Key: video.s3Key,
+    muxAssetId: video.muxAssetId,
+  });
+}
+
 export async function deleteShareAccessGrantsForLink(
   ctx: MutationCtx,
   linkId: Id<"shareLinks">,
@@ -259,6 +268,7 @@ export async function deleteVideoAndDependents(
     deleted++;
   }
 
+  await scheduleVideoAssetCleanup(ctx, video);
   await rewireStackBeforeDelete(ctx, video);
   await ctx.db.delete(videoId);
   deleted++;
@@ -318,6 +328,7 @@ export async function deleteVideoAndDependentsBatch(
 
   if (remaining === 0) return { deleted, done: false };
 
+  await scheduleVideoAssetCleanup(ctx, video);
   await rewireStackBeforeDelete(ctx, video);
   await ctx.db.delete(videoId);
   return { deleted: deleted + 1, done: true };
@@ -403,6 +414,7 @@ async function insertVersionRecord(
     latest: Doc<"videos">;
     stackSize: number;
     uploadedByClerkId: string;
+    uploadedByIdentity?: string;
     uploaderName: string;
     publicId: string;
     fileSize?: number;
@@ -420,6 +432,7 @@ async function insertVersionRecord(
   const videoId = await ctx.db.insert("videos", {
     projectId: latest.projectId,
     uploadedByClerkId: args.uploadedByClerkId,
+    uploadedByIdentity: args.uploadedByIdentity,
     uploaderName: args.uploaderName,
     title: latest.title,
     description: latest.description,
@@ -453,6 +466,7 @@ export async function createVersionRecord(
   args: {
     sourceVideoId: Id<"videos">;
     uploadedByClerkId: string;
+    uploadedByIdentity?: string;
     uploaderName: string;
     publicId: string;
     fileSize?: number;
@@ -469,6 +483,7 @@ export async function createVersionRecord(
     latest,
     stackSize: versions.length,
     uploadedByClerkId: args.uploadedByClerkId,
+    uploadedByIdentity: args.uploadedByIdentity,
     uploaderName: args.uploaderName,
     publicId: args.publicId,
     fileSize: args.fileSize,
@@ -493,6 +508,7 @@ export const create = mutation({
     const videoId = await ctx.db.insert("videos", {
       projectId: args.projectId,
       uploadedByClerkId: user.subject,
+      uploadedByIdentity: identityKey(user),
       uploaderName: identityName(user),
       title: args.title,
       description: args.description,
@@ -534,6 +550,7 @@ export const createVersion = mutation({
       latest,
       stackSize: versions.length,
       uploadedByClerkId: user.subject,
+      uploadedByIdentity: identityKey(user),
       uploaderName: identityName(user),
       publicId: await generatePublicId(ctx),
       fileSize: args.fileSize,
@@ -1020,6 +1037,7 @@ export const remove = mutation({
   }),
   handler: async (ctx, args) => {
     const { video } = await requireVideoAccess(ctx, args.videoId, "admin");
+    await scheduleVideoAssetCleanup(ctx, video);
     const replacementVideoId = await deleteVersionAndRenumberStack(ctx, video);
     const result = await deleteVideoDependentsBatch(
       ctx,
@@ -1512,7 +1530,7 @@ export const claimMuxProcessingCandidates = internalMutation({
       .take(args.limit * 3);
 
     const claimedAt = Date.now();
-    const candidates = [];
+    const candidates: { videoId: Id<"videos">; muxAssetId: string }[] = [];
     for (const video of videos) {
       if (!video.muxAssetId) {
         // Rotate interrupted processing rows to the back of the queue. Without

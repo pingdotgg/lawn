@@ -1,5 +1,5 @@
 import { QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 type ClerkIdentity = NonNullable<Awaited<ReturnType<QueryCtx["auth"]["getUserIdentity"]>>>;
 
@@ -59,6 +59,67 @@ export async function getIdentity(ctx: ActionCtx) {
   return identity;
 }
 
+export function identityKey(identity: ClerkIdentity) {
+  return identity.tokenIdentifier;
+}
+
+export function identityMatches(
+  identity: ClerkIdentity,
+  canonicalIdentity: string | undefined,
+  legacySubject: string,
+) {
+  return canonicalIdentity !== undefined
+    ? canonicalIdentity === identity.tokenIdentifier
+    : legacySubject === identity.subject;
+}
+
+export async function findTeamMembership(
+  ctx: QueryCtx | MutationCtx,
+  teamId: Id<"teams">,
+  identity: ClerkIdentity,
+) {
+  const canonical = await ctx.db
+    .query("teamMembers")
+    .withIndex("by_team_and_identity", (q) =>
+      q.eq("teamId", teamId).eq("userIdentity", identity.tokenIdentifier),
+    )
+    .unique();
+  if (canonical) return canonical;
+
+  const legacy = await ctx.db
+    .query("teamMembers")
+    .withIndex("by_team_and_user", (q) =>
+      q.eq("teamId", teamId).eq("userClerkId", identity.subject),
+    )
+    .unique();
+  return legacy?.userIdentity === undefined ? legacy : null;
+}
+
+export async function listMembershipsForIdentity(
+  ctx: QueryCtx | MutationCtx,
+  identity: ClerkIdentity,
+): Promise<Doc<"teamMembers">[]> {
+  const [canonical, legacy] = await Promise.all([
+    ctx.db
+      .query("teamMembers")
+      .withIndex("by_identity", (q) => q.eq("userIdentity", identity.tokenIdentifier))
+      .collect(),
+    ctx.db
+      .query("teamMembers")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .collect(),
+  ]);
+
+  return [
+    ...canonical,
+    ...legacy.filter(
+      (membership) =>
+        membership.userIdentity === undefined &&
+        !canonical.some((candidate) => candidate._id === membership._id),
+    ),
+  ];
+}
+
 const ROLE_HIERARCHY = {
   owner: 4,
   admin: 3,
@@ -75,10 +136,7 @@ export async function requireTeamAccess(
 ) {
   const user = await requireUser(ctx);
 
-  const membership = await ctx.db
-    .query("teamMembers")
-    .withIndex("by_team_and_user", (q) => q.eq("teamId", teamId).eq("userClerkId", user.subject))
-    .unique();
+  const membership = await findTeamMembership(ctx, teamId, user);
 
   if (!membership) {
     throw new Error("Not a team member");
@@ -103,12 +161,7 @@ export async function requireProjectAccess(
     throw new Error("Project not found");
   }
 
-  const membership = await ctx.db
-    .query("teamMembers")
-    .withIndex("by_team_and_user", (q) =>
-      q.eq("teamId", project.teamId).eq("userClerkId", user.subject),
-    )
-    .unique();
+  const membership = await findTeamMembership(ctx, project.teamId, user);
 
   if (!membership) {
     throw new Error("Not a team member");
@@ -138,12 +191,7 @@ export async function requireVideoAccess(
     throw new Error("Project not found");
   }
 
-  const membership = await ctx.db
-    .query("teamMembers")
-    .withIndex("by_team_and_user", (q) =>
-      q.eq("teamId", project.teamId).eq("userClerkId", user.subject),
-    )
-    .unique();
+  const membership = await findTeamMembership(ctx, project.teamId, user);
 
   if (!membership) {
     throw new Error("Not a team member");

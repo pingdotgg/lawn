@@ -16,6 +16,7 @@ import {
   buildMuxThumbnailUrl,
   createMuxAssetFromInputUrl,
   createPublicPlaybackId,
+  deleteMuxAsset,
   getMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
@@ -50,6 +51,7 @@ const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
 const MUX_STATUS_SWEEP_BATCH_SIZE = 10;
 const MUX_STATUS_SWEEP_LOCK = "mux-status-sweep";
 const MUX_STATUS_SWEEP_LOCK_TTL_MS = 5 * 60 * 1000;
+const ASSET_CLEANUP_MAX_ATTEMPTS = 5;
 
 function getExtensionFromKey(key: string, fallback = "mp4") {
   let source = key;
@@ -283,6 +285,54 @@ async function deleteUploadedObject(key: string) {
     }),
   );
 }
+
+function isMissingExternalAsset(error: unknown) {
+  return error instanceof Error && /(?:\b404\b|not found)/i.test(error.message);
+}
+
+export const deleteVideoAssets = internalAction({
+  args: {
+    s3Key: v.optional(v.string()),
+    muxAssetId: v.optional(v.string()),
+    attempt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    let failedS3Key: string | undefined;
+    let failedMuxAssetId: string | undefined;
+
+    if (args.s3Key) {
+      try {
+        await deleteUploadedObject(args.s3Key);
+      } catch (error) {
+        failedS3Key = args.s3Key;
+        console.error("Failed to delete video object", { key: args.s3Key, error });
+      }
+    }
+
+    if (args.muxAssetId) {
+      try {
+        await deleteMuxAsset(args.muxAssetId);
+      } catch (error) {
+        if (!isMissingExternalAsset(error)) {
+          failedMuxAssetId = args.muxAssetId;
+          console.error("Failed to delete Mux asset", { assetId: args.muxAssetId, error });
+        }
+      }
+    }
+
+    const attempt = args.attempt ?? 0;
+    if ((failedS3Key || failedMuxAssetId) && attempt + 1 < ASSET_CLEANUP_MAX_ATTEMPTS) {
+      await ctx.scheduler.runAfter(2 ** attempt * 1_000, internal.videoActions.deleteVideoAssets, {
+        s3Key: failedS3Key,
+        muxAssetId: failedMuxAssetId,
+        attempt: attempt + 1,
+      });
+    }
+
+    return null;
+  },
+});
 
 function buildPublicPlaybackSession(playbackId: string): { url: string; posterUrl: string } {
   return {

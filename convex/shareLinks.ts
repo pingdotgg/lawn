@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { components } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, MutationCtx } from "./_generated/server";
-import { identityName, requireVideoAccess } from "./auth";
+import { identityKey, identityName, requireVideoAccess } from "./auth";
 import { generateUniqueToken, hashPassword, verifyPassword } from "./security";
 import { findShareLinkByToken, issueShareAccessGrant } from "./shareAccess";
 
@@ -97,6 +97,7 @@ export const create = mutation({
       videoId: args.videoId,
       token,
       createdByClerkId: user.subject,
+      createdByIdentity: identityKey(user),
       createdByName: identityName(user),
       expiresAt,
       allowDownload: args.allowDownload ?? false,

@@ -107,7 +107,7 @@ export const createSubscriptionCheckout = action({
         name: team.name,
         metadata: {
           orgId: team._id,
-          userId: identity.subject,
+          userId: identity.tokenIdentifier,
           teamSlug: team.slug,
         },
         idempotencyKey: team._id,
@@ -136,7 +136,7 @@ export const createSubscriptionCheckout = action({
       subscription_data: {
         metadata: {
           orgId: team._id,
-          userId: identity.subject,
+          userId: identity.tokenIdentifier,
           plan: args.plan,
           teamSlug: team.slug,
         },
@@ -391,8 +391,10 @@ export const getTeamBilling = query({
   }),
   handler: async (ctx, args) => {
     const { membership } = await requireTeamAccess(ctx, args.teamId);
-    const subscriptionState = await getTeamSubscriptionState(ctx, args.teamId);
-    const storageUsedBytes = await getTeamStorageUsedBytes(ctx, args.teamId);
+    const [subscriptionState, storageUsedBytes] = await Promise.all([
+      getTeamSubscriptionState(ctx, args.teamId),
+      getTeamStorageUsedBytes(ctx, args.teamId),
+    ]);
     const subscription = subscriptionState.subscription;
 
     return {
@@ -411,6 +413,16 @@ export const getTeamBilling = query({
       role: membership.role,
       canManageBilling: membership.role === "owner",
     };
+  },
+});
+
+export const getTeamSubscriptionStatus = query({
+  args: { teamId: v.id("teams") },
+  returns: v.object({ hasActiveSubscription: v.boolean() }),
+  handler: async (ctx, args) => {
+    await requireTeamAccess(ctx, args.teamId);
+    const state = await getTeamSubscriptionState(ctx, args.teamId);
+    return { hasActiveSubscription: state.hasActiveSubscription };
   },
 });
 

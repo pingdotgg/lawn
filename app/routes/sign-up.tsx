@@ -11,9 +11,8 @@ export const Route = createFileRoute("/sign-up")({
         "Sign up for lawn — video review for creative teams. $5/month flat, unlimited seats.",
       path: "/sign-up",
     }),
-  validateSearch: (search: Record<string, unknown>) => ({
-    redirect_url: typeof search.redirect_url === "string" ? search.redirect_url : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): { redirect_url?: string } =>
+    typeof search.redirect_url === "string" ? { redirect_url: search.redirect_url } : {},
   component: SignUpRoute,
 });
 

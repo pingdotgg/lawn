@@ -6,6 +6,8 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),
     ownerClerkId: v.string(),
+    // Canonical auth identity. ownerClerkId remains during the online migration.
+    ownerIdentity: v.optional(v.string()),
     plan: v.union(v.literal("basic"), v.literal("pro"), v.literal("free"), v.literal("team")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
@@ -19,6 +21,8 @@ export default defineSchema({
   teamMembers: defineTable({
     teamId: v.id("teams"),
     userClerkId: v.string(),
+    // Canonical auth identity. userClerkId remains during the online migration.
+    userIdentity: v.optional(v.string()),
     userEmail: v.string(),
     userName: v.string(),
     userAvatarUrl: v.optional(v.string()),
@@ -27,6 +31,8 @@ export default defineSchema({
     .index("by_team", ["teamId"])
     .index("by_user", ["userClerkId"])
     .index("by_team_and_user", ["teamId", "userClerkId"])
+    .index("by_identity", ["userIdentity"])
+    .index("by_team_and_identity", ["teamId", "userIdentity"])
     .index("by_team_and_email", ["teamId", "userEmail"]),
 
   teamInvites: defineTable({
@@ -34,6 +40,7 @@ export default defineSchema({
     email: v.string(),
     role: v.union(v.literal("admin"), v.literal("member"), v.literal("viewer")),
     invitedByClerkId: v.string(),
+    invitedByIdentity: v.optional(v.string()),
     invitedByName: v.string(),
     token: v.string(),
     expiresAt: v.number(),
@@ -61,6 +68,7 @@ export default defineSchema({
   videos: defineTable({
     projectId: v.id("projects"),
     uploadedByClerkId: v.string(),
+    uploadedByIdentity: v.optional(v.string()),
     uploaderName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
@@ -129,6 +137,7 @@ export default defineSchema({
   comments: defineTable({
     videoId: v.id("videos"),
     userClerkId: v.string(),
+    userIdentity: v.optional(v.string()),
     userName: v.string(),
     userAvatarUrl: v.optional(v.string()),
     text: v.string(),
@@ -137,13 +146,13 @@ export default defineSchema({
     resolved: v.boolean(),
   })
     .index("by_video", ["videoId"])
-    .index("by_video_and_timestamp", ["videoId", "timestampSeconds"])
     .index("by_parent", ["parentId"]),
 
   shareLinks: defineTable({
     videoId: v.id("videos"),
     token: v.string(),
     createdByClerkId: v.string(),
+    createdByIdentity: v.optional(v.string()),
     createdByName: v.string(),
     expiresAt: v.optional(v.number()),
     allowDownload: v.boolean(),

@@ -6,7 +6,7 @@ import { createRequestEpoch } from "./requestEpoch";
 test("a newer request invalidates an older delayed completion", async () => {
   const epoch = createRequestEpoch();
   const first = epoch.next();
-  let resolveFirst = () => undefined;
+  let resolveFirst: () => void = () => {};
   const firstResult = new Promise<void>((resolve) => {
     resolveFirst = resolve;
   });

@@ -2,7 +2,12 @@ import { v } from "convex/values";
 import { internalMutation, mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { getUser, requireTeamAccess, requireProjectAccess } from "./auth";
+import {
+  getUser,
+  listMembershipsForIdentity,
+  requireTeamAccess,
+  requireProjectAccess,
+} from "./auth";
 import { assertTeamHasActiveSubscription } from "./billingHelpers";
 import { deleteVideoAndDependentsBatch } from "./videos";
 
@@ -289,10 +294,7 @@ export const listUploadTargets = query({
     const user = await getUser(ctx);
     if (!user) return [];
 
-    const memberships = await ctx.db
-      .query("teamMembers")
-      .withIndex("by_user", (q) => q.eq("userClerkId", user.subject))
-      .collect();
+    const memberships = await listMembershipsForIdentity(ctx, user);
 
     const uploadableMemberships = memberships.filter((membership) => membership.role !== "viewer");
 
@@ -423,7 +425,7 @@ export const move = mutation({
  * records there, then deletes the empty leaf. Repeating this eventually removes
  * the root without ever reading the entire subtree in one transaction.
  */
-async function runSubtreeDeleteBatch(
+export async function deleteProjectSubtreeBatch(
   ctx: MutationCtx,
   teamId: Id<"teams">,
   rootProjectId: Id<"projects">,
@@ -485,7 +487,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const { project } = await requireProjectAccess(ctx, args.projectId, "admin");
 
-    const result = await runSubtreeDeleteBatch(ctx, project.teamId, args.projectId);
+    const result = await deleteProjectSubtreeBatch(ctx, project.teamId, args.projectId);
     if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.projects.continueSubtreeDelete, {
         teamId: project.teamId,
@@ -501,7 +503,7 @@ export const continueSubtreeDelete = internalMutation({
     rootProjectId: v.id("projects"),
   },
   handler: async (ctx, args) => {
-    const result = await runSubtreeDeleteBatch(ctx, args.teamId, args.rootProjectId);
+    const result = await deleteProjectSubtreeBatch(ctx, args.teamId, args.rootProjectId);
     if (!result.done) {
       await ctx.scheduler.runAfter(0, internal.projects.continueSubtreeDelete, args);
     }

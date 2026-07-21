@@ -87,7 +87,7 @@ export const heartbeat = mutation({
     };
 
     if (identity) {
-      userId = `clerk:${identity.subject}`;
+      userId = `identity:${identity.tokenIdentifier}`;
       data = {
         kind: "member",
         displayName: identityName(identity),
