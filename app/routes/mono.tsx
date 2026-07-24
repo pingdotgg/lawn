@@ -12,7 +12,8 @@ export default function HomepageMono() {
     const handleScroll = () => {
       setScrolled(window.scrollY > 200);
     };
-    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 

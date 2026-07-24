@@ -7,15 +7,31 @@ import { resolvePublicVideo } from "./videos";
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
 >(comments: T[]) {
-  const topLevel = comments
-    .filter((c) => !c.parentId)
-    .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+  const topLevel: T[] = [];
+  const repliesByParent = new Map<string, T[]>();
+
+  for (const comment of comments) {
+    if (!comment.parentId) {
+      topLevel.push(comment);
+      continue;
+    }
+
+    const replies = repliesByParent.get(comment.parentId);
+    if (replies) {
+      replies.push(comment);
+    } else {
+      repliesByParent.set(comment.parentId, [comment]);
+    }
+  }
+
+  topLevel.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+  for (const replies of repliesByParent.values()) {
+    replies.sort((a, b) => a._creationTime - b._creationTime);
+  }
 
   return topLevel.map((comment) => ({
     ...comment,
-    replies: comments
-      .filter((c) => c.parentId === comment._id)
-      .sort((a, b) => a._creationTime - b._creationTime),
+    replies: repliesByParent.get(comment._id) ?? [],
   }));
 }
 

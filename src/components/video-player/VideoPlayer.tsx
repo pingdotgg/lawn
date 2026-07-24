@@ -33,6 +33,7 @@ import {
   observeVideoPlayback,
   resetVideoPlaybackHealthWindow,
 } from "@/lib/videoPlaybackHealth";
+import { loadHlsRuntime } from "@/lib/muxPlayback";
 
 interface Comment {
   _id: string;
@@ -47,6 +48,7 @@ interface DownloadResult {
 
 interface VideoPlayerProps {
   src: string;
+  sourceRevision?: number;
   poster?: string;
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
@@ -111,6 +113,7 @@ function isHlsSource(src: string) {
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
   {
     src,
+    sourceRevision = 0,
     poster,
     comments = [],
     onTimeUpdate,
@@ -717,8 +720,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.load();
 
       if (isHlsSource(src)) {
-        const { default: Hls } = await import("hls.js");
-        if (cancelled) return;
+        const hlsRuntime = await loadHlsRuntime();
+        if (!hlsRuntime || cancelled) return;
+        const { default: Hls } = hlsRuntime;
 
         if (Hls.isSupported()) {
           const hls = new Hls({ enableWorker: true });
@@ -751,6 +755,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             if (hls.autoLevelEnabled) {
               setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
             }
+          });
+          hls.on(Hls.Events.ERROR, (_event, data) => {
+            if (cancelled || !data.fatal) return;
+            reportPlaybackIssue({
+              type: "media-error",
+              currentTime: video.currentTime,
+              wasPlaying: isPlayingRef.current || (!video.paused && !video.ended),
+              code: video.error?.code ?? 0,
+              message: `HLS playback failed: ${data.details}`,
+            });
           });
         } else {
           video.src = src;
@@ -824,7 +838,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, initialTime, onTimeUpdate, showControls, updateBuffered]);
+  }, [src, sourceRevision, initialTime, onTimeUpdate, showControls, updateBuffered]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {

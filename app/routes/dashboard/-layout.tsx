@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/tanstack-react-start";
 import { useConvex, useConvexAuth, useQuery } from "convex/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 
@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UploadProgress } from "@/components/upload/UploadProgress";
-import { useVideoUploadManager } from "./-useVideoUploadManager";
+import { useVideoUploadManager, type ManagedUploadItem } from "./-useVideoUploadManager";
 import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
 import { videoPath, watchPath } from "@/lib/routes";
 import { prewarmVideo } from "./-video.data";
@@ -30,72 +30,107 @@ function dragEventHasFiles(event: DragEvent) {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-export default function DashboardLayout() {
-  const { isLoaded, userId } = useAuth();
-  const { isLoading: isConvexAuthLoading, isAuthenticated: isConvexAuthenticated } =
-    useConvexAuth();
+const DashboardUploadProgressItem = memo(function DashboardUploadProgressItem({
+  upload,
+  cancelUpload,
+  retryProcessing,
+  viewUploadedVersion,
+}: {
+  upload: ManagedUploadItem;
+  cancelUpload: (uploadId: string) => void;
+  retryProcessing: (uploadId: string) => void;
+  viewUploadedVersion: (teamSlug: string, projectId: Id<"projects">, videoId: Id<"videos">) => void;
+}) {
+  const completedVersionId =
+    upload.status === "complete" && upload.creationIntent.kind === "version"
+      ? upload.videoId
+      : undefined;
+  const completedVersionTeamSlug = completedVersionId ? upload.teamSlug : undefined;
+
+  return (
+    <UploadProgress
+      fileName={upload.file.name}
+      fileSize={upload.file.size}
+      progress={upload.progress}
+      status={upload.status}
+      error={upload.error}
+      bytesPerSecond={upload.bytesPerSecond}
+      estimatedSecondsRemaining={upload.estimatedSecondsRemaining}
+      resuming={upload.resuming}
+      intentLabel={upload.creationIntent.kind === "version" ? "New version" : undefined}
+      onCancel={() => cancelUpload(upload.id)}
+      onRetryProcessing={upload.canRetryProcessing ? () => retryProcessing(upload.id) : undefined}
+      onView={
+        completedVersionId && completedVersionTeamSlug
+          ? () =>
+              viewUploadedVersion(completedVersionTeamSlug, upload.projectId, completedVersionId)
+          : undefined
+      }
+    />
+  );
+});
+
+function DashboardUploadBoundary({
+  teamSlug,
+  routeProjectId,
+  routeVideoId,
+  uploadsEnabled,
+  canUploadToCurrentProject,
+  currentProjectIsViewer,
+  children,
+}: {
+  teamSlug?: string;
+  routeProjectId?: Id<"projects">;
+  routeVideoId?: Id<"videos">;
+  uploadsEnabled: boolean;
+  canUploadToCurrentProject: boolean;
+  currentProjectIsViewer: boolean;
+  children: ReactNode;
+}) {
   const convex = useConvex();
   const navigate = useNavigate({});
-  const location = useLocation();
-  const { pathname, searchStr } = location;
-  const params = useParams({ strict: false });
-  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : undefined;
-  const rawProjectId = typeof params.projectId === "string" ? params.projectId : undefined;
-  const rawVideoId = typeof params.videoId === "string" ? params.videoId : undefined;
-  const publicPlaybackId = useQuery(
-    api.videos.getPublicIdByVideoId,
-    rawVideoId ? { videoId: rawVideoId } : "skip",
+  const detailVideo = useQuery(
+    api.videos.get,
+    uploadsEnabled && routeVideoId ? { videoId: routeVideoId } : "skip",
   );
-  const contextRequired = Boolean(teamSlug || rawProjectId || rawVideoId);
-  const workspaceContext = useQuery(
-    api.workspace.resolveContext,
-    isLoaded && Boolean(userId) && !isConvexAuthLoading && isConvexAuthenticated && contextRequired
-      ? { teamSlug, projectId: rawProjectId, videoId: rawVideoId }
-      : "skip",
-  );
-  const access = resolveDashboardAccess({
-    clerkLoaded: isLoaded,
-    hasClerkUser: Boolean(userId),
-    convexAuthLoading: isConvexAuthLoading,
-    convexAuthenticated: isConvexAuthenticated,
-    contextRequired,
-    workspaceContext,
-    publicLookupRequired: Boolean(rawVideoId),
-    publicId: publicPlaybackId,
-  });
-  const routeProjectId = access.kind === "dashboard" ? workspaceContext?.project?._id : undefined;
-  const routeVideoId = access.kind === "dashboard" ? workspaceContext?.video?._id : undefined;
-  const detailVideo = useQuery(api.videos.get, routeVideoId ? { videoId: routeVideoId } : "skip");
-  const uploadTargets = useQuery(
-    api.projects.listUploadTargets,
-    access.kind === "dashboard" ? (teamSlug ? { teamSlug } : {}) : "skip",
-  );
-  const { uploads, uploadFilesToProject, uploadNewVersion, cancelUpload, retryProcessing } =
-    useVideoUploadManager();
   const [isGlobalDragActive, setIsGlobalDragActive] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const dragDepthRef = useRef(0);
-  const uploadableProjectIds = useMemo(
-    () => new Set((uploadTargets ?? []).map((target) => target.projectId)),
-    [uploadTargets],
+  const shouldLoadUploadTargets =
+    uploadsEnabled &&
+    (projectPickerOpen ||
+      pendingFiles !== null ||
+      (isGlobalDragActive && !routeProjectId && !routeVideoId));
+  const uploadTargets = useQuery(
+    api.projects.listUploadTargets,
+    shouldLoadUploadTargets ? (teamSlug ? { teamSlug } : {}) : "skip",
   );
-  const canUploadToCurrentProject = routeProjectId
-    ? uploadableProjectIds.has(routeProjectId)
-    : false;
+  const { uploads, uploadFilesToProject, uploadNewVersion, cancelUpload, retryProcessing } =
+    useVideoUploadManager();
 
   const requestUpload = useCallback(
     (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
+      if (!uploadsEnabled) return;
       const files = inputFiles.filter(isVideoFile);
       if (files.length === 0) return;
 
       if (preferredProjectId) {
-        void uploadFilesToProject(preferredProjectId, files);
+        if (preferredProjectId === routeProjectId && currentProjectIsViewer) {
+          window.alert("You need member access to upload to this project.");
+          return;
+        }
+        void uploadFilesToProject(preferredProjectId, files, teamSlug);
         return;
       }
 
-      if (routeProjectId && (canUploadToCurrentProject || uploadTargets === undefined)) {
-        void uploadFilesToProject(routeProjectId, files);
+      if (routeProjectId && canUploadToCurrentProject) {
+        void uploadFilesToProject(routeProjectId, files, teamSlug);
+        return;
+      }
+
+      if (routeProjectId && currentProjectIsViewer) {
+        window.alert("You need member access to upload to this project.");
         return;
       }
 
@@ -107,19 +142,28 @@ export default function DashboardLayout() {
       setPendingFiles(files);
       setProjectPickerOpen(true);
     },
-    [canUploadToCurrentProject, routeProjectId, uploadFilesToProject, uploadTargets],
+    [
+      canUploadToCurrentProject,
+      currentProjectIsViewer,
+      routeProjectId,
+      teamSlug,
+      uploadFilesToProject,
+      uploadTargets,
+      uploadsEnabled,
+    ],
   );
 
   const handleProjectSelected = useCallback(
     (projectId: Id<"projects">) => {
       const files = pendingFiles;
       if (!files || files.length === 0) return;
+      const selectedTarget = uploadTargets?.find((target) => target.projectId === projectId);
 
       setProjectPickerOpen(false);
       setPendingFiles(null);
-      void uploadFilesToProject(projectId, files);
+      void uploadFilesToProject(projectId, files, selectedTarget?.teamSlug);
     },
-    [pendingFiles, uploadFilesToProject],
+    [pendingFiles, uploadFilesToProject, uploadTargets],
   );
 
   const requestVersionUpload = useCallback(
@@ -129,10 +173,11 @@ export default function DashboardLayout() {
       projectId: Id<"projects">,
       file: File,
     ) => {
+      if (!uploadsEnabled) return;
       if (!isVideoFile(file)) return;
-      void uploadNewVersion(sourceVideoId, versionStackId, projectId, file);
+      void uploadNewVersion(sourceVideoId, versionStackId, projectId, file, teamSlug);
     },
-    [uploadNewVersion],
+    [teamSlug, uploadNewVersion, uploadsEnabled],
   );
 
   const handleProjectPickerOpenChange = useCallback((open: boolean) => {
@@ -143,6 +188,14 @@ export default function DashboardLayout() {
   }, []);
 
   useEffect(() => {
+    if (!uploadsEnabled) {
+      dragDepthRef.current = 0;
+      setIsGlobalDragActive(false);
+      setProjectPickerOpen(false);
+      setPendingFiles(null);
+      return;
+    }
+
     const handleDragEnter = (event: DragEvent) => {
       if (!dragEventHasFiles(event)) return;
       event.preventDefault();
@@ -216,113 +269,28 @@ export default function DashboardLayout() {
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDrop);
     };
-  }, [detailVideo, requestUpload, requestVersionUpload, routeVideoId]);
+  }, [detailVideo, requestUpload, requestVersionUpload, routeVideoId, uploadsEnabled]);
 
   const viewUploadedVersion = useCallback(
-    (projectId: Id<"projects">, videoId: Id<"videos">) => {
-      if (!teamSlug) return;
-      prewarmVideo(convex, { teamSlug, projectId, videoId });
-      navigate({ to: videoPath(teamSlug, projectId, videoId) });
+    (uploadTeamSlug: string, projectId: Id<"projects">, videoId: Id<"videos">) => {
+      prewarmVideo(convex, { teamSlug: uploadTeamSlug, projectId, videoId });
+      navigate({ to: videoPath(uploadTeamSlug, projectId, videoId) });
     },
-    [convex, navigate, teamSlug],
+    [convex, navigate],
   );
 
-  const uploadContext = useMemo(
+  const uploadCommands = useMemo(
     () => ({
       requestUpload,
       requestVersionUpload,
-      uploads,
-      cancelUpload,
-      retryProcessing,
     }),
-    [requestUpload, requestVersionUpload, uploads, cancelUpload, retryProcessing],
+    [requestUpload, requestVersionUpload],
   );
-  const publicRedirectId = access.kind === "redirect-public" ? access.publicId : undefined;
-  const shouldRedirectToSignIn = access.kind === "redirect-sign-in";
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    if (publicRedirectId) {
-      window.location.replace(watchPath(publicRedirectId));
-      return;
-    }
-
-    if (shouldRedirectToSignIn) {
-      const redirectUrl = `${pathname}${searchStr}`;
-      window.location.replace(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
-    }
-  }, [pathname, publicRedirectId, searchStr, shouldRedirectToSignIn]);
-
-  if (access.kind === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
-        <div role="status" aria-live="polite" className="text-[#888]">
-          Checking access...
-        </div>
-      </div>
-    );
-  }
-
-  if (access.kind === "redirect-public" || access.kind === "redirect-sign-in") {
-    return (
-      <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
-        <div role="status" aria-live="polite" className="text-[#888]">
-          Redirecting...
-        </div>
-      </div>
-    );
-  }
-
-  if (access.kind === "auth-unavailable") {
-    return (
-      <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
-        <div
-          role="alert"
-          className="max-w-md border-2 border-[#1a1a1a] bg-[#f0f0e8] p-5 text-center shadow-[4px_4px_0px_0px_var(--shadow-color)]"
-        >
-          <p className="font-bold text-[#1a1a1a]">We couldn't verify your dashboard session.</p>
-          <p className="mt-1 text-sm text-[#888]">Try again, or return home and sign in again.</p>
-          <div className="mt-4 flex justify-center gap-2">
-            <button
-              type="button"
-              className="border-2 border-[#1a1a1a] bg-[#1a1a1a] px-3 py-2 text-sm font-bold text-[#f0f0e8]"
-              onClick={() => window.location.reload()}
-            >
-              Try again
-            </button>
-            <a
-              href="/"
-              className="border-2 border-[#1a1a1a] px-3 py-2 text-sm font-bold text-[#1a1a1a]"
-            >
-              Go home
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (access.kind === "not-found") {
-    return (
-      <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
-        <div role="alert" className="text-center text-[#888]">
-          <p>Video or workspace not found</p>
-          <a className="mt-3 inline-block font-bold text-[#1a1a1a] underline" href="/dashboard">
-            Back to dashboard
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className={cn("relative flex h-full flex-col bg-[#f0f0e8]")}>
-      {/* Main content */}
+    <>
       <main className="flex flex-1 flex-col overflow-auto">
-        <DashboardUploadProvider value={uploadContext}>
-          <Outlet />
-        </DashboardUploadProvider>
+        <DashboardUploadProvider value={uploadCommands}>{children}</DashboardUploadProvider>
       </main>
 
       {isGlobalDragActive && (
@@ -341,37 +309,16 @@ export default function DashboardLayout() {
       )}
 
       {uploads.length > 0 && (
-        <div className="fixed top-16 right-4 left-4 z-50 space-y-2 sm:top-auto sm:right-auto sm:bottom-4 sm:w-full sm:max-w-sm">
-          {uploads.map((upload) => {
-            const completedVersionId =
-              upload.status === "complete" && upload.creationIntent.kind === "version"
-                ? upload.videoId
-                : undefined;
-
-            return (
-              <UploadProgress
-                key={upload.id}
-                fileName={upload.file.name}
-                fileSize={upload.file.size}
-                progress={upload.progress}
-                status={upload.status}
-                error={upload.error}
-                bytesPerSecond={upload.bytesPerSecond}
-                estimatedSecondsRemaining={upload.estimatedSecondsRemaining}
-                resuming={upload.resuming}
-                intentLabel={upload.creationIntent.kind === "version" ? "New version" : undefined}
-                onCancel={() => cancelUpload(upload.id)}
-                onRetryProcessing={
-                  upload.canRetryProcessing ? () => retryProcessing(upload.id) : undefined
-                }
-                onView={
-                  completedVersionId && teamSlug
-                    ? () => viewUploadedVersion(upload.projectId, completedVersionId)
-                    : undefined
-                }
-              />
-            );
-          })}
+        <div className="fixed top-16 right-4 left-4 z-50 max-h-[calc(100dvh-5rem)] space-y-2 overflow-y-auto overscroll-contain sm:top-auto sm:right-auto sm:bottom-4 sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-sm">
+          {uploads.map((upload) => (
+            <DashboardUploadProgressItem
+              key={upload.id}
+              upload={upload}
+              cancelUpload={cancelUpload}
+              retryProcessing={retryProcessing}
+              viewUploadedVersion={viewUploadedVersion}
+            />
+          ))}
         </div>
       )}
 
@@ -408,6 +355,138 @@ export default function DashboardLayout() {
           )}
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+export default function DashboardLayout() {
+  const { isLoaded, userId } = useAuth();
+  const { isLoading: isConvexAuthLoading, isAuthenticated: isConvexAuthenticated } =
+    useConvexAuth();
+  const location = useLocation();
+  const { pathname, searchStr } = location;
+  const params = useParams({ strict: false });
+  const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : undefined;
+  const rawProjectId = typeof params.projectId === "string" ? params.projectId : undefined;
+  const rawVideoId = typeof params.videoId === "string" ? params.videoId : undefined;
+  const publicPlaybackId = useQuery(
+    api.videos.getPublicIdByVideoId,
+    rawVideoId ? { videoId: rawVideoId } : "skip",
+  );
+  const contextRequired = Boolean(teamSlug || rawProjectId || rawVideoId);
+  const workspaceContext = useQuery(
+    api.workspace.resolveContext,
+    isLoaded && Boolean(userId) && !isConvexAuthLoading && isConvexAuthenticated && contextRequired
+      ? { teamSlug, projectId: rawProjectId, videoId: rawVideoId }
+      : "skip",
+  );
+  const access = resolveDashboardAccess({
+    clerkLoaded: isLoaded,
+    hasClerkUser: Boolean(userId),
+    convexAuthLoading: isConvexAuthLoading,
+    convexAuthenticated: isConvexAuthenticated,
+    contextRequired,
+    workspaceContext,
+    publicLookupRequired: Boolean(rawVideoId),
+    publicId: publicPlaybackId,
+  });
+  const routeProjectId = access.kind === "dashboard" ? workspaceContext?.project?._id : undefined;
+  const routeVideoId = access.kind === "dashboard" ? workspaceContext?.video?._id : undefined;
+  const resolvedTeamSlug = access.kind === "dashboard" ? workspaceContext?.team.slug : undefined;
+  const currentTeamRole = access.kind === "dashboard" ? workspaceContext?.team.role : undefined;
+  const canUploadToCurrentProject = Boolean(
+    routeProjectId && currentTeamRole && currentTeamRole !== "viewer",
+  );
+  const currentProjectIsViewer = currentTeamRole === "viewer";
+
+  const publicRedirectId = access.kind === "redirect-public" ? access.publicId : undefined;
+  const shouldRedirectToSignIn = access.kind === "redirect-sign-in";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (publicRedirectId) {
+      window.location.replace(watchPath(publicRedirectId));
+      return;
+    }
+
+    if (shouldRedirectToSignIn) {
+      const redirectUrl = `${pathname}${searchStr}`;
+      window.location.replace(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+    }
+  }, [pathname, publicRedirectId, searchStr, shouldRedirectToSignIn]);
+
+  let dashboardContent: ReactNode;
+  if (access.kind === "loading") {
+    dashboardContent = (
+      <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
+        <div role="status" aria-live="polite" className="text-[#888]">
+          Checking access...
+        </div>
+      </div>
+    );
+  } else if (access.kind === "redirect-public" || access.kind === "redirect-sign-in") {
+    dashboardContent = (
+      <div className="flex h-full items-center justify-center bg-[#f0f0e8]">
+        <div role="status" aria-live="polite" className="text-[#888]">
+          Redirecting...
+        </div>
+      </div>
+    );
+  } else if (access.kind === "auth-unavailable") {
+    dashboardContent = (
+      <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
+        <div
+          role="alert"
+          className="max-w-md border-2 border-[#1a1a1a] bg-[#f0f0e8] p-5 text-center shadow-[4px_4px_0px_0px_var(--shadow-color)]"
+        >
+          <p className="font-bold text-[#1a1a1a]">We couldn't verify your dashboard session.</p>
+          <p className="mt-1 text-sm text-[#888]">Try again, or return home and sign in again.</p>
+          <div className="mt-4 flex justify-center gap-2">
+            <button
+              type="button"
+              className="border-2 border-[#1a1a1a] bg-[#1a1a1a] px-3 py-2 text-sm font-bold text-[#f0f0e8]"
+              onClick={() => window.location.reload()}
+            >
+              Try again
+            </button>
+            <a
+              href="/"
+              className="border-2 border-[#1a1a1a] px-3 py-2 text-sm font-bold text-[#1a1a1a]"
+            >
+              Go home
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  } else if (access.kind === "not-found") {
+    dashboardContent = (
+      <div className="flex h-full items-center justify-center bg-[#f0f0e8] p-6">
+        <div role="alert" className="text-center text-[#888]">
+          <p>Video or workspace not found</p>
+          <a className="mt-3 inline-block font-bold text-[#1a1a1a] underline" href="/dashboard">
+            Back to dashboard
+          </a>
+        </div>
+      </div>
+    );
+  } else {
+    dashboardContent = <Outlet />;
+  }
+
+  return (
+    <div className={cn("relative flex h-full flex-col bg-[#f0f0e8]")}>
+      <DashboardUploadBoundary
+        teamSlug={resolvedTeamSlug}
+        routeProjectId={routeProjectId}
+        routeVideoId={routeVideoId}
+        uploadsEnabled={access.kind === "dashboard"}
+        canUploadToCurrentProject={canUploadToCurrentProject}
+        currentProjectIsViewer={currentProjectIsViewer}
+      >
+        {dashboardContent}
+      </DashboardUploadBoundary>
     </div>
   );
 }

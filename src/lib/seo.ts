@@ -12,6 +12,37 @@ type SeoOptions = {
   noIndex?: boolean;
 };
 
+export function muxMediaLinks() {
+  return [
+    {
+      rel: "preconnect",
+      href: "https://stream.mux.com",
+      crossOrigin: "anonymous" as const,
+    },
+    {
+      rel: "preconnect",
+      href: "https://image.mux.com",
+      crossOrigin: "anonymous" as const,
+    },
+  ];
+}
+
+export function convexConnectionLinks() {
+  const convexUrl = import.meta.env.VITE_CONVEX_URL;
+
+  if (!convexUrl) {
+    return [];
+  }
+
+  return [
+    {
+      rel: "preconnect",
+      href: new URL(convexUrl).origin,
+      crossOrigin: "anonymous" as const,
+    },
+  ];
+}
+
 export function seoHead({
   title,
   description,

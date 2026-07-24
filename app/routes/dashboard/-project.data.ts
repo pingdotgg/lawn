@@ -22,11 +22,6 @@ export function getProjectEssentialSpecs(params: { teamSlug: string; projectId: 
     makeRouteQuerySpec(api.projects.breadcrumb, {
       projectId: params.projectId,
     }),
-    makeRouteQuerySpec(api.videos.list, {
-      projectId: params.projectId,
-      sort: "last-uploaded",
-      paginationOpts: { cursor: null, numItems: VIDEO_PAGE_SIZE },
-    }),
   ];
 }
 
@@ -54,19 +49,6 @@ export function useProjectData(params: {
     resolvedProjectId ? { projectId: resolvedProjectId, sort: params.sort } : "skip",
     { initialNumItems: VIDEO_PAGE_SIZE },
   );
-  // usePaginatedQuery deliberately cache-busts its first request. Read the
-  // id-less first page while that request starts so hover prewarming can still
-  // paint the project immediately, then hand off to the live paginated result.
-  const prewarmedVideoPage = useQuery(
-    api.videos.list,
-    resolvedProjectId && videosStatus === "LoadingFirstPage"
-      ? {
-          projectId: resolvedProjectId,
-          sort: params.sort,
-          paginationOpts: { cursor: null, numItems: VIDEO_PAGE_SIZE },
-        }
-      : "skip",
-  );
   const lastSettledVideosRef = useRef({
     projectId: resolvedProjectId,
     videos: paginatedVideos,
@@ -77,11 +59,9 @@ export function useProjectData(params: {
   if (videosStatus !== "LoadingFirstPage") {
     lastSettledVideosRef.current = { projectId: resolvedProjectId, videos: paginatedVideos };
   }
-  const videosSortPending = videosStatus === "LoadingFirstPage" && !prewarmedVideoPage;
+  const videosSortPending = videosStatus === "LoadingFirstPage";
   const videos =
-    videosStatus === "LoadingFirstPage"
-      ? (prewarmedVideoPage?.page ?? lastSettledVideosRef.current.videos)
-      : paginatedVideos;
+    videosStatus === "LoadingFirstPage" ? lastSettledVideosRef.current.videos : paginatedVideos;
   const childFolders = useQuery(
     api.projects.listChildren,
     resolvedProjectId ? { projectId: resolvedProjectId } : "skip",

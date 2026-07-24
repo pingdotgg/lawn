@@ -21,6 +21,93 @@ export type UploadProgressUpdate = {
   estimatedSecondsRemaining?: number | null;
 };
 
+export type AsyncTaskQueue = {
+  add<T>(task: () => Promise<T>): Promise<T>;
+};
+
+type FrameScheduler = (callback: () => void) => () => void;
+
+export function createAsyncTaskQueue(concurrency: number): AsyncTaskQueue {
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new RangeError("Upload concurrency must be a positive integer.");
+  }
+
+  let activeTasks = 0;
+  const pendingTasks: Array<() => void> = [];
+
+  const drain = () => {
+    while (activeTasks < concurrency && pendingTasks.length > 0) {
+      const runTask = pendingTasks.shift();
+      if (!runTask) return;
+      activeTasks += 1;
+      runTask();
+    }
+  };
+
+  return {
+    add<T>(task: () => Promise<T>) {
+      return new Promise<T>((resolve, reject) => {
+        pendingTasks.push(() => {
+          Promise.resolve()
+            .then(task)
+            .then(resolve, reject)
+            .finally(() => {
+              activeTasks -= 1;
+              drain();
+            });
+        });
+        drain();
+      });
+    },
+  };
+}
+
+function scheduleForNextFrame(callback: () => void) {
+  if (
+    typeof globalThis.requestAnimationFrame === "function" &&
+    typeof globalThis.cancelAnimationFrame === "function"
+  ) {
+    const frameId = globalThis.requestAnimationFrame(callback);
+    return () => globalThis.cancelAnimationFrame(frameId);
+  }
+
+  const timeoutId = globalThis.setTimeout(callback, 16);
+  return () => globalThis.clearTimeout(timeoutId);
+}
+
+export function createFrameCoalescedPublisher<T>(
+  publishUpdate: (update: T) => void,
+  schedule: FrameScheduler = scheduleForNextFrame,
+) {
+  let pendingUpdate: { value: T } | undefined;
+  let cancelScheduledFrame: (() => void) | undefined;
+
+  const emitPendingUpdate = () => {
+    cancelScheduledFrame = undefined;
+    const update = pendingUpdate;
+    pendingUpdate = undefined;
+    if (update) publishUpdate(update.value);
+  };
+
+  return {
+    publish(update: T) {
+      pendingUpdate = { value: update };
+      cancelScheduledFrame ??= schedule(emitPendingUpdate);
+    },
+    flush(update: T) {
+      pendingUpdate = { value: update };
+      cancelScheduledFrame?.();
+      cancelScheduledFrame = undefined;
+      emitPendingUpdate();
+    },
+    cancel() {
+      cancelScheduledFrame?.();
+      cancelScheduledFrame = undefined;
+      pendingUpdate = undefined;
+    },
+  };
+}
+
 export class ResumableUploadError extends Error {
   constructor(error: unknown) {
     const message = error instanceof Error ? error.message : "Upload failed";
@@ -260,13 +347,31 @@ function uploadSingleWithXhr(
 ) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const progressPublisher = createFrameCoalescedPublisher(onProgress);
     let lastTime = Date.now();
     let lastLoaded = 0;
+    let settled = false;
     const recentSpeeds: number[] = [];
 
+    const cleanup = () => {
+      signal.removeEventListener("abort", onAbort);
+      progressPublisher.cancel();
+    };
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const rejectOnce = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
     const onAbort = () => {
       xhr.abort();
-      reject(new Error("Upload cancelled"));
+      rejectOnce(new Error("Upload cancelled"));
     };
 
     if (signal.aborted) {
@@ -276,7 +381,7 @@ function uploadSingleWithXhr(
     signal.addEventListener("abort", onAbort, { once: true });
 
     xhr.upload.addEventListener("progress", (event) => {
-      if (!event.lengthComputable) return;
+      if (!event.lengthComputable || settled) return;
 
       const percentage = Math.round((event.loaded / event.total) * 100);
       const now = Date.now();
@@ -298,7 +403,7 @@ function uploadSingleWithXhr(
       const remaining = event.total - event.loaded;
       const eta = avgSpeed > 0 ? Math.ceil(remaining / avgSpeed) : null;
 
-      onProgress({
+      progressPublisher.publish({
         progress: percentage,
         bytesPerSecond: avgSpeed,
         estimatedSecondsRemaining: eta,
@@ -306,23 +411,25 @@ function uploadSingleWithXhr(
     });
 
     xhr.addEventListener("load", () => {
-      signal.removeEventListener("abort", onAbort);
+      if (settled) return;
       if (xhr.status >= 200 && xhr.status < 300) {
-        onProgress({ progress: 100, bytesPerSecond: 0, estimatedSecondsRemaining: 0 });
-        resolve();
+        progressPublisher.flush({
+          progress: 100,
+          bytesPerSecond: 0,
+          estimatedSecondsRemaining: 0,
+        });
+        resolveOnce();
         return;
       }
-      reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+      rejectOnce(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
     });
 
     xhr.addEventListener("error", () => {
-      signal.removeEventListener("abort", onAbort);
-      reject(new Error("Upload failed: Network error"));
+      rejectOnce(new Error("Upload failed: Network error"));
     });
 
     xhr.addEventListener("abort", () => {
-      signal.removeEventListener("abort", onAbort);
-      reject(new Error("Upload cancelled"));
+      rejectOnce(new Error("Upload cancelled"));
     });
 
     xhr.open("PUT", url);
@@ -617,6 +724,9 @@ export async function uploadVideoFile(args: {
   if (isFileTooLarge(args.file.size)) {
     throw new Error(`Video file is too large. Maximum size is ${formatMaxUploadSize()}.`);
   }
+  if (args.signal.aborted) {
+    throw new Error("Upload cancelled");
+  }
 
   const contentType = args.file.type || "video/mp4";
   const initiate = await args.actions.initiateVideoUpload({
@@ -625,6 +735,9 @@ export async function uploadVideoFile(args: {
     fileSize: args.file.size,
     contentType,
   });
+  if (args.signal.aborted) {
+    throw new Error("Upload cancelled");
+  }
 
   if (initiate.strategy === "single") {
     args.onResumingChange?.(false);

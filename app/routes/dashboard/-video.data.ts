@@ -2,6 +2,38 @@ import { useQuery, type ConvexReactClient } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
+import { useMemo } from "react";
+
+export function threadComments<
+  T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
+>(comments: readonly T[]) {
+  const topLevel: T[] = [];
+  const repliesByParent = new Map<string, T[]>();
+
+  for (const comment of comments) {
+    if (!comment.parentId) {
+      topLevel.push(comment);
+      continue;
+    }
+
+    const replies = repliesByParent.get(comment.parentId);
+    if (replies) {
+      replies.push(comment);
+    } else {
+      repliesByParent.set(comment.parentId, [comment]);
+    }
+  }
+
+  topLevel.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+  for (const replies of repliesByParent.values()) {
+    replies.sort((a, b) => a._creationTime - b._creationTime);
+  }
+
+  return topLevel.map((comment) => ({
+    ...comment,
+    replies: repliesByParent.get(comment._id) ?? [],
+  }));
+}
 
 export function getVideoEssentialSpecs(params: {
   teamSlug: string;
@@ -21,9 +53,6 @@ export function getVideoEssentialSpecs(params: {
       videoId: params.videoId,
     }),
     makeRouteQuerySpec(api.comments.list, {
-      videoId: params.videoId,
-    }),
-    makeRouteQuerySpec(api.comments.getThreaded, {
       videoId: params.videoId,
     }),
   ];
@@ -52,9 +81,9 @@ export function useVideoData(params: {
     api.comments.list,
     resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
   );
-  const commentsThreaded = useQuery(
-    api.comments.getThreaded,
-    resolvedVideoId ? { videoId: resolvedVideoId } : "skip",
+  const commentsThreaded = useMemo(
+    () => (comments === undefined ? undefined : threadComments(comments)),
+    [comments],
   );
 
   return {
