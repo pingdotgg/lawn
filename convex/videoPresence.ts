@@ -201,7 +201,9 @@ export const disconnect = mutation({
 export const listProjectOnlineCounts = query({
   args: {
     projectId: v.id("projects"),
-    videoIds: v.array(v.id("videos")),
+    // Optional so clients loaded before this argument existed keep a live
+    // (empty) subscription instead of crashing on argument validation.
+    videoIds: v.optional(v.array(v.id("videos"))),
   },
   returns: v.object({
     counts: v.record(v.string(), v.number()),
@@ -209,27 +211,31 @@ export const listProjectOnlineCounts = query({
   handler: async (ctx, args) => {
     await requireProjectAccess(ctx, args.projectId, "viewer");
 
-    if (args.videoIds.length > MAX_PROJECT_PRESENCE_VIDEOS) {
+    const requestedVideoIds = args.videoIds ?? [];
+    if (requestedVideoIds.length > MAX_PROJECT_PRESENCE_VIDEOS) {
       throw new ConvexError({
         code: "BAD_REQUEST",
         message: `Presence counts are limited to ${MAX_PROJECT_PRESENCE_VIDEOS} videos.`,
       });
     }
 
-    const videoIds = [...new Set(args.videoIds)];
+    const videoIds = [...new Set(requestedVideoIds)];
     const videos = await Promise.all(videoIds.map((videoId) => ctx.db.get(videoId)));
 
-    if (videos.some((video) => !video || video.projectId !== args.projectId)) {
-      throw new ConvexError({
-        code: "FORBIDDEN",
-        message: "One or more videos are not available in this project.",
-      });
-    }
+    // Skip (rather than reject) videos that were deleted or moved out of the
+    // project: this subscription's args race against those mutations, and a
+    // thrown error here would crash every open dashboard for the project.
+    // Omission reveals nothing about foreign videos — it is indistinguishable
+    // from a nonexistent ID.
+    const authorizedVideoIds = videoIds.filter((videoId, index) => {
+      const video = videos[index];
+      return video !== null && video.projectId === args.projectId;
+    });
 
     const counts: Record<string, number> = {};
 
     await Promise.all(
-      videoIds.map(async (videoId) => {
+      authorizedVideoIds.map(async (videoId) => {
         const onlineUsers = await presence.listRoom(ctx, roomIdForVideo(videoId), true);
         counts[videoId] = onlineUsers.length;
       }),

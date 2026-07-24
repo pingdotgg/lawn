@@ -62,16 +62,24 @@ test("project presence is authorized and strictly bounded to requested videos", 
       videoIds: seeded.videoIds,
     }),
   ).rejects.toThrow("Presence counts are limited to 40 videos");
+  // Videos outside the project (deleted, moved, or foreign) are silently
+  // omitted so the live subscription never crashes viewers mid-race.
   await expect(
     authed.query(api.videoPresence.listProjectOnlineCounts, {
       projectId: seeded.projectId,
-      videoIds: [seeded.otherVideoId],
+      videoIds: [seeded.otherVideoId, seeded.videoIds[0]],
     }),
-  ).rejects.toThrow("not available in this project");
+  ).resolves.toEqual({ counts: { [seeded.videoIds[0]]: 0 } });
   await expect(
     authed.query(api.videoPresence.listProjectOnlineCounts, {
       projectId: seeded.projectId,
       videoIds: [],
+    }),
+  ).resolves.toEqual({ counts: {} });
+  // Clients deployed before the videoIds argument existed omit it entirely.
+  await expect(
+    authed.query(api.videoPresence.listProjectOnlineCounts, {
+      projectId: seeded.projectId,
     }),
   ).resolves.toEqual({ counts: {} });
   await expect(
