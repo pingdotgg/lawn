@@ -6,10 +6,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { "@": fileURLToPath(new URL("../../src", import.meta.url)) } },
   server: {
-    host: "0.0.0.0",
     port: 5397,
     strictPort: true,
-    allowedHosts: ["siva.otter-hawksbill.ts.net"],
     fs: { allow: [fileURLToPath(new URL("../..", import.meta.url))] },
   },
 });

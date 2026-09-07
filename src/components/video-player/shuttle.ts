@@ -14,6 +14,10 @@ export function createShuttleController(
   let previousTime = 0;
   let generation = 0;
 
+  function playing() {
+    return seekingPlayback || !video.paused;
+  }
+
   function stopSeeking() {
     seekingPlayback = false;
     if (timer !== undefined) clock.cancel(timer);
@@ -66,11 +70,8 @@ export function createShuttleController(
   }
 
   return {
-    get seekingPlayback() {
-      return seekingPlayback;
-    },
     get playing() {
-      return seekingPlayback || !video.paused;
+      return playing();
     },
     get rate() {
       return rate;
@@ -78,11 +79,11 @@ export function createShuttleController(
     pause,
     play,
     toggle() {
-      if (seekingPlayback || !video.paused) pause();
+      if (playing()) pause();
       else play();
     },
     shuttle(direction: -1 | 1) {
-      const sameDirection = (seekingPlayback || !video.paused) && Math.sign(rate) === direction;
+      const sameDirection = playing() && Math.sign(rate) === direction;
       const nextSpeed = sameDirection
         ? ([1, 2, 4, 8, 16, 32].find((speed) => speed > Math.abs(rate)) ?? 32)
         : 1;
@@ -90,11 +91,11 @@ export function createShuttleController(
       play();
     },
     setRate(next: number) {
-      const playing = seekingPlayback || !video.paused;
+      const wasPlaying = playing();
       stopSeeking();
       rate = next;
       video.playbackRate = Math.min(Math.abs(next), 16);
-      if (playing) play();
+      if (wasPlaying) play();
       else onChange(false, rate);
     },
     playAt(next: number) {
@@ -130,7 +131,6 @@ export function playbackShortcut(
   > & { code?: string },
   target: { closest: (selector: string) => unknown } | null,
   editor: boolean,
-  paused: boolean,
   pointerFocused = false,
 ) {
   if (
@@ -153,6 +153,7 @@ export function playbackShortcut(
   }
   if (editor && event.shiftKey && key === " ") return event.repeat ? "handled" : "reverseNormal";
   if (event.shiftKey && !(editor && ["arrowleft", "arrowright"].includes(key))) return null;
+  // Keyboard-focused buttons keep their native Space/arrow behavior; mouse-focused ones don't.
   if (
     !pointerFocused &&
     target?.closest("button, a[href]") &&
@@ -167,8 +168,8 @@ export function playbackShortcut(
   if (key === "m") return "mute";
   if (editor && key === "j") return "reverse";
   if (editor && key === "l") return "forward";
-  if (editor && paused && key === ",") return "stepBack";
-  if (editor && paused && key === ".") return "stepForward";
+  if (editor && key === ",") return "stepBack";
+  if (editor && key === ".") return "stepForward";
   if (key === "arrowleft")
     return editor ? (event.shiftKey ? "stepBackTen" : "stepBack") : "seekBack";
   if (key === "arrowright")
@@ -182,7 +183,6 @@ export type PlaybackAction = NonNullable<ReturnType<typeof playbackShortcut>>;
 export function bindPlaybackShortcuts(
   root: HTMLElement,
   editor: boolean,
-  isPaused: () => boolean,
   dispatch: (action: PlaybackAction) => void,
 ) {
   const boundary = root.closest("[data-video-editor]") ?? root;
@@ -228,7 +228,7 @@ export function bindPlaybackShortcuts(
     }
     if (!inScope(event.target)) return;
     const target = event.target instanceof Element ? event.target : null;
-    const action = playbackShortcut(event, target, editor, isPaused(), editor && pointerFocused);
+    const action = playbackShortcut(event, target, editor, editor && pointerFocused);
     if (!action) {
       reset();
       return;

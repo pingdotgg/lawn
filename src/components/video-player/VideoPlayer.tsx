@@ -3,6 +3,7 @@
 import {
   useRef,
   useEffect,
+  useEffectEvent,
   useState,
   useCallback,
   useMemo,
@@ -177,16 +178,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const resumeTimeOnSourceChangeRef = useRef<number | null>(null);
   const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
   const hasAttachedSourceRef = useRef(false);
-  const onPlaybackIssueRef = useRef(onPlaybackIssue);
-
-  useEffect(() => {
-    onPlaybackIssueRef.current = onPlaybackIssue;
-  }, [onPlaybackIssue]);
-
-  const onTimeUpdateRef = useRef(onTimeUpdate);
-  useEffect(() => {
-    onTimeUpdateRef.current = onTimeUpdate;
-  }, [onTimeUpdate]);
+  const notifyPlaybackIssue = useEffectEvent((issue: VideoPlaybackIssue) => {
+    onPlaybackIssue?.(issue);
+  });
+  const reportTimeUpdate = useEffectEvent((time: number) => {
+    onTimeUpdate?.(time);
+  });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -341,68 +338,60 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
   }, [controlsBelow, showControls]);
 
-  const shortcutActionRef = useRef<(action: PlaybackAction) => void>(() => {});
-  useEffect(() => {
-    shortcutActionRef.current = (action) => {
-      showControls();
-      switch (action) {
-        case "toggle":
-          togglePlay();
-          break;
-        case "pause":
-          shuttleRef.current?.pause();
-          break;
-        case "reverse":
-          shuttleRef.current?.shuttle(-1);
-          break;
-        case "forward":
-          shuttleRef.current?.shuttle(1);
-          break;
-        case "reverseNormal":
-          shuttleRef.current?.playAt(-1);
-          break;
-        case "slowReverse":
-          shuttleRef.current?.playAt(-0.5);
-          break;
-        case "slowForward":
-          shuttleRef.current?.playAt(0.5);
-          break;
-        case "stepBackTen":
-          shuttleRef.current?.step(-10);
-          break;
-        case "stepForwardTen":
-          shuttleRef.current?.step(10);
-          break;
-        case "stepBack":
-          shuttleRef.current?.step(-1);
-          break;
-        case "stepForward":
-          shuttleRef.current?.step(1);
-          break;
-        case "seekBack":
-          handleSeekBy(-5);
-          break;
-        case "seekForward":
-          handleSeekBy(5);
-          break;
-        case "fullscreen":
-          void toggleFullscreen();
-          break;
-        case "mute":
-          toggleMute();
-          break;
-      }
-    };
+  const runShortcut = useEffectEvent((action: PlaybackAction) => {
+    showControls();
+    switch (action) {
+      case "toggle":
+        togglePlay();
+        break;
+      case "pause":
+        shuttleRef.current?.pause();
+        break;
+      case "reverse":
+        shuttleRef.current?.shuttle(-1);
+        break;
+      case "forward":
+        shuttleRef.current?.shuttle(1);
+        break;
+      case "reverseNormal":
+        shuttleRef.current?.playAt(-1);
+        break;
+      case "slowReverse":
+        shuttleRef.current?.playAt(-0.5);
+        break;
+      case "slowForward":
+        shuttleRef.current?.playAt(0.5);
+        break;
+      case "stepBackTen":
+        shuttleRef.current?.step(-10);
+        break;
+      case "stepForwardTen":
+        shuttleRef.current?.step(10);
+        break;
+      case "stepBack":
+        shuttleRef.current?.step(-1);
+        break;
+      case "stepForward":
+        shuttleRef.current?.step(1);
+        break;
+      case "seekBack":
+        handleSeekBy(-5);
+        break;
+      case "seekForward":
+        handleSeekBy(5);
+        break;
+      case "fullscreen":
+        void toggleFullscreen();
+        break;
+      case "mute":
+        toggleMute();
+        break;
+    }
   });
   useEffect(() => {
     const root = wrapperRef.current;
     if (!root) return;
-    return bindPlaybackShortcuts(
-      root,
-      editorControls,
-      () => !shuttleRef.current?.playing,
-      (action) => shortcutActionRef.current(action),
-    );
+    return bindPlaybackShortcuts(root, editorControls, runShortcut);
   }, [editorControls]);
 
   const handleDownload = useCallback(async () => {
@@ -560,7 +549,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (playbackHealth.issueReported) return;
       resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
       playbackHealth = markVideoPlaybackIssueReported(playbackHealth);
-      onPlaybackIssueRef.current?.(issue);
+      notifyPlaybackIssue(issue);
       stopPlaybackHealthMonitor();
     };
 
@@ -641,7 +630,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled || isScrubbingRef.current) return;
       const time = video.currentTime || 0;
       setCurrentTime(time);
-      onTimeUpdateRef.current?.(time);
+      reportTimeUpdate(time);
     };
 
     const handlePlay = () => {
@@ -654,7 +643,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handlePause = () => {
       if (cancelled) return;
       resetPlaybackHealth();
-      setIsPlaying(shuttleRef.current?.seekingPlayback ?? false);
+      setIsPlaying(shuttleRef.current?.playing ?? false);
       setIsBuffering(false);
       setControlsVisible(true);
     };
@@ -759,7 +748,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             wasPlaying: !video.paused && !video.ended,
           } as const;
           resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
-          onPlaybackIssueRef.current?.(issue);
+          notifyPlaybackIssue(issue);
           stopPlaybackHealthMonitor();
         }
       }, 500);

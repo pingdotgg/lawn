@@ -128,27 +128,30 @@ const event = {
   defaultPrevented: false,
 };
 test("K always pauses; editor arrows step frames; public arrows retain five-second seeks", () => {
-  for (const paused of [true, false])
-    assert.equal(playbackShortcut(event, null, true, paused), "pause");
-  assert.equal(playbackShortcut({ ...event, key: " " }, null, true, true), "toggle");
-  assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, true, true), "stepBack");
-  assert.equal(playbackShortcut({ ...event, key: "ArrowRight" }, null, true, false), "stepForward");
-  assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, false, true), "seekBack");
-  assert.equal(playbackShortcut({ ...event, key: "j" }, null, false, true), null);
+  assert.equal(playbackShortcut(event, null, true), "pause");
+  assert.equal(playbackShortcut({ ...event, key: " " }, null, true), "toggle");
+  assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, true), "stepBack");
+  assert.equal(playbackShortcut({ ...event, key: "ArrowRight" }, null, true), "stepForward");
+  assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, false), "seekBack");
+  assert.equal(playbackShortcut({ ...event, key: "j" }, null, false), null);
 });
 
 test("modifiers, composition, editable controls, handled events and held shuttle keys are ignored", () => {
   for (const flag of ["ctrlKey", "metaKey", "shiftKey", "isComposing", "defaultPrevented"])
-    assert.equal(playbackShortcut({ ...event, key: "l", [flag]: true }, null, true, false), null);
+    assert.equal(playbackShortcut({ ...event, key: "l", [flag]: true }, null, true), null);
+  assert.equal(playbackShortcut({ ...event, key: "l", repeat: true }, null, true), "handled");
+  assert.equal(playbackShortcut(event, { closest: () => ({}) }, true), null);
   assert.equal(
-    playbackShortcut({ ...event, key: "l", repeat: true }, null, true, false),
-    "handled",
-  );
-  assert.equal(playbackShortcut(event, { closest: () => ({}) }, true, false), null);
-  assert.equal(
-    playbackShortcut({ ...event, key: "ArrowLeft", repeat: true }, null, true, true),
+    playbackShortcut({ ...event, key: "ArrowLeft", repeat: true }, null, true),
     "stepBack",
   );
+});
+
+test("focused buttons keep native Space unless focus came from a pointer", () => {
+  const button = { closest: (selector: string) => (selector.startsWith("button") ? {} : null) };
+  assert.equal(playbackShortcut({ ...event, key: " " }, button, true), null);
+  assert.equal(playbackShortcut({ ...event, key: " " }, button, true, true), "toggle");
+  assert.equal(playbackShortcut({ ...event, key: "." }, button, true), "stepForward");
 });
 
 test("shuttling from a custom forward rate uses the standard speed ladder", () => {
@@ -187,35 +190,32 @@ test("32x advances through seeks and stops at the end without an unsupported nat
 
 test("Shift arrows step ten frames without enabling other modified shortcuts", () => {
   assert.equal(
-    playbackShortcut({ ...event, key: "ArrowRight", shiftKey: true }, null, true, false),
+    playbackShortcut({ ...event, key: "ArrowRight", shiftKey: true }, null, true),
     "stepForwardTen",
   );
   assert.equal(
-    playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, true, true),
+    playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, true),
     "stepBackTen",
   );
-  assert.equal(
-    playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, false, true),
-    null,
-  );
+  assert.equal(playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, false), null);
 });
 
 test("Final Cut half-speed and reverse shortcuts preserve modifier guards", () => {
   assert.equal(
-    playbackShortcut({ ...event, key: "¬", code: "KeyL", altKey: true }, null, true, false),
+    playbackShortcut({ ...event, key: "¬", code: "KeyL", altKey: true }, null, true),
     "slowForward",
   );
   assert.equal(
-    playbackShortcut({ ...event, key: "∆", code: "KeyJ", altKey: true }, null, true, true),
+    playbackShortcut({ ...event, key: "∆", code: "KeyJ", altKey: true }, null, true),
     "slowReverse",
   );
   assert.equal(
-    playbackShortcut({ ...event, key: " ", shiftKey: true }, null, true, false),
+    playbackShortcut({ ...event, key: " ", shiftKey: true }, null, true),
     "reverseNormal",
   );
   assert.equal(
-    playbackShortcut({ ...event, key: "l", altKey: true, metaKey: true }, null, true, false),
+    playbackShortcut({ ...event, key: "l", altKey: true, metaKey: true }, null, true),
     null,
   );
-  assert.equal(playbackShortcut({ ...event, key: "l", altKey: true }, null, false, true), null);
+  assert.equal(playbackShortcut({ ...event, key: "l", altKey: true }, null, false), null);
 });
