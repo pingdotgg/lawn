@@ -19,6 +19,7 @@ import {
   getMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
+import { canDownloadOriginal } from "./originalFile";
 import {
   abortMultipartUploadSession,
   completeMultipartUploadSession,
@@ -102,17 +103,34 @@ async function buildDownloadResult(
   };
 }
 
-function getDownloadUnavailableMessage(status: string) {
-  switch (status) {
-    case "uploading":
-      return "This video is still uploading and isn't ready to download yet.";
-    case "processing":
-      return "This video is still processing and isn't ready to download yet.";
-    case "failed":
-      return "This video couldn't be processed, so it isn't available to download.";
-    default:
-      return "This video isn't ready to download yet.";
+async function downloadOriginal(video: {
+  status: string;
+  s3Key?: string;
+  s3MultipartUploadId?: string;
+  uploadCompletedAt?: number;
+  fileSize?: number;
+  title?: string;
+  contentType?: string;
+}) {
+  if (!canDownloadOriginal(video) || !video.s3Key) {
+    throw new Error("The original file has not finished uploading or is no longer available.");
   }
+  const head = await getS3Client().send(
+    new HeadObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: normalizeBucketKey(video.s3Key),
+    }),
+  );
+  if (
+    !head.ContentLength ||
+    !Number.isFinite(head.ContentLength) ||
+    head.ContentLength <= 0 ||
+    (video.fileSize !== undefined && head.ContentLength !== video.fileSize) ||
+    !isAllowedUploadContentType(normalizeContentType(head.ContentType ?? video.contentType))
+  ) {
+    throw new Error("The original file is missing or invalid.");
+  }
+  return buildDownloadResult(video.s3Key, video);
 }
 
 function normalizeBucketKey(key: string): string {
@@ -146,11 +164,6 @@ async function buildSignedBucketObjectUrl(
     ResponseContentType: options?.contentType,
   });
   return await getSignedUrl(s3, command, { expiresIn: options?.expiresIn ?? 600 });
-}
-
-function getValueString(value: unknown, field: string): string | null {
-  const raw = (value as Record<string, unknown>)[field];
-  return typeof raw === "string" && raw.length > 0 ? raw : null;
 }
 
 function normalizeContentType(contentType: string | null | undefined): string {
@@ -255,6 +268,7 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
     error.message.includes("Unsupported video format") ||
     error.message.includes("Video file is too large") ||
     error.message.includes("Uploaded video file not found") ||
+    error.message.includes("Uploaded video size does not match") ||
     error.message.includes("Storage limit reached")
   );
 }
@@ -641,12 +655,14 @@ export const completeMultipartUpload = action({
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLengthRaw,
         contentType: normalizedContentType,
       });
 
       await ctx.runMutation(internal.videos.clearMultipartUploadId, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
       });
     } catch (error) {
       try {
@@ -664,6 +680,7 @@ export const completeMultipartUpload = action({
 
       await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
         uploadError: error instanceof Error ? error.message : "Upload failed after completion.",
       });
       throw error;
@@ -794,12 +811,14 @@ export const markUploadComplete = action({
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLength,
         contentType: normalizedContentType,
       });
 
       await ctx.runMutation(internal.videos.markAsProcessing, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
       });
 
       const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
@@ -829,12 +848,14 @@ export const markUploadComplete = action({
       if (shouldDeleteObject) {
         await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
           videoId: args.videoId,
+          expectedS3Key: video.s3Key,
           uploadError,
         });
         throw error;
       }
       await ctx.runMutation(internal.videos.markAsFailed, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
         uploadError,
       });
       throw new Error("Mux ingest failed after upload. Retry processing without re-uploading.");
@@ -1165,19 +1186,7 @@ export const getDownloadUrl = action({
       throw new Error("Video not found");
     }
 
-    if (video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(video.status));
-    }
-
-    const key = getValueString(video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: video.title,
-      contentType: video.contentType,
-    });
+    return await downloadOriginal(video);
   },
 });
 
@@ -1196,19 +1205,7 @@ export const getPublicDownloadUrl = action({
       throw new Error("Video not found");
     }
 
-    if (result.video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(result.video.status));
-    }
-
-    const key = getValueString(result.video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: result.video.title,
-      contentType: result.video.contentType,
-    });
+    return await downloadOriginal(result.video);
   },
 });
 
@@ -1231,18 +1228,6 @@ export const getSharedDownloadUrl = action({
       throw new Error("Downloads are disabled for this shared link.");
     }
 
-    if (result.video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(result.video.status));
-    }
-
-    const key = getValueString(result.video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: result.video.title,
-      contentType: result.video.contentType,
-    });
+    return await downloadOriginal(result.video);
   },
 });

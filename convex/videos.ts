@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { canDownloadOriginal } from "./originalFile";
 import { paginationOptsValidator } from "convex/server";
 import {
   internalMutation,
@@ -187,6 +188,7 @@ async function failOrRollbackUpload(ctx: MutationCtx, video: Doc<"videos">, uplo
     uploadError,
     status: "failed",
     s3Key: undefined,
+    uploadCompletedAt: undefined,
     s3MultipartUploadId: undefined,
     s3MultipartPartSizeBytes: undefined,
     s3MultipartPartCount: undefined,
@@ -629,7 +631,7 @@ export const listVersions = query({
 
 type PublicWatchResolution =
   | { state: "ready"; video: Doc<"videos">; allowVersionBrowsing: boolean }
-  | { state: "processing"; title: string }
+  | { state: "processing"; title: string; downloadVideo?: Doc<"videos"> }
   | { state: "unavailable" };
 
 // Version browsing is on unless explicitly disabled, so existing public videos
@@ -717,6 +719,17 @@ async function resolvePublicWatch(
     return { state: "ready", video: served, allowVersionBrowsing };
   }
 
+  // Keep downloads on the ready cut shown above. Only offer an original-only
+  // cut when there is no ready public playback to mismatch.
+  const downloadable = stackVersions.filter(
+    (candidate) => candidate.visibility === "public" && canDownloadOriginal(candidate),
+  );
+  const downloadVideo =
+    allowVersionBrowsing && canDownloadOriginal(matched) ? matched : downloadable.at(-1);
+  if (downloadVideo) {
+    return { state: "processing", title: downloadVideo.title, downloadVideo };
+  }
+
   // Nothing is playable yet — if a public version is still in flight, tell the
   // viewer it's on the way rather than treating it as missing.
   const hasInflightVersion = stackVersions.some(
@@ -733,8 +746,8 @@ async function resolvePublicWatch(
 
 /**
  * Resolves the ready video to serve for a public `/watch/<publicId>` link, or
- * null if nothing is currently playable. Used by the comment and download paths,
- * which only ever operate on a ready cut.
+ * null if nothing is currently playable. Comments and playback only operate on a
+ * ready cut; downloads can also resolve an original-only processing result.
  */
 export async function resolvePublicVideo(
   ctx: StackReadCtx,
@@ -754,12 +767,19 @@ export const getByPublicId = query({
     }
 
     if (resolution.state === "processing") {
-      return { processing: true as const, title: resolution.title, video: null };
+      return {
+        processing: true as const,
+        title: resolution.title,
+        video: null,
+        canDownload: Boolean(resolution.downloadVideo),
+        processingFailed: resolution.downloadVideo?.status === "failed",
+      };
     }
 
     const video = resolution.video;
     return {
       processing: false as const,
+      canDownload: canDownloadOriginal(video),
       title: video.title,
       allowVersionBrowsing: resolution.allowVersionBrowsing,
       video: {
@@ -815,7 +835,13 @@ export const listPublicVersions = query({
 export const getByPublicIdForDownload = query({
   args: { publicId: v.string() },
   handler: async (ctx, args) => {
-    const video = await resolvePublicVideo(ctx, args.publicId);
+    const resolution = await resolvePublicWatch(ctx, args.publicId);
+    const video =
+      resolution.state === "ready"
+        ? resolution.video
+        : resolution.state === "processing"
+          ? resolution.downloadVideo
+          : null;
     if (!video) {
       return null;
     }
@@ -827,6 +853,9 @@ export const getByPublicIdForDownload = query({
         contentType: video.contentType,
         s3Key: video.s3Key,
         status: video.status,
+        fileSize: video.fileSize,
+        uploadCompletedAt: video.uploadCompletedAt,
+        s3MultipartUploadId: video.s3MultipartUploadId,
       },
     };
   },
@@ -859,11 +888,14 @@ export const getByShareGrant = query({
     }
 
     const video = await ctx.db.get(resolved.shareLink.videoId);
-    if (!video || video.status !== "ready") {
+    if (!video || (video.status !== "ready" && !canDownloadOriginal(video))) {
       return null;
     }
 
     return {
+      canDownload: resolved.shareLink.allowDownload && canDownloadOriginal(video),
+      processing: video.status !== "ready",
+      processingFailed: video.status === "failed",
       video: {
         _id: video._id,
         title: video.title,
@@ -871,7 +903,7 @@ export const getByShareGrant = query({
         duration: video.duration,
         thumbnailUrl: video.thumbnailUrl,
         muxAssetId: video.muxAssetId,
-        muxPlaybackId: video.muxPlaybackId,
+        muxPlaybackId: video.status === "ready" ? video.muxPlaybackId : undefined,
         contentType: video.contentType,
         s3Key: video.s3Key,
       },
@@ -902,6 +934,9 @@ export const getByShareGrantForDownload = query({
         contentType: video.contentType,
         s3Key: video.s3Key,
         status: video.status,
+        fileSize: video.fileSize,
+        uploadCompletedAt: video.uploadCompletedAt,
+        s3MultipartUploadId: video.s3MultipartUploadId,
       },
     };
   },
@@ -1093,6 +1128,7 @@ export const setUploadInfo = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
       s3Key: args.s3Key,
+      uploadCompletedAt: undefined,
       s3MultipartUploadId: args.s3MultipartUploadId,
       s3MultipartPartSizeBytes: args.s3MultipartPartSizeBytes,
       s3MultipartPartCount: args.s3MultipartPartCount,
@@ -1150,6 +1186,7 @@ export const assertVideoUploadAllowed = internalQuery({
 export const reconcileUploadedObjectMetadata = internalMutation({
   args: {
     videoId: v.id("videos"),
+    s3Key: v.string(),
     fileSize: v.number(),
     contentType: v.string(),
   },
@@ -1157,6 +1194,13 @@ export const reconcileUploadedObjectMetadata = internalMutation({
     const video = await ctx.db.get(args.videoId);
     if (!video) {
       throw new Error("Video not found");
+    }
+
+    if (video.s3Key !== args.s3Key || !["uploading", "failed"].includes(video.status)) {
+      throw new Error("Upload was cancelled or replaced.");
+    }
+    if (!Number.isFinite(args.fileSize) || args.fileSize <= 0 || args.fileSize !== video.fileSize) {
+      throw new Error("Uploaded video size does not match the selected file.");
     }
 
     const project = await ctx.db.get(video.projectId);
@@ -1181,6 +1225,7 @@ export const reconcileUploadedObjectMetadata = internalMutation({
 
     await ctx.db.patch(args.videoId, {
       fileSize: actualSize,
+      uploadCompletedAt: Date.now(),
       contentType: args.contentType,
     });
   },
@@ -1189,8 +1234,15 @@ export const reconcileUploadedObjectMetadata = internalMutation({
 export const markAsProcessing = internalMutation({
   args: {
     videoId: v.id("videos"),
+    expectedS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.expectedS3Key !== undefined) {
+      const video = await ctx.db.get(args.videoId);
+      if (!video || video.s3Key !== args.expectedS3Key) {
+        throw new Error("Upload was cancelled or replaced.");
+      }
+    }
     await ctx.db.patch(args.videoId, {
       status: "processing",
       muxAssetStatus: "preparing",
@@ -1260,9 +1312,16 @@ export const markMuxAssetAsFailed = internalMutation({
 export const markAsFailed = internalMutation({
   args: {
     videoId: v.id("videos"),
+    expectedS3Key: v.optional(v.string()),
     uploadError: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.expectedS3Key !== undefined) {
+      const video = await ctx.db.get(args.videoId);
+      if (!video || video.s3Key !== args.expectedS3Key) {
+        return;
+      }
+    }
     await ctx.db.patch(args.videoId, {
       muxAssetStatus: "errored",
       uploadError: args.uploadError,
@@ -1278,6 +1337,7 @@ export const markAsFailed = internalMutation({
 export const finalizeAbandonedUpload = internalMutation({
   args: {
     videoId: v.id("videos"),
+    expectedS3Key: v.optional(v.string()),
     uploadError: v.string(),
   },
   returns: v.object({
@@ -1285,7 +1345,7 @@ export const finalizeAbandonedUpload = internalMutation({
   }),
   handler: async (ctx, args) => {
     const video = await ctx.db.get(args.videoId);
-    if (!video) {
+    if (!video || (args.expectedS3Key !== undefined && video.s3Key !== args.expectedS3Key)) {
       return { removedVersion: true };
     }
 
@@ -1298,8 +1358,15 @@ export const finalizeAbandonedUpload = internalMutation({
 export const clearMultipartUploadId = internalMutation({
   args: {
     videoId: v.id("videos"),
+    expectedS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.expectedS3Key !== undefined) {
+      const video = await ctx.db.get(args.videoId);
+      if (!video || video.s3Key !== args.expectedS3Key) {
+        throw new Error("Upload was cancelled or replaced.");
+      }
+    }
     await ctx.db.patch(args.videoId, {
       s3MultipartUploadId: undefined,
       s3MultipartPartSizeBytes: undefined,
@@ -1413,6 +1480,7 @@ export const clearUploadStorageInfo = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.videoId, {
       s3Key: undefined,
+      uploadCompletedAt: undefined,
       s3MultipartUploadId: undefined,
       s3MultipartPartSizeBytes: undefined,
       s3MultipartPartCount: undefined,

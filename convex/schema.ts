@@ -83,6 +83,8 @@ export default defineSchema({
     s3MultipartPartSizeBytes: v.optional(v.number()),
     s3MultipartPartCount: v.optional(v.number()),
     uploadUpdatedAt: v.optional(v.number()),
+    // Set only after the original object passes server-side completion validation.
+    uploadCompletedAt: v.optional(v.number()),
     muxLastPolledAt: v.optional(v.number()),
     duration: v.optional(v.number()),
     thumbnailUrl: v.optional(v.string()),
