@@ -828,6 +828,7 @@ export const markUploadComplete = action({
       if (asset.id) {
         await ctx.runMutation(internal.videos.setMuxAssetReference, {
           videoId: args.videoId,
+          expectedS3Key: video.s3Key,
           muxAssetId: asset.id,
         });
       }

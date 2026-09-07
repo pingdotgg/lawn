@@ -590,6 +590,10 @@ export default function ProjectPage({
           triggerDownload(result.url, result.filename ?? `${title}.mp4`);
         }
       } catch (error) {
+        if (shareToastTimeoutRef.current !== null) {
+          window.clearTimeout(shareToastTimeoutRef.current);
+          shareToastTimeoutRef.current = null;
+        }
         setShareToast({
           tone: "error",
           message: error instanceof Error ? error.message : "Unable to prepare download.",

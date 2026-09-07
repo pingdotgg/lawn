@@ -77,6 +77,9 @@ export default defineSchema({
     muxAssetStatus: v.optional(
       v.union(v.literal("preparing"), v.literal("ready"), v.literal("errored")),
     ),
+    // Deprecated: older deployments stored this on videos. Keep it optional
+    // until those rows have been migrated; active presence uses component rooms.
+    presenceRoomToken: v.optional(v.string()),
     // Metadata
     s3Key: v.optional(v.string()),
     s3MultipartUploadId: v.optional(v.string()),

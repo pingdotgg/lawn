@@ -520,7 +520,11 @@ export default function SharePage() {
               ) : null}
               <div className="absolute inset-0 bg-black/45" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                {videoData.processingFailed ? (
+                  <AlertCircle className="h-8 w-8 text-[#f87171]" aria-hidden="true" />
+                ) : (
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                )}
                 <p className="text-sm font-medium text-white/85">
                   {videoData.processingFailed
                     ? "Processing failed."

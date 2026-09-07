@@ -388,3 +388,75 @@ test("multipart originals stay gated until validated completion and processing h
     "multipart.mp4",
   );
 });
+
+test("a late Mux creation response cannot attach its asset to a replacement upload", async () => {
+  const { t, owner, videoId } = await seed();
+  let resolveAsset!: (asset: { id: string }) => void;
+  let ingestStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    ingestStarted = resolve;
+  });
+  mocks.mux.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolveAsset = resolve;
+        ingestStarted();
+      }),
+  );
+  const completion = owner.action(api.videoActions.markUploadComplete, { videoId });
+  const rejected = expect(completion).rejects.toThrow();
+  await started;
+  await t.mutation(internal.videos.setUploadInfo, {
+    videoId,
+    s3Key: "replacement.mp4",
+    fileSize: 100,
+    contentType: "video/mp4",
+  });
+  resolveAsset({ id: "old-asset" });
+  await rejected;
+  const replacement = await t.run((ctx) => ctx.db.get(videoId));
+  expect(replacement).toMatchObject({ status: "uploading", s3Key: "replacement.mp4" });
+  expect(replacement?.muxAssetId).toBeUndefined();
+  await expect(owner.action(api.videoActions.getDownloadUrl, { videoId })).rejects.toThrow();
+});
+
+test("Mux created webhooks cannot bypass S3 attempt binding; legacy direct uploads still associate", async () => {
+  const { t, owner, videoId } = await seed();
+  await owner.action(api.videoActions.markUploadComplete, { videoId });
+  await expect(
+    t.mutation(internal.videos.setMuxAssetReference, {
+      videoId,
+      muxAssetId: "stale-webhook-asset",
+    }),
+  ).resolves.toBe(false);
+  expect((await t.run((ctx) => ctx.db.get(videoId)))?.muxAssetId).toBe("mux-asset");
+  await t.mutation(internal.videos.setUploadInfo, {
+    videoId,
+    s3Key: "replacement.mp4",
+    fileSize: 100,
+    contentType: "video/mp4",
+  });
+  await expect(
+    t.mutation(internal.videos.setMuxAssetReference, {
+      videoId,
+      muxAssetId: "stale-webhook-asset",
+    }),
+  ).resolves.toBe(false);
+  await t.mutation(internal.videos.finalizeAbandonedUpload, { videoId, uploadError: "cancelled" });
+  await expect(
+    t.mutation(internal.videos.setMuxAssetReference, {
+      videoId,
+      muxAssetId: "stale-webhook-asset",
+    }),
+  ).resolves.toBe(false);
+  await t.run((ctx) =>
+    ctx.db.patch(videoId, { status: "uploading", s3Key: undefined, muxUploadId: "direct-upload" }),
+  );
+  await expect(
+    t.mutation(internal.videos.setMuxAssetReference, {
+      videoId,
+      muxAssetId: "direct-asset",
+    }),
+  ).resolves.toBe(true);
+  expect((await t.run((ctx) => ctx.db.get(videoId)))?.muxAssetId).toBe("direct-asset");
+});

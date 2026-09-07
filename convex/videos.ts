@@ -1495,8 +1495,26 @@ export const setMuxAssetReference = internalMutation({
   args: {
     videoId: v.id("videos"),
     muxAssetId: v.string(),
+    expectedS3Key: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    if (!video) return false;
+    if (args.expectedS3Key !== undefined) {
+      if (video.s3Key !== args.expectedS3Key || video.status !== "processing") {
+        throw new Error("Upload was cancelled or replaced.");
+      }
+    } else if (
+      video.s3Key ||
+      !video.muxUploadId ||
+      (video.status !== "uploading" && video.status !== "processing")
+    ) {
+      // S3 ingest is associated by its action, which knows the validated key.
+      // A webhook's video-id passthrough cannot identify an upload attempt.
+      // Only active legacy direct uploads may be associated without an S3 key.
+      return false;
+    }
+
     await ctx.db.patch(args.videoId, {
       muxAssetId: args.muxAssetId,
       muxAssetStatus: "preparing",
@@ -1507,6 +1525,7 @@ export const setMuxAssetReference = internalMutation({
       uploadUpdatedAt: Date.now(),
       muxLastPolledAt: Date.now(),
     });
+    return true;
   },
 });
 
