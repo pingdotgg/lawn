@@ -20,7 +20,8 @@
     "check": "bun run format:check && bun run typecheck && bun run typecheck:convex && bun run lint && bun run test",
     "typecheck": "tsc --noEmit",
     "typecheck:convex": "bunx convex typecheck",
-    "generate:og": "bun run scripts/generate-og.tsx"
+    "generate:og": "bun run scripts/generate-og.tsx",
+    "test:player": "playwright test"
   },
   "dependencies": {
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.0",
@@ -56,6 +57,7 @@
   "devDependencies": {
     "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "^9.34.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

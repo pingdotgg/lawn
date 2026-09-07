@@ -1,3 +1,4 @@
+import { VideoEditorLayout } from "@/components/video-player/VideoEditorLayout";
 import { useConvex, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
@@ -316,6 +317,7 @@ export default function VideoPage() {
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [theaterMode, setTheaterMode] = useState(false);
   const [sidebarCollapsed, toggleSidebarCollapsed] = useSidebarCollapsed();
   const [playbackSession, setPlaybackSession] = useState<MuxPlaybackRecovery | null>(null);
   const [loadingPlaybackVideoId, setLoadingPlaybackVideoId] = useState<Id<"videos"> | null>(null);
@@ -1041,7 +1043,7 @@ export default function VideoPage() {
   const showVersionSelector = (versions?.length ?? 0) > 1;
 
   return (
-    <div className="flex h-full flex-col">
+    <VideoEditorLayout theaterMode={theaterMode}>
       {/* Header */}
       <DashboardHeader
         paths={[
@@ -1380,6 +1382,9 @@ export default function VideoPage() {
               downloadFilename={`${video.title}.mp4`}
               onRequestDownload={requestDownload}
               controlsBelow
+              editorControls
+              theaterMode={theaterMode}
+              onToggleTheater={() => setTheaterMode((current) => !current)}
               qualityOptionsConfig={[
                 {
                   id: "mux720",
@@ -1615,6 +1620,6 @@ export default function VideoPage() {
           </button>
         </div>
       ) : null}
-    </div>
+    </VideoEditorLayout>
   );
 }
