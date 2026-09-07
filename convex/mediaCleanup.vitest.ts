@@ -3,7 +3,8 @@
 import { convexTest } from "convex-test";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { createVersionRecord } from "./videos";
 import { normalizeBucketKey } from "./mediaKeys";
 import { isMissingMedia } from "./mediaCleanupActions";
@@ -58,7 +59,47 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-async function fixture(overrides: Partial<Doc<"videos">> = {}) {
+type VideoOverrides = Partial<Omit<Doc<"videos">, "_id" | "_creationTime">>;
+
+function insertVideo(ctx: MutationCtx, projectId: Id<"projects">, overrides: VideoOverrides = {}) {
+  return ctx.db.insert("videos", {
+    projectId,
+    uploadedByClerkId: "owner",
+    uploaderName: "Owner",
+    title: "Video",
+    visibility: "public",
+    publicId: "public",
+    status: "ready",
+    workflowStatus: "review",
+    s3Key: "original.mp4",
+    muxAssetId: "asset-original",
+    ...overrides,
+  });
+}
+
+async function addVersion(
+  t: ReturnType<typeof convexTest>,
+  sourceVideoId: Id<"videos">,
+  overrides: VideoOverrides = {},
+) {
+  return await t.run(async (ctx) => {
+    const { videoId } = await createVersionRecord(ctx, {
+      sourceVideoId,
+      uploadedByClerkId: "owner",
+      uploaderName: "Owner",
+      publicId: overrides.publicId ?? "v2",
+    });
+    await ctx.db.patch(videoId, {
+      status: "ready",
+      s3Key: "v2.mp4",
+      muxAssetId: "asset-v2",
+      ...overrides,
+    });
+    return videoId;
+  });
+}
+
+async function fixture(overrides: VideoOverrides = {}) {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
     const teamId = await ctx.db.insert("teams", {
@@ -76,19 +117,7 @@ async function fixture(overrides: Partial<Doc<"videos">> = {}) {
       role: "owner",
     });
     const projectId = await ctx.db.insert("projects", { teamId, name: "Root" });
-    const videoId = await ctx.db.insert("videos", {
-      projectId,
-      uploadedByClerkId: "owner",
-      uploaderName: "Owner",
-      title: "Video",
-      visibility: "public",
-      publicId: "public",
-      status: "ready",
-      workflowStatus: "review",
-      s3Key: "original.mp4",
-      muxAssetId: "asset-original",
-      ...overrides,
-    });
+    const videoId = await insertVideo(ctx, projectId, overrides);
     return { teamId, projectId, videoId };
   });
   return { t, owner: t.withIdentity({ subject: "owner" }), ...ids };
@@ -117,13 +146,7 @@ test("nested folder deletion snapshots every version and pending upload across d
   const nested = await t.run(async (ctx) => {
     const child = await ctx.db.insert("projects", { teamId, name: "Child", parentId: projectId });
     const leaf = await ctx.db.insert("projects", { teamId, name: "Leaf", parentId: child });
-    const video = (await ctx.db.get(videoId))!;
-    const { _id, _creationTime, ...fields } = video;
-    void _id;
-    void _creationTime;
-    const pending = await ctx.db.insert("videos", {
-      ...fields,
-      projectId: leaf,
+    const pending = await insertVideo(ctx, leaf, {
       publicId: "pending",
       status: "uploading",
       s3Key: "pending.mp4",
@@ -141,17 +164,7 @@ test("nested folder deletion snapshots every version and pending upload across d
       });
     return { child, leaf, pending };
   });
-  const version = await t.run((ctx) =>
-    createVersionRecord(ctx, {
-      sourceVideoId: videoId,
-      uploadedByClerkId: "owner",
-      uploaderName: "Owner",
-      publicId: "v2",
-    }),
-  );
-  await t.run((ctx) =>
-    ctx.db.patch(version.videoId, { s3Key: "v2.mp4", muxAssetId: "asset-v2", status: "ready" }),
-  );
+  await addVersion(t, videoId);
   await owner.mutation(api.projects.remove, { projectId });
   await t.finishAllScheduledFunctions(() => vi.runAllTimers());
   expect(await t.run((ctx) => ctx.db.query("videos").collect())).toEqual([]);
@@ -187,17 +200,7 @@ test("nested folder deletion snapshots every version and pending upload across d
 
 test("individual version removal is immediate, renumbers survivors, and stack deletion queues remaining media", async () => {
   const { t, owner, videoId } = await fixture();
-  const { videoId: v2 } = await t.run((ctx) =>
-    createVersionRecord(ctx, {
-      sourceVideoId: videoId,
-      uploadedByClerkId: "owner",
-      uploaderName: "Owner",
-      publicId: "v2",
-    }),
-  );
-  await t.run((ctx) =>
-    ctx.db.patch(v2, { s3Key: "v2.mp4", muxAssetId: "asset-v2", status: "ready" }),
-  );
+  const v2 = await addVersion(t, videoId);
   expect(await owner.mutation(api.videos.remove, { videoId: v2 })).toEqual({
     replacementVideoId: videoId,
   });
@@ -215,18 +218,12 @@ test("individual version removal is immediate, renumbers survivors, and stack de
 
 test("shared assets and legacy URL aliases survive deletion until their last reference is removed", async () => {
   const { t, owner, videoId, projectId } = await fixture();
-  const survivor = await t.run(async (ctx) => {
-    const original = (await ctx.db.get(videoId))!;
-    const { _id, _creationTime, ...fields } = original;
-    void _id;
-    void _creationTime;
-    return await ctx.db.insert("videos", {
-      ...fields,
-      projectId,
+  const survivor = await t.run((ctx) =>
+    insertVideo(ctx, projectId, {
       publicId: "survivor",
       s3Key: "https://bucket.invalid/videos/original.mp4",
-    });
-  });
+    }),
+  );
   await owner.mutation(api.videos.remove, { videoId });
   await drain(t);
   expect(external.s3).not.toHaveBeenCalled();
@@ -295,11 +292,8 @@ test("claims and legacy reference indexing are bounded", async () => {
   const { t, owner, videoId } = await fixture();
   await t.run(async (ctx) => {
     const video = (await ctx.db.get(videoId))!;
-    const { _id, _creationTime, ...fields } = video;
-    void _id;
-    void _creationTime;
     for (let i = 0; i < 105; i++)
-      await ctx.db.insert("videos", { ...fields, publicId: `legacy-${i}` });
+      await insertVideo(ctx, video.projectId, { publicId: `legacy-${i}` });
   });
   await owner.mutation(api.videos.remove, { videoId });
   for (let i = 0; i < 25; i++)
@@ -482,17 +476,13 @@ test("stale upload results cannot overwrite a replacement upload or adopt retire
 
 test("failed version rollback queues its storage before removing the version", async () => {
   const { t, videoId } = await fixture();
-  const { videoId: failed } = await t.run((ctx) =>
-    createVersionRecord(ctx, {
-      sourceVideoId: videoId,
-      uploadedByClerkId: "owner",
-      uploaderName: "Owner",
-      publicId: "failed",
-    }),
-  );
-  await t.run((ctx) =>
-    ctx.db.patch(failed, { s3Key: "failed.mp4", s3MultipartUploadId: "failed-session" }),
-  );
+  const failed = await addVersion(t, videoId, {
+    publicId: "failed",
+    status: "uploading",
+    s3Key: "failed.mp4",
+    muxAssetId: undefined,
+    s3MultipartUploadId: "failed-session",
+  });
   await t.mutation(internal.videos.finalizeAbandonedUpload, {
     videoId: failed,
     s3Key: "failed.mp4",
@@ -587,15 +577,12 @@ test("new references cannot be attached while external cleanup owns a retired re
   await owner.mutation(api.videos.remove, { videoId });
   await t.mutation(internal.mediaCleanup.claimBatch, {});
   const replacement = await t.run((ctx) =>
-    ctx.db.insert("videos", {
-      projectId,
-      uploadedByClerkId: "owner",
-      uploaderName: "Owner",
+    insertVideo(ctx, projectId, {
       title: "Replacement",
       publicId: "replacement",
-      visibility: "public",
       status: "uploading",
-      workflowStatus: "review",
+      s3Key: undefined,
+      muxAssetId: undefined,
     }),
   );
   expect(

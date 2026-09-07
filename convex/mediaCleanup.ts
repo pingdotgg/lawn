@@ -16,13 +16,21 @@ const resourceArgs = {
   key: v.string(),
   uploadId: v.optional(v.string()),
 };
-export async function retireMultipart(ctx: MutationCtx, video: Doc<"videos">) {
+const clearedMultipartFields = {
+  s3MultipartUploadId: undefined,
+  s3MultipartPartSizeBytes: undefined,
+  s3MultipartPartCount: undefined,
+};
+
+// Queue the session before returning the fields to clear in the caller's patch.
+export async function releaseMultipart(ctx: MutationCtx, video: Doc<"videos">) {
   if (video.s3Key && video.s3MultipartUploadId)
     await enqueueCleanup(ctx, {
       kind: "multipart",
       key: normalizeBucketKey(video.s3Key),
       uploadId: video.s3MultipartUploadId,
     });
+  return clearedMultipartFields;
 }
 
 type Resource = Pick<Doc<"mediaCleanup">, "kind" | "key" | "uploadId">;
@@ -42,9 +50,32 @@ export async function enqueueCleanup(ctx: MutationCtx, resource: Resource) {
   await ctx.db.insert("mediaCleanup", { ...resource, nextAttemptAt: Date.now(), attempts: 0 });
 }
 
-export async function retireVideoMedia(ctx: MutationCtx, video: Doc<"videos">, deleted = true) {
+export async function enqueueUploadStorage(ctx: MutationCtx, video: Doc<"videos">) {
+  if (video.s3Key)
+    await enqueueCleanup(ctx, { kind: "object", key: normalizeBucketKey(video.s3Key) });
+  await releaseMultipart(ctx, video);
+}
+
+export async function clearUploadStorage(ctx: MutationCtx, video: Doc<"videos">) {
+  await enqueueUploadStorage(ctx, video);
+  return {
+    ...clearedMultipartFields,
+    s3Key: undefined,
+    s3ObjectKey: undefined,
+    fileSize: undefined,
+    contentType: undefined,
+    uploadUpdatedAt: Date.now(),
+  };
+}
+
+export async function enqueueVideoMedia(ctx: MutationCtx, video: Doc<"videos">) {
+  await enqueueUploadStorage(ctx, video);
+  if (video.muxAssetId) await enqueueCleanup(ctx, { kind: "mux", key: video.muxAssetId });
+  if (video.muxUploadId) await enqueueCleanup(ctx, { kind: "muxUpload", key: video.muxUploadId });
+}
+
+export async function recordVideoDeletion(ctx: MutationCtx, video: Doc<"videos">) {
   if (
-    deleted &&
     !(await ctx.db
       .query("deletedVideos")
       .withIndex("by_video_id", (q) => q.eq("videoId", video._id))
@@ -52,13 +83,7 @@ export async function retireVideoMedia(ctx: MutationCtx, video: Doc<"videos">, d
   ) {
     await ctx.db.insert("deletedVideos", { videoId: video._id, muxUploadId: video.muxUploadId });
   }
-  if (video.s3Key) {
-    const key = normalizeBucketKey(video.s3Key);
-    await enqueueCleanup(ctx, { kind: "object", key });
-    await retireMultipart(ctx, video);
-  }
-  if (video.muxAssetId) await enqueueCleanup(ctx, { kind: "mux", key: video.muxAssetId });
-  if (video.muxUploadId) await enqueueCleanup(ctx, { kind: "muxUpload", key: video.muxUploadId });
+  await enqueueVideoMedia(ctx, video);
 }
 
 export const enqueue = internalMutation({
@@ -285,14 +310,11 @@ export async function acceptMuxAsset(
     await enqueueCleanup(ctx, { kind: "mux", key: args.muxAssetId });
     return false;
   }
-  await retireMultipart(ctx, video);
   await ctx.db.patch(args.videoId, {
     muxAssetId: args.muxAssetId,
     muxAssetStatus: "preparing",
     status: "processing",
-    s3MultipartUploadId: undefined,
-    s3MultipartPartSizeBytes: undefined,
-    s3MultipartPartCount: undefined,
+    ...(await releaseMultipart(ctx, video)),
     uploadUpdatedAt: Date.now(),
     muxLastPolledAt: Date.now(),
   });

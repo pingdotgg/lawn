@@ -18,8 +18,10 @@ import { assertVideoFileSizeAllowed } from "./uploadLimits";
 import {
   enqueueCleanup,
   findCleanup,
-  retireVideoMedia,
-  retireMultipart,
+  recordVideoDeletion,
+  enqueueVideoMedia,
+  clearUploadStorage,
+  releaseMultipart,
   acceptMuxAsset,
 } from "./mediaCleanup";
 import { normalizeBucketKey } from "./mediaKeys";
@@ -190,19 +192,11 @@ async function failOrRollbackUpload(ctx: MutationCtx, video: Doc<"videos">, uplo
     return true;
   }
 
-  await retireVideoMedia(ctx, { ...video, muxAssetId: undefined, muxUploadId: undefined }, false);
   await ctx.db.patch(video._id, {
     muxAssetStatus: "errored",
     uploadError,
     status: "failed",
-    s3Key: undefined,
-    s3ObjectKey: undefined,
-    s3MultipartUploadId: undefined,
-    s3MultipartPartSizeBytes: undefined,
-    s3MultipartPartCount: undefined,
-    fileSize: undefined,
-    contentType: undefined,
-    uploadUpdatedAt: Date.now(),
+    ...(await clearUploadStorage(ctx, video)),
   });
   return false;
 }
@@ -270,7 +264,7 @@ export async function deleteVideoAndDependents(
   }
 
   await rewireStackBeforeDelete(ctx, video);
-  await retireVideoMedia(ctx, video);
+  await recordVideoDeletion(ctx, video);
   await ctx.db.delete(videoId);
   deleted++;
 
@@ -330,7 +324,7 @@ export async function deleteVideoAndDependentsBatch(
   if (remaining === 0) return { deleted, done: false };
 
   await rewireStackBeforeDelete(ctx, video);
-  await retireVideoMedia(ctx, video);
+  await recordVideoDeletion(ctx, video);
   await ctx.db.delete(videoId);
   return { deleted: deleted + 1, done: true };
 }
@@ -405,7 +399,7 @@ async function deleteVersionAndRenumberStack(ctx: MutationCtx, video: Doc<"video
     );
   }
 
-  await retireVideoMedia(ctx, video);
+  await recordVideoDeletion(ctx, video);
   await ctx.db.delete(video._id);
   return replacementVideoId;
 }
@@ -1058,7 +1052,7 @@ export const removeStack = mutation({
     const { versions } = await getStackVersions(ctx, video);
 
     for (const version of versions) {
-      await retireVideoMedia(ctx, version);
+      await recordVideoDeletion(ctx, version);
       await ctx.db.delete(version._id);
       await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, {
         videoId: version._id,
@@ -1131,7 +1125,7 @@ export const setUploadInfo = internalMutation({
           (video.s3MultipartUploadId !== undefined &&
             video.s3MultipartUploadId !== args.s3MultipartUploadId)))
     ) {
-      await retireVideoMedia(ctx, video, false);
+      await enqueueVideoMedia(ctx, video);
     }
     await ctx.db.patch(args.videoId, {
       s3Key: args.s3Key,
@@ -1241,14 +1235,11 @@ export const markAsProcessing = internalMutation({
     const video = await ctx.db.get(args.videoId);
     if (!video || (args.s3Key !== undefined && video.s3Key !== args.s3Key)) return false;
     if (video.status !== "uploading" && video.status !== "failed") return false;
-    await retireMultipart(ctx, video);
     await ctx.db.patch(args.videoId, {
       status: "processing",
       muxAssetStatus: "preparing",
       uploadError: undefined,
-      s3MultipartUploadId: undefined,
-      s3MultipartPartSizeBytes: undefined,
-      s3MultipartPartCount: undefined,
+      ...(await releaseMultipart(ctx, video)),
       uploadUpdatedAt: Date.now(),
       muxLastPolledAt: Date.now(),
     });
@@ -1282,7 +1273,6 @@ export const markAsReady = internalMutation({
       return false;
     }
 
-    await retireMultipart(ctx, video);
     await ctx.db.patch(args.videoId, {
       muxAssetId: args.muxAssetId,
       muxPlaybackId: args.muxPlaybackId,
@@ -1291,9 +1281,7 @@ export const markAsReady = internalMutation({
       thumbnailUrl: args.thumbnailUrl,
       uploadError: undefined,
       status: "ready",
-      s3MultipartUploadId: undefined,
-      s3MultipartPartSizeBytes: undefined,
-      s3MultipartPartCount: undefined,
+      ...(await releaseMultipart(ctx, video)),
       uploadUpdatedAt: Date.now(),
     });
     return true;
@@ -1348,20 +1336,11 @@ export const markAsFailed = internalMutation({
       (args.s3Key !== undefined && video.s3Key !== args.s3Key)
     )
       return;
-    if (video.s3Key && video.s3MultipartUploadId) {
-      await enqueueCleanup(ctx, {
-        kind: "multipart",
-        key: normalizeBucketKey(video.s3Key),
-        uploadId: video.s3MultipartUploadId,
-      });
-    }
     await ctx.db.patch(args.videoId, {
       muxAssetStatus: "errored",
       uploadError: args.uploadError,
       status: "failed",
-      s3MultipartUploadId: undefined,
-      s3MultipartPartSizeBytes: undefined,
-      s3MultipartPartCount: undefined,
+      ...(await releaseMultipart(ctx, video)),
       uploadUpdatedAt: Date.now(),
     });
   },
@@ -1398,11 +1377,8 @@ export const clearMultipartUploadId = internalMutation({
   handler: async (ctx, args) => {
     const video = await ctx.db.get(args.videoId);
     if (!video || (args.s3Key !== undefined && video.s3Key !== args.s3Key)) return false;
-    await retireMultipart(ctx, video);
     await ctx.db.patch(args.videoId, {
-      s3MultipartUploadId: undefined,
-      s3MultipartPartSizeBytes: undefined,
-      s3MultipartPartCount: undefined,
+      ...(await releaseMultipart(ctx, video)),
       uploadUpdatedAt: Date.now(),
     });
     return true;
@@ -1478,31 +1454,13 @@ export const claimStaleUpload = internalMutation({
       return null;
     }
 
-    const storage =
-      video.s3Key && video.s3MultipartUploadId
-        ? {
-            kind: "multipart" as const,
-            key: video.s3Key,
-            uploadId: video.s3MultipartUploadId,
-          }
-        : video.s3Key
-          ? {
-              kind: "object" as const,
-              key: video.s3Key,
-            }
-          : {
-              kind: "none" as const,
-            };
     const removedVersion = await failOrRollbackUpload(
       ctx,
       video,
       "Upload expired after a period of inactivity.",
     );
 
-    return {
-      storage,
-      removedVersion,
-    };
+    return { removedVersion };
   },
 });
 
@@ -1513,16 +1471,8 @@ export const clearUploadStorageInfo = internalMutation({
   handler: async (ctx, args) => {
     const video = await ctx.db.get(args.videoId);
     if (!video) return;
-    await retireVideoMedia(ctx, { ...video, muxAssetId: undefined, muxUploadId: undefined }, false);
     await ctx.db.patch(args.videoId, {
-      s3Key: undefined,
-      s3ObjectKey: undefined,
-      s3MultipartUploadId: undefined,
-      s3MultipartPartSizeBytes: undefined,
-      s3MultipartPartCount: undefined,
-      fileSize: undefined,
-      contentType: undefined,
-      uploadUpdatedAt: Date.now(),
+      ...(await clearUploadStorage(ctx, video)),
     });
   },
 });
