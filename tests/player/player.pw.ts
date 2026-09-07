@@ -168,3 +168,19 @@ test("focused player buttons retain native Space activation and K always pauses"
   await page.waitForTimeout(150);
   expect((await mediaState(page)).time).toBeCloseTo(stopped, 3);
 });
+
+test("speed button cycles from the reverse shuttle magnitude instead of a stale native rate", async ({
+  page,
+}) => {
+  await ready(page);
+  await page.keyboard.press("j");
+  await page.keyboard.press("j");
+  await page.getByRole("button", { name: "Playback speed -2x", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Playback speed 0.5x", exact: true }),
+  ).toBeVisible();
+  await expect.poll(async () => (await mediaState(page)).rate).toBe(0.5);
+  await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
+  const time = (await mediaState(page)).time;
+  await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThan(time);
+});

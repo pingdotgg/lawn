@@ -317,7 +317,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     showControls();
 
-    const currentIndex = PLAYBACK_RATES.findIndex((rate) => rate === video.playbackRate);
+    const currentRate = Math.abs(shuttleRef.current?.rate ?? video.playbackRate);
+    const currentIndex = PLAYBACK_RATES.findIndex((rate) => rate === currentRate);
     const nextIndex = currentIndex === -1 ? 2 : (currentIndex + 1) % PLAYBACK_RATES.length;
     const nextRate = PLAYBACK_RATES[nextIndex];
     shuttleRef.current?.setRate(nextRate);
