@@ -1,11 +1,6 @@
 "use node";
 
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  HeadObjectCommand,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v } from "convex/values";
 import { action, ActionCtx, internalAction } from "./_generated/server";
@@ -19,8 +14,8 @@ import {
   getMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
+import { normalizeBucketKey } from "./mediaKeys";
 import {
-  abortMultipartUploadSession,
   completeMultipartUploadSession,
   createMultipartUploadSession,
   getMultipartPlan,
@@ -115,19 +110,6 @@ function getDownloadUnavailableMessage(status: string) {
   }
 }
 
-function normalizeBucketKey(key: string): string {
-  if (key.startsWith("http://") || key.startsWith("https://")) {
-    try {
-      const pathname = new URL(key).pathname.replace(/^\/+/, "");
-      const bucketPrefix = `${BUCKET_NAME}/`;
-      return pathname.startsWith(bucketPrefix) ? pathname.slice(bucketPrefix.length) : pathname;
-    } catch {
-      return key;
-    }
-  }
-  return key;
-}
-
 async function buildSignedBucketObjectUrl(
   key: string,
   options?: {
@@ -185,7 +167,7 @@ function validateSinglePutSizeOrThrow(fileSize: number) {
 
 function buildVideoObjectKey(videoId: Id<"videos">, filename: string) {
   const ext = getExtensionFromKey(filename);
-  return `videos/${videoId}/${Date.now()}.${ext}`;
+  return `videos/${videoId}/${crypto.randomUUID()}.${ext}`;
 }
 
 function normalizePartEtag(etag: string) {
@@ -270,16 +252,6 @@ async function requireVideoMemberAccess(
     throw new Error("Requires member role or higher");
   }
   return video;
-}
-
-async function deleteUploadedObject(key: string) {
-  const s3 = getS3Client();
-  await s3.send(
-    new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-    }),
-  );
 }
 
 function buildPublicPlaybackSession(playbackId: string): { url: string; posterUrl: string } {
@@ -467,23 +439,25 @@ export const initiateVideoUpload = action({
         };
       }
 
-      if (video.s3Key && video.s3MultipartUploadId) {
-        await abortMultipartUploadSession({
-          key: video.s3Key,
-          uploadId: video.s3MultipartUploadId,
-        });
-      }
-
       const key = buildVideoObjectKey(args.videoId, args.filename);
+      const reserved = await ctx.runMutation(internal.videos.setUploadInfo, {
+        videoId: args.videoId,
+        s3Key: key,
+        previousS3Key: video.s3Key,
+        fileSize: args.fileSize,
+        contentType: normalizedContentType,
+      });
+      if (!reserved) throw new Error("Video upload changed or was deleted.");
       const { uploadId } = await createMultipartUploadSession({
         key,
         contentType: normalizedContentType,
       });
       const { partSizeBytes, partCount } = getMultipartPlan(args.fileSize);
 
-      await ctx.runMutation(internal.videos.setUploadInfo, {
+      const attached = await ctx.runMutation(internal.videos.setUploadInfo, {
         videoId: args.videoId,
         s3Key: key,
+        previousS3Key: key,
         fileSize: args.fileSize,
         contentType: normalizedContentType,
         s3MultipartUploadId: uploadId,
@@ -491,6 +465,7 @@ export const initiateVideoUpload = action({
         s3MultipartPartCount: partCount,
       });
 
+      if (!attached) throw new Error("Video upload changed or was deleted.");
       return {
         strategy: "multipart" as const,
         key,
@@ -514,13 +489,15 @@ export const initiateVideoUpload = action({
       expiresIn: PRESIGN_SINGLE_PUT_EXPIRES_SEC,
     });
 
-    await ctx.runMutation(internal.videos.setUploadInfo, {
+    const attached = await ctx.runMutation(internal.videos.setUploadInfo, {
       videoId: args.videoId,
       s3Key: key,
+      previousS3Key: video.s3Key,
       fileSize: args.fileSize,
       contentType: normalizedContentType,
     });
 
+    if (!attached) throw new Error("Video upload changed or was deleted.");
     return {
       strategy: "single" as const,
       url,
@@ -608,14 +585,12 @@ export const completeMultipartUpload = action({
       throw new Error("Multipart upload parts are incomplete.");
     }
 
-    let completed = false;
     try {
       await completeMultipartUploadSession({
         key: video.s3Key,
         uploadId: video.s3MultipartUploadId,
         parts: normalizedParts,
       });
-      completed = true;
 
       const s3 = getS3Client();
       const head = await s3.send(
@@ -641,29 +616,29 @@ export const completeMultipartUpload = action({
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLengthRaw,
         contentType: normalizedContentType,
       });
 
       await ctx.runMutation(internal.videos.clearMultipartUploadId, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
       });
     } catch (error) {
-      try {
-        if (completed) {
-          await deleteUploadedObject(video.s3Key);
-        } else if (!completed) {
-          await abortMultipartUploadSession({
-            key: video.s3Key,
-            uploadId: video.s3MultipartUploadId,
-          });
-        }
-      } catch {
-        // Preserve the original completion, validation, or reconciliation failure.
-      }
+      await ctx.runMutation(internal.mediaCleanup.enqueue, {
+        kind: "multipart",
+        key: normalizeBucketKey(video.s3Key),
+        uploadId: video.s3MultipartUploadId,
+      });
+      await ctx.runMutation(internal.mediaCleanup.enqueue, {
+        kind: "object",
+        key: normalizeBucketKey(video.s3Key),
+      });
 
       await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         uploadError: error instanceof Error ? error.message : "Upload failed after completion.",
       });
       throw error;
@@ -683,21 +658,9 @@ export const abortVideoUpload = action({
   handler: async (ctx, args) => {
     const video = await requireVideoMemberAccess(ctx, args.videoId);
 
-    try {
-      if (video.s3Key && video.s3MultipartUploadId) {
-        await abortMultipartUploadSession({
-          key: video.s3Key,
-          uploadId: video.s3MultipartUploadId,
-        });
-      } else if (video.s3Key) {
-        await deleteUploadedObject(video.s3Key);
-      }
-    } catch (error) {
-      console.error("Failed to clean up cancelled upload storage", args.videoId, error);
-    }
-
     await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
       videoId: args.videoId,
+      s3Key: video.s3Key,
       uploadError: "Upload cancelled.",
     });
 
@@ -718,7 +681,7 @@ export const getUploadUrl = action({
     uploadId: v.string(),
   }),
   handler: async (ctx, args) => {
-    await requireVideoMemberAccess(ctx, args.videoId);
+    const video = await requireVideoMemberAccess(ctx, args.videoId);
     const normalizedContentType = validateUploadRequestOrThrow({
       fileSize: args.fileSize,
       contentType: args.contentType,
@@ -740,13 +703,15 @@ export const getUploadUrl = action({
       expiresIn: PRESIGN_SINGLE_PUT_EXPIRES_SEC,
     });
 
-    await ctx.runMutation(internal.videos.setUploadInfo, {
+    const attached = await ctx.runMutation(internal.videos.setUploadInfo, {
       videoId: args.videoId,
       s3Key: key,
+      previousS3Key: video.s3Key,
       fileSize: args.fileSize,
       contentType: normalizedContentType,
     });
 
+    if (!attached) throw new Error("Video upload changed or was deleted.");
     return { url, uploadId: key };
   },
 });
@@ -794,34 +759,30 @@ export const markUploadComplete = action({
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLength,
         contentType: normalizedContentType,
       });
 
-      await ctx.runMutation(internal.videos.markAsProcessing, {
+      const claimed = await ctx.runMutation(internal.videos.markAsProcessing, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
       });
+      if (!claimed) return { success: false };
 
       const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
         expiresIn: 60 * 60 * 24,
       });
-      const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl);
+      const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl, video.s3Key);
       if (asset.id) {
         await ctx.runMutation(internal.videos.setMuxAssetReference, {
           videoId: args.videoId,
           muxAssetId: asset.id,
+          s3Key: video.s3Key,
         });
       }
     } catch (error) {
       const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
-      if (shouldDeleteObject) {
-        try {
-          await deleteUploadedObject(video.s3Key);
-        } catch {
-          // No-op: preserve original processing failure.
-        }
-      }
-
       const uploadError =
         shouldDeleteObject && error instanceof Error
           ? error.message
@@ -829,12 +790,14 @@ export const markUploadComplete = action({
       if (shouldDeleteObject) {
         await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
           videoId: args.videoId,
+          s3Key: video.s3Key,
           uploadError,
         });
         throw error;
       }
       await ctx.runMutation(internal.videos.markAsFailed, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         uploadError,
       });
       throw new Error("Mux ingest failed after upload. Retry processing without re-uploading.");
@@ -854,21 +817,9 @@ export const markUploadFailed = action({
   handler: async (ctx, args) => {
     const video = await requireVideoMemberAccess(ctx, args.videoId);
 
-    try {
-      if (video.s3Key && video.s3MultipartUploadId) {
-        await abortMultipartUploadSession({
-          key: video.s3Key,
-          uploadId: video.s3MultipartUploadId,
-        });
-      } else if (video.s3Key) {
-        await deleteUploadedObject(video.s3Key);
-      }
-    } catch (error) {
-      console.error("Failed to clean up permanently failed upload storage", args.videoId, error);
-    }
-
     await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
       videoId: args.videoId,
+      s3Key: video.s3Key,
       uploadError: "Upload failed before Mux could process the asset.",
     });
 
@@ -896,20 +847,7 @@ export const sweepStaleUploads = internalAction({
       });
       if (!claimed) continue;
 
-      try {
-        if (claimed.storage.kind === "multipart") {
-          await abortMultipartUploadSession({
-            key: claimed.storage.key,
-            uploadId: claimed.storage.uploadId,
-          });
-        } else if (claimed.storage.kind === "object") {
-          await deleteUploadedObject(claimed.storage.key);
-        }
-
-        reclaimed += 1;
-      } catch (error) {
-        console.error("Failed to reclaim stale upload", candidate.videoId, error);
-      }
+      reclaimed += 1;
     }
 
     return { reclaimed };
@@ -918,30 +856,15 @@ export const sweepStaleUploads = internalAction({
 
 export const sweepOrphanedMultipartUploads = internalAction({
   args: {},
-  returns: v.object({
-    aborted: v.number(),
-  }),
-  handler: async () => {
-    const uploads = await listMultipartUploadsInitiatedBefore({
+  handler: async (ctx) => {
+    const cursor = await ctx.runQuery(internal.mediaCleanup.multipartRecoveryCursor, {});
+    const result = await listMultipartUploadsInitiatedBefore({
       cutoff: Date.now() - ORPHANED_MULTIPART_UPLOAD_THRESHOLD_MS,
       limit: ORPHANED_MULTIPART_SWEEP_BATCH_SIZE,
+      ...cursor,
     });
-    let aborted = 0;
-
-    for (const upload of uploads) {
-      try {
-        await abortMultipartUploadSession(upload);
-        aborted += 1;
-      } catch (error) {
-        console.error("Failed to abort orphaned multipart upload", {
-          key: upload.key,
-          uploadId: upload.uploadId,
-          error,
-        });
-      }
-    }
-
-    return { aborted };
+    await ctx.runMutation(internal.mediaCleanup.recordMultipartRecovery, result);
+    return { queued: result.uploads.length };
   },
 });
 

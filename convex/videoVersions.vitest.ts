@@ -1489,7 +1489,6 @@ test("stale provisional versions roll back even before storage is initiated", as
     cutoff: Date.now() + 1000,
   });
   expect(claimed).toMatchObject({
-    storage: { kind: "none" },
     removedVersion: true,
   });
 
