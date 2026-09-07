@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { normalizeBucketKey, parseMuxPassthrough } from "./mediaKeys";
+import { normalizeBucketKey, parseMuxPassthrough, hashUploadKey } from "./mediaKeys";
 
 const DAY = 24 * 60 * 60 * 1000;
 const LEASE_MS = 15 * 60 * 1000; // Longer than Convex's maximum action runtime.
@@ -112,12 +112,20 @@ export const claimBatch = internalMutation({
       return [];
     }
 
-    const due = await ctx.db
-      .query("mediaCleanup")
-      .withIndex("by_next_attempt_at", (q) =>
-        q.gte("nextAttemptAt", 0).lte("nextAttemptAt", Date.now()),
+    // Reserve half each batch for fresh cleanup/retries and half for recurring
+    // object rechecks. Neither workload can consume every slot in the other.
+    const due = (
+      await Promise.all(
+        [undefined, true].map((recheck) =>
+          ctx.db
+            .query("mediaCleanup")
+            .withIndex("by_recheck_and_next_attempt_at", (q) =>
+              q.eq("recheck", recheck).gte("nextAttemptAt", 0).lte("nextAttemptAt", Date.now()),
+            )
+            .take(5),
+        ),
       )
-      .take(10);
+    ).flat();
     const claimed: Doc<"mediaCleanup">[] = [];
     for (const job of due) {
       const reference =
@@ -182,6 +190,7 @@ export const finish = internalMutation({
     await ctx.db.patch(job._id, {
       leased: false,
       lastError: args.error,
+      recheck: job.recheck ?? (!args.error && job.kind === "object" ? true : undefined),
       nextAttemptAt: args.error
         ? Date.now() + Math.min(DAY, 30_000 * 2 ** Math.min(job.attempts - 1, 12))
         : // Presigned PUTs and already-started multipart completions can finish
@@ -228,6 +237,7 @@ export const recoverMuxAssets = internalMutation({
           videoId,
           muxAssetId: asset.id,
           s3Key: passthrough.s3Key,
+          s3KeyHash: passthrough.s3KeyHash,
           muxUploadId: asset.uploadId,
         });
     }
@@ -283,7 +293,13 @@ export const recordMultipartRecovery = internalMutation({
 
 export async function acceptMuxAsset(
   ctx: MutationCtx,
-  args: { videoId: Id<"videos">; muxAssetId: string; s3Key?: string; muxUploadId?: string },
+  args: {
+    videoId: Id<"videos">;
+    muxAssetId: string;
+    s3Key?: string;
+    s3KeyHash?: string;
+    muxUploadId?: string;
+  },
 ) {
   const video = await ctx.db.get(args.videoId);
   if (
@@ -305,6 +321,8 @@ export async function acceptMuxAsset(
       )) ||
     video.muxAssetId ||
     (args.s3Key !== undefined && video.s3Key !== args.s3Key) ||
+    (args.s3KeyHash !== undefined &&
+      (video.s3Key === undefined || (await hashUploadKey(video.s3Key)) !== args.s3KeyHash)) ||
     (await findCleanup(ctx, { kind: "mux", key: args.muxAssetId }))
   ) {
     await enqueueCleanup(ctx, { kind: "mux", key: args.muxAssetId });

@@ -138,11 +138,12 @@ export default defineSchema({
     nextAttemptAt: v.optional(v.number()),
     attempts: v.number(),
     leased: v.optional(v.boolean()),
+    recheck: v.optional(v.boolean()),
     lastError: v.optional(v.string()),
   })
     .index("by_kind_and_key_and_upload_id", ["kind", "key", "uploadId"])
     .index("by_kind_and_key_and_next_attempt_at", ["kind", "key", "nextAttemptAt"])
-    .index("by_next_attempt_at", ["nextAttemptAt"]),
+    .index("by_recheck_and_next_attempt_at", ["recheck", "nextAttemptAt"]),
 
   // A late provider result is only reclaimed when its owner is known deleted.
   deletedVideos: defineTable({

@@ -1,6 +1,7 @@
 "use node";
 
 import Mux from "@mux/mux-node";
+import { createMuxPassthrough } from "./mediaKeys";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -68,7 +69,7 @@ export async function createMuxAssetFromInputUrl(
     // Mux currently supports 1080p as the lowest adaptive streaming max tier.
     max_resolution_tier: "1080p",
     mp4_support: "none",
-    passthrough: s3Key ? JSON.stringify({ videoId, s3Key }) : videoId,
+    passthrough: await createMuxPassthrough(videoId, s3Key),
   });
 }
 

@@ -6,7 +6,7 @@ import { api, internal } from "./_generated/api";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { createVersionRecord } from "./videos";
-import { normalizeBucketKey } from "./mediaKeys";
+import { normalizeBucketKey, createMuxPassthrough, parseMuxPassthrough } from "./mediaKeys";
 import { isMissingMedia } from "./mediaCleanupActions";
 import schema from "./schema";
 
@@ -712,4 +712,65 @@ test("legacy object URLs use the configured bucket prefix and preserve encoded o
     "videos/clip one.mp4",
   );
   expect(normalizeBucketKey("videos/clip%20one.mp4")).toBe("videos/clip%20one.mp4");
+});
+
+test("fresh cleanup and recurring rechecks each retain capacity in a full batch", async () => {
+  const { t } = await fixture();
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 12; i++)
+      await ctx.db.insert("mediaCleanup", {
+        kind: "object",
+        key: `recheck-${i}`,
+        recheck: true,
+        nextAttemptAt: Date.now() - DAY,
+        attempts: 1,
+      });
+  });
+  for (let i = 0; i < 6; i++)
+    await t.mutation(internal.mediaCleanup.enqueue, { kind: "mux", key: `fresh-${i}` });
+  const batch = await t.mutation(internal.mediaCleanup.claimBatch, {});
+  expect(batch).toHaveLength(10);
+  expect(batch.filter((job) => job.recheck)).toHaveLength(5);
+  expect(batch.filter((job) => !job.recheck)).toHaveLength(5);
+});
+
+test.each(["http://[invalid", "https://bucket.invalid/videos/invalid%ZZ.mp4"])(
+  "malformed key %s still permits durable deletion",
+  async (s3Key) => {
+    const { t, owner, videoId } = await fixture({ s3Key });
+    expect(normalizeBucketKey(s3Key)).toBe(s3Key);
+    await owner.mutation(api.videos.remove, { videoId });
+    expect(await t.run((ctx) => ctx.db.get(videoId))).toBeNull();
+    expect((await jobs(t)).some((job) => job.kind === "object" && job.key === s3Key)).toBe(true);
+  },
+);
+
+test.each([
+  "videos/short.mp4",
+  `videos/${"long".repeat(200)}.mp4`,
+  `https://bucket.invalid/videos/${"encoded%20".repeat(200)}.mp4`,
+])("compact Mux metadata preserves upload matching for %s", async (s3Key) => {
+  const { t, videoId } = await fixture({ status: "processing", s3Key, muxAssetId: undefined });
+  const passthrough = await createMuxPassthrough(videoId, s3Key);
+  expect(passthrough.length).toBeLessThanOrEqual(255);
+  expect(parseMuxPassthrough(passthrough)).toMatchObject({
+    videoId,
+    s3KeyHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+  });
+  await webhook(t, "video.asset.created", {
+    id: "stale",
+    passthrough: await createMuxPassthrough(videoId, `${s3Key}-old`),
+  });
+  expect((await jobs(t)).map((job) => job.key)).toContain("stale");
+  await webhook(t, "video.asset.ready", {
+    id: "matching",
+    passthrough,
+    duration: 10,
+    playback_ids: [{ id: "playback", policy: "public" }],
+  });
+  expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+    status: "ready",
+    muxAssetId: "matching",
+  });
+  expect(external.muxGet).not.toHaveBeenCalled();
 });

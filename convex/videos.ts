@@ -1482,6 +1482,7 @@ export const setMuxAssetReference = internalMutation({
     videoId: v.id("videos"),
     muxAssetId: v.string(),
     s3Key: v.optional(v.string()),
+    s3KeyHash: v.optional(v.string()),
     muxUploadId: v.optional(v.string()),
   },
   handler: acceptMuxAsset,

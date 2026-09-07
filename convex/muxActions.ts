@@ -117,6 +117,7 @@ async function processAssetEvent(ctx: ActionCtx, eventType: string, data: MuxDat
     videoId,
     muxAssetId: assetId,
     s3Key: parseMuxPassthrough(passthrough).s3Key,
+    s3KeyHash: parseMuxPassthrough(passthrough).s3KeyHash,
     muxUploadId: uploadId,
   });
   if (!accepted) return;
