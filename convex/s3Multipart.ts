@@ -148,41 +148,42 @@ export async function abortMultipartUploadSession(args: { key: string; uploadId:
   }
 }
 
-export async function listMultipartUploadsInitiatedBefore(args: { cutoff: number; limit: number }) {
-  const s3 = getS3Client();
-  const uploads: Array<{ key: string; uploadId: string }> = [];
-  let keyMarker: string | undefined;
-  let uploadIdMarker: string | undefined;
+export async function multipartUploadHasParts(args: { key: string; uploadId: string }) {
+  const result = await getS3Client().send(
+    new ListPartsCommand({
+      Bucket: BUCKET_NAME,
+      Key: args.key,
+      UploadId: args.uploadId,
+      MaxParts: 1,
+    }),
+  );
+  return (result.Parts?.length ?? 0) > 0;
+}
 
-  while (uploads.length < args.limit) {
-    const result = await s3.send(
-      new ListMultipartUploadsCommand({
-        Bucket: BUCKET_NAME,
-        KeyMarker: keyMarker,
-        UploadIdMarker: uploadIdMarker,
-        MaxUploads: Math.min(1000, args.limit - uploads.length),
-      }),
-    );
-
-    for (const upload of result.Uploads ?? []) {
-      if (
-        upload.Key &&
-        upload.UploadId &&
-        upload.Initiated &&
-        upload.Initiated.getTime() < args.cutoff
-      ) {
-        uploads.push({ key: upload.Key, uploadId: upload.UploadId });
-        if (uploads.length >= args.limit) break;
-      }
-    }
-
-    if (!result.IsTruncated) break;
-    keyMarker = result.NextKeyMarker;
-    uploadIdMarker = result.NextUploadIdMarker;
-    if (!keyMarker) break;
-  }
-
-  return uploads;
+export async function listMultipartUploadsInitiatedBefore(args: {
+  cutoff: number;
+  limit: number;
+  keyMarker?: string;
+  uploadIdMarker?: string;
+}) {
+  // Exactly one provider page, including pages containing no expired sessions.
+  const result = await getS3Client().send(
+    new ListMultipartUploadsCommand({
+      Bucket: BUCKET_NAME,
+      KeyMarker: args.keyMarker,
+      UploadIdMarker: args.uploadIdMarker,
+      MaxUploads: Math.min(100, args.limit),
+    }),
+  );
+  return {
+    uploads: (result.Uploads ?? []).flatMap((upload) =>
+      upload.Key && upload.UploadId && upload.Initiated && upload.Initiated.getTime() < args.cutoff
+        ? [{ key: upload.Key, uploadId: upload.UploadId }]
+        : [],
+    ),
+    keyMarker: result.IsTruncated ? result.NextKeyMarker : undefined,
+    uploadIdMarker: result.IsTruncated ? result.NextUploadIdMarker : undefined,
+  };
 }
 
 export function getMultipartPlan(fileSize: number) {

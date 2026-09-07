@@ -79,6 +79,8 @@ export default defineSchema({
     ),
     // Metadata
     s3Key: v.optional(v.string()),
+    s3ObjectKey: v.optional(v.string()),
+    mediaReferencesIndexed: v.optional(v.boolean()),
     s3MultipartUploadId: v.optional(v.string()),
     s3MultipartPartSizeBytes: v.optional(v.number()),
     s3MultipartPartCount: v.optional(v.number()),
@@ -114,11 +116,48 @@ export default defineSchema({
     .index("by_version_stack_id_and_version_number", ["versionStackId", "versionNumber"])
     .index("by_superseded_by_video_id", ["supersededByVideoId"])
     .index("by_public_id", ["publicId"])
+    .index("by_s3_object_key", ["s3ObjectKey"])
+    .index("by_s3_multipart_upload_id", ["s3MultipartUploadId"])
+    .index("by_media_references_indexed", ["mediaReferencesIndexed"])
     .index("by_mux_upload_id", ["muxUploadId"])
     .index("by_mux_asset_id", ["muxAssetId"])
     .index("by_mux_playback_id", ["muxPlaybackId"])
     .index("by_status_and_upload_updated_at", ["status", "uploadUpdatedAt"])
     .index("by_status_and_mux_last_polled_at", ["status", "muxLastPolledAt"]),
+
+  // Kept after completion: these rows fence retired resources against reuse.
+  mediaCleanup: defineTable({
+    kind: v.union(
+      v.literal("object"),
+      v.literal("multipart"),
+      v.literal("mux"),
+      v.literal("muxUpload"),
+    ),
+    key: v.string(),
+    uploadId: v.optional(v.string()),
+    nextAttemptAt: v.optional(v.number()),
+    attempts: v.number(),
+    leased: v.optional(v.boolean()),
+    lastError: v.optional(v.string()),
+  })
+    .index("by_kind_and_key_and_upload_id", ["kind", "key", "uploadId"])
+    .index("by_kind_and_key_and_next_attempt_at", ["kind", "key", "nextAttemptAt"])
+    .index("by_next_attempt_at", ["nextAttemptAt"]),
+
+  // A late provider result is only reclaimed when its owner is known deleted.
+  deletedVideos: defineTable({
+    videoId: v.id("videos"),
+    muxUploadId: v.optional(v.string()),
+  })
+    .index("by_video_id", ["videoId"])
+    .index("by_mux_upload_id", ["muxUploadId"]),
+
+  mediaRecoveryCursors: defineTable({
+    name: v.string(),
+    page: v.number(),
+    keyMarker: v.optional(v.string()),
+    uploadIdMarker: v.optional(v.string()),
+  }).index("by_name", ["name"]),
 
   cronLocks: defineTable({
     name: v.string(),

@@ -27,4 +27,7 @@ crons.interval(
   internal.shareAccess.sweepExpiredShareAccessGrants,
 );
 
+crons.interval("clean up retired media", { minutes: 1 }, internal.mediaCleanupActions.drain);
+crons.interval("recover late Mux assets", { minutes: 5 }, internal.mediaCleanupActions.recoverMux);
+
 export default crons;
