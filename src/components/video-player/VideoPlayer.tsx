@@ -3,12 +3,14 @@
 import {
   useRef,
   useEffect,
+  useEffectEvent,
   useState,
   useCallback,
   useMemo,
   forwardRef,
   useImperativeHandle,
 } from "react";
+import { createShuttleController, bindPlaybackShortcuts, type PlaybackAction } from "./shuttle";
 import type Hls from "hls.js";
 import {
   Play,
@@ -24,6 +26,7 @@ import {
   Settings2,
   Check,
   ChevronDown,
+  RectangleHorizontal,
 } from "lucide-react";
 import { cn, formatDuration, formatTimestamp } from "@/lib/utils";
 import { triggerDownload } from "@/lib/download";
@@ -74,6 +77,9 @@ interface VideoPlayerProps {
   onSelectQuality?: (id: string) => void;
   /** Render controls below the video frame instead of overlaid. Ideal for mobile. */
   controlsBelow?: boolean;
+  editorControls?: boolean;
+  theaterMode?: boolean;
+  onToggleTheater?: () => void;
 }
 
 export type VideoPlaybackIssue =
@@ -130,12 +136,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     selectedQualityId,
     onSelectQuality,
     controlsBelow = false,
+    editorControls = false,
+    theaterMode = false,
+    onToggleTheater,
   },
   ref,
 ) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const shuttleRef = useRef<ReturnType<typeof createShuttleController> | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -168,11 +178,27 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const resumeTimeOnSourceChangeRef = useRef<number | null>(null);
   const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
   const hasAttachedSourceRef = useRef(false);
-  const onPlaybackIssueRef = useRef(onPlaybackIssue);
+  const notifyPlaybackIssue = useEffectEvent((issue: VideoPlaybackIssue) => {
+    onPlaybackIssue?.(issue);
+  });
+  const reportTimeUpdate = useEffectEvent((time: number) => {
+    onTimeUpdate?.(time);
+  });
 
   useEffect(() => {
-    onPlaybackIssueRef.current = onPlaybackIssue;
-  }, [onPlaybackIssue]);
+    const video = videoRef.current;
+    if (!video) return;
+    const shuttle = createShuttleController(video, (playing, rate) => {
+      isPlayingRef.current = playing;
+      setIsPlaying(playing);
+      setPlaybackRate(rate);
+    });
+    shuttleRef.current = shuttle;
+    return () => {
+      shuttle.dispose();
+      shuttleRef.current = null;
+    };
+  }, []);
 
   const groupedMarkers = useMemo(() => {
     if (!duration || comments.length === 0) return [] as { position: number; comment: Comment }[];
@@ -227,12 +253,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (options?.play) {
         const video = videoRef.current;
         if (video) {
-          const playPromise = video.play();
-          if (playPromise) {
-            playPromise.catch(() => {
-              // Ignore autoplay rejections.
-            });
-          }
+          shuttleRef.current?.play();
         }
       }
       showControls();
@@ -256,16 +277,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     showControls();
 
-    if (video.paused) {
-      const playPromise = video.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Ignore play errors caused by browser autoplay policies.
-        });
-      }
-    } else {
-      video.pause();
-    }
+    shuttleRef.current?.toggle();
   }, [showControls]);
 
   const setVideoVolume = useCallback((nextVolume: number) => {
@@ -302,11 +314,11 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     showControls();
 
-    const currentIndex = PLAYBACK_RATES.findIndex((rate) => rate === video.playbackRate);
+    const currentRate = Math.abs(shuttleRef.current?.rate ?? video.playbackRate);
+    const currentIndex = PLAYBACK_RATES.findIndex((rate) => rate === currentRate);
     const nextIndex = currentIndex === -1 ? 2 : (currentIndex + 1) % PLAYBACK_RATES.length;
     const nextRate = PLAYBACK_RATES[nextIndex];
-    video.playbackRate = nextRate;
-    setPlaybackRate(nextRate);
+    shuttleRef.current?.setRate(nextRate);
   }, [showControls]);
 
   const toggleFullscreen = useCallback(async () => {
@@ -325,6 +337,62 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       // Fullscreen can fail in some embedded contexts; ignore gracefully.
     }
   }, [controlsBelow, showControls]);
+
+  const runShortcut = useEffectEvent((action: PlaybackAction) => {
+    showControls();
+    switch (action) {
+      case "toggle":
+        togglePlay();
+        break;
+      case "pause":
+        shuttleRef.current?.pause();
+        break;
+      case "reverse":
+        shuttleRef.current?.shuttle(-1);
+        break;
+      case "forward":
+        shuttleRef.current?.shuttle(1);
+        break;
+      case "reverseNormal":
+        shuttleRef.current?.playAt(-1);
+        break;
+      case "slowReverse":
+        shuttleRef.current?.playAt(-0.5);
+        break;
+      case "slowForward":
+        shuttleRef.current?.playAt(0.5);
+        break;
+      case "stepBackTen":
+        shuttleRef.current?.step(-10);
+        break;
+      case "stepForwardTen":
+        shuttleRef.current?.step(10);
+        break;
+      case "stepBack":
+        shuttleRef.current?.step(-1);
+        break;
+      case "stepForward":
+        shuttleRef.current?.step(1);
+        break;
+      case "seekBack":
+        handleSeekBy(-5);
+        break;
+      case "seekForward":
+        handleSeekBy(5);
+        break;
+      case "fullscreen":
+        void toggleFullscreen();
+        break;
+      case "mute":
+        toggleMute();
+        break;
+    }
+  });
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+    return bindPlaybackShortcuts(root, editorControls, runShortcut);
+  }, [editorControls]);
 
   const handleDownload = useCallback(async () => {
     if (!allowDownload || isDownloading) return;
@@ -408,8 +476,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       const video = videoRef.current;
       if (!video || !duration) return;
 
-      wasPlayingBeforeScrubRef.current = !video.paused;
-      video.pause();
+      wasPlayingBeforeScrubRef.current = shuttleRef.current?.playing ?? !video.paused;
+      shuttleRef.current?.pause();
       setIsScrubbing(true);
 
       const nextTime = getTimeFromClientX(clientX);
@@ -443,12 +511,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     setIsScrubbing(false);
 
     if (wasPlayingBeforeScrubRef.current) {
-      const playPromise = video.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Ignore autoplay rejections after scrubbing.
-        });
-      }
+      shuttleRef.current?.play();
     }
   }, [duration]);
 
@@ -486,7 +549,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (playbackHealth.issueReported) return;
       resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
       playbackHealth = markVideoPlaybackIssueReported(playbackHealth);
-      onPlaybackIssueRef.current?.(issue);
+      notifyPlaybackIssue(issue);
       stopPlaybackHealthMonitor();
     };
 
@@ -529,17 +592,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       }
 
       resumePlaybackOnSourceChangeRef.current = false;
-      const playPromise = video.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // A browser may still reject resumed playback after a source swap.
-        });
-      }
+      shuttleRef.current?.play();
     };
 
     const handleLoadedMetadata = () => {
       if (cancelled) return;
       metadataLoaded = true;
+      video.playbackRate = Math.min(Math.abs(shuttleRef.current?.rate ?? 1), 16);
       setDuration(video.duration || 0);
       updateBuffered();
       const isFirstSource = !hasAttachedSourceRef.current;
@@ -571,7 +630,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled || isScrubbingRef.current) return;
       const time = video.currentTime || 0;
       setCurrentTime(time);
-      onTimeUpdate?.(time);
+      reportTimeUpdate(time);
     };
 
     const handlePlay = () => {
@@ -584,7 +643,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handlePause = () => {
       if (cancelled) return;
       resetPlaybackHealth();
-      setIsPlaying(false);
+      setIsPlaying(shuttleRef.current?.playing ?? false);
       setIsBuffering(false);
       setControlsVisible(true);
     };
@@ -640,7 +699,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
     const handleRateChange = () => {
       if (cancelled) return;
-      setPlaybackRate(video.playbackRate || 1);
+      setPlaybackRate(shuttleRef.current?.rate ?? video.playbackRate ?? 1);
     };
 
     const handleProgress = () => {
@@ -689,7 +748,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             wasPlaying: !video.paused && !video.ended,
           } as const;
           resumePlaybackOnSourceChangeRef.current = issue.wasPlaying;
-          onPlaybackIssueRef.current?.(issue);
+          notifyPlaybackIssue(issue);
           stopPlaybackHealthMonitor();
         }
       }, 500);
@@ -811,6 +870,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         isPlayingRef.current ||
         (!video.paused && !video.ended);
 
+      shuttleRef.current?.pause();
       stopPlaybackHealthMonitor();
 
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -838,7 +898,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, sourceRevision, initialTime, onTimeUpdate, showControls, updateBuffered]);
+  }, [src, sourceRevision, initialTime, showControls, updateBuffered]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -989,6 +1049,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           }}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
           aria-label={isPlaying ? "Pause" : "Play"}
+          title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+          aria-keyshortcuts="Space"
         >
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>
@@ -1163,6 +1225,19 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
             </button>
           )}
 
+          {onToggleTheater && (
+            <button
+              type="button"
+              onClick={onToggleTheater}
+              aria-label={theaterMode ? "Exit theater mode" : "Enter theater mode"}
+              aria-pressed={theaterMode}
+              title={theaterMode ? "Exit theater mode" : "Theater mode"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
+            >
+              <RectangleHorizontal className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={(e) => {
@@ -1201,37 +1276,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               ),
         )}
         tabIndex={0}
+        role="region"
+        aria-label="Video player"
+        aria-description={
+          editorControls
+            ? "Space toggles playback. K pauses. J and L shuttle backward and forward up to 32 times speed. Hold K and tap J or L to step, or hold both for half speed. Arrows step one frame; Shift and arrows step ten frames, using 30 fps. F toggles fullscreen. M toggles mute."
+            : "Space toggles playback. K pauses. Arrows seek five seconds. F toggles fullscreen. M toggles mute."
+        }
         onMouseMove={showControls}
         onMouseEnter={showControls}
         onMouseLeave={() => {
           if (isPlaying) {
             setControlsVisible(false);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === " " || e.key.toLowerCase() === "k") {
-            e.preventDefault();
-            togglePlay();
-            return;
-          }
-          if (e.key === "ArrowLeft") {
-            e.preventDefault();
-            handleSeekBy(-5);
-            return;
-          }
-          if (e.key === "ArrowRight") {
-            e.preventDefault();
-            handleSeekBy(5);
-            return;
-          }
-          if (e.key.toLowerCase() === "f") {
-            e.preventDefault();
-            toggleFullscreen();
-            return;
-          }
-          if (e.key.toLowerCase() === "m") {
-            e.preventDefault();
-            toggleMute();
           }
         }}
         onContextMenu={(e) => {
@@ -1257,6 +1313,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           preload="auto"
           onClick={(e) => {
             e.stopPropagation();
+            containerRef.current?.focus({ preventScroll: true });
             togglePlay();
           }}
         />
