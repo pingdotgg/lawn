@@ -11,6 +11,7 @@ export function VideoEditorLayout({
 }) {
   return (
     <div
+      data-video-editor
       className={cn("flex h-full min-h-0 flex-col", theaterMode && "fixed inset-0 z-40 bg-black")}
     >
       {children}

@@ -52,13 +52,14 @@ function fixture() {
 
 test("shuttle speeds escalate, cap and reset on direction changes or pause", () => {
   const { controller, media } = fixture();
-  for (const speed of [1, 2, 4, 8, 8]) {
+  for (const speed of [1, 2, 4, 8, 16, 32, 32]) {
     controller.shuttle(1);
-    assert.equal(media.playbackRate, speed);
+    assert.equal(controller.rate, speed);
+    assert.ok(media.playbackRate <= 16);
   }
   controller.shuttle(-1);
   assert.equal(controller.rate, -1);
-  for (const speed of [-2, -4, -8, -8]) {
+  for (const speed of [-2, -4, -8, -16, -32, -32]) {
     controller.shuttle(-1);
     assert.equal(controller.rate, speed);
   }
@@ -126,27 +127,23 @@ const event = {
   isComposing: false,
   defaultPrevented: false,
 };
-test("K always pauses; editor arrows step only while paused; public arrows retain five-second seeks", () => {
+test("K always pauses; editor arrows step frames; public arrows retain five-second seeks", () => {
   for (const paused of [true, false])
     assert.equal(playbackShortcut(event, null, true, paused), "pause");
   assert.equal(playbackShortcut({ ...event, key: " " }, null, true, true), "toggle");
   assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, true, true), "stepBack");
-  assert.equal(playbackShortcut({ ...event, key: "ArrowRight" }, null, true, false), "seekForward");
+  assert.equal(playbackShortcut({ ...event, key: "ArrowRight" }, null, true, false), "stepForward");
   assert.equal(playbackShortcut({ ...event, key: "ArrowLeft" }, null, false, true), "seekBack");
   assert.equal(playbackShortcut({ ...event, key: "j" }, null, false, true), null);
 });
 
 test("modifiers, composition, editable controls, handled events and held shuttle keys are ignored", () => {
-  for (const flag of [
-    "altKey",
-    "ctrlKey",
-    "metaKey",
-    "shiftKey",
-    "isComposing",
-    "defaultPrevented",
-    "repeat",
-  ])
+  for (const flag of ["ctrlKey", "metaKey", "shiftKey", "isComposing", "defaultPrevented"])
     assert.equal(playbackShortcut({ ...event, key: "l", [flag]: true }, null, true, false), null);
+  assert.equal(
+    playbackShortcut({ ...event, key: "l", repeat: true }, null, true, false),
+    "handled",
+  );
   assert.equal(playbackShortcut(event, { closest: () => ({}) }, true, false), null);
   assert.equal(
     playbackShortcut({ ...event, key: "ArrowLeft", repeat: true }, null, true, true),
@@ -174,4 +171,51 @@ test("a stale rejected play does not overwrite subsequent reverse playback", asy
   rejectPlay(new Error("Interrupted"));
   await Promise.resolve();
   assert.deepEqual(f.state(), { playing: true, rate: -1 });
+});
+
+test("32x advances through seeks and stops at the end without an unsupported native rate", () => {
+  const f = fixture();
+  f.controller.playAt(32);
+  assert.equal(f.media.paused, true);
+  assert.ok(f.media.playbackRate <= 16);
+  f.advance(100);
+  assert.equal(f.media.currentTime, 13.2);
+  f.advance(250);
+  assert.equal(f.media.currentTime, 20);
+  assert.equal(f.controller.playing, false);
+});
+
+test("Shift arrows step ten frames without enabling other modified shortcuts", () => {
+  assert.equal(
+    playbackShortcut({ ...event, key: "ArrowRight", shiftKey: true }, null, true, false),
+    "stepForwardTen",
+  );
+  assert.equal(
+    playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, true, true),
+    "stepBackTen",
+  );
+  assert.equal(
+    playbackShortcut({ ...event, key: "ArrowLeft", shiftKey: true }, null, false, true),
+    null,
+  );
+});
+
+test("Final Cut half-speed and reverse shortcuts preserve modifier guards", () => {
+  assert.equal(
+    playbackShortcut({ ...event, key: "¬", code: "KeyL", altKey: true }, null, true, false),
+    "slowForward",
+  );
+  assert.equal(
+    playbackShortcut({ ...event, key: "∆", code: "KeyJ", altKey: true }, null, true, true),
+    "slowReverse",
+  );
+  assert.equal(
+    playbackShortcut({ ...event, key: " ", shiftKey: true }, null, true, false),
+    "reverseNormal",
+  );
+  assert.equal(
+    playbackShortcut({ ...event, key: "l", altKey: true, metaKey: true }, null, true, false),
+    null,
+  );
+  assert.equal(playbackShortcut({ ...event, key: "l", altKey: true }, null, false, true), null);
 });

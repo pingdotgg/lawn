@@ -9,7 +9,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { createShuttleController, playbackShortcut } from "./shuttle";
+import { createShuttleController, bindPlaybackShortcuts, type PlaybackAction } from "./shuttle";
 import type Hls from "hls.js";
 import {
   Play,
@@ -341,6 +341,70 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
   }, [controlsBelow, showControls]);
 
+  const shortcutActionRef = useRef<(action: PlaybackAction) => void>(() => {});
+  useEffect(() => {
+    shortcutActionRef.current = (action) => {
+      showControls();
+      switch (action) {
+        case "toggle":
+          togglePlay();
+          break;
+        case "pause":
+          shuttleRef.current?.pause();
+          break;
+        case "reverse":
+          shuttleRef.current?.shuttle(-1);
+          break;
+        case "forward":
+          shuttleRef.current?.shuttle(1);
+          break;
+        case "reverseNormal":
+          shuttleRef.current?.playAt(-1);
+          break;
+        case "slowReverse":
+          shuttleRef.current?.playAt(-0.5);
+          break;
+        case "slowForward":
+          shuttleRef.current?.playAt(0.5);
+          break;
+        case "stepBackTen":
+          shuttleRef.current?.step(-10);
+          break;
+        case "stepForwardTen":
+          shuttleRef.current?.step(10);
+          break;
+        case "stepBack":
+          shuttleRef.current?.step(-1);
+          break;
+        case "stepForward":
+          shuttleRef.current?.step(1);
+          break;
+        case "seekBack":
+          handleSeekBy(-5);
+          break;
+        case "seekForward":
+          handleSeekBy(5);
+          break;
+        case "fullscreen":
+          void toggleFullscreen();
+          break;
+        case "mute":
+          toggleMute();
+          break;
+      }
+    };
+  });
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+    return bindPlaybackShortcuts(
+      root,
+      editorControls,
+      () => !shuttleRef.current?.playing,
+      (action) => shortcutActionRef.current(action),
+    );
+  }, [editorControls]);
+
   const handleDownload = useCallback(async () => {
     if (!allowDownload || isDownloading) return;
 
@@ -545,7 +609,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handleLoadedMetadata = () => {
       if (cancelled) return;
       metadataLoaded = true;
-      video.playbackRate = Math.abs(shuttleRef.current?.rate ?? 1);
+      video.playbackRate = Math.min(Math.abs(shuttleRef.current?.rate ?? 1), 16);
       setDuration(video.duration || 0);
       updateBuffered();
       const isFirstSource = !hasAttachedSourceRef.current;
@@ -590,7 +654,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     const handlePause = () => {
       if (cancelled) return;
       resetPlaybackHealth();
-      setIsPlaying(shuttleRef.current?.reversing ?? false);
+      setIsPlaying(shuttleRef.current?.seekingPlayback ?? false);
       setIsBuffering(false);
       setControlsVisible(true);
     };
@@ -996,6 +1060,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           }}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:border-white/25 hover:bg-white/20"
           aria-label={isPlaying ? "Pause" : "Play"}
+          title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+          aria-keyshortcuts="Space"
         >
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>
@@ -1203,49 +1269,6 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   return (
     <div
       ref={wrapperRef}
-      onKeyDown={(event) => {
-        const action = playbackShortcut(
-          event.nativeEvent,
-          event.target instanceof Element ? event.target : null,
-          editorControls,
-          !shuttleRef.current?.playing,
-        );
-        if (!action) return;
-        event.preventDefault();
-        showControls();
-        switch (action) {
-          case "toggle":
-            togglePlay();
-            break;
-          case "pause":
-            shuttleRef.current?.pause();
-            break;
-          case "reverse":
-            shuttleRef.current?.shuttle(-1);
-            break;
-          case "forward":
-            shuttleRef.current?.shuttle(1);
-            break;
-          case "stepBack":
-            shuttleRef.current?.step(-1);
-            break;
-          case "stepForward":
-            shuttleRef.current?.step(1);
-            break;
-          case "seekBack":
-            handleSeekBy(-5);
-            break;
-          case "seekForward":
-            handleSeekBy(5);
-            break;
-          case "fullscreen":
-            void toggleFullscreen();
-            break;
-          case "mute":
-            toggleMute();
-            break;
-        }
-      }}
       className={cn(
         "relative",
         controlsBelow ? "flex min-h-0 flex-1 flex-col bg-black" : "",
@@ -1268,7 +1291,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         aria-label="Video player"
         aria-description={
           editorControls
-            ? "Space toggles playback. K pauses. J and L shuttle backward and forward; press again for 2, 4, or 8 times speed. While paused, arrows or comma and period step at 30 fps. F toggles fullscreen. M toggles mute."
+            ? "Space toggles playback. K pauses. J and L shuttle backward and forward up to 32 times speed. Hold K and tap J or L to step, or hold both for half speed. Arrows step one frame; Shift and arrows step ten frames, using 30 fps. F toggles fullscreen. M toggles mute."
             : "Space toggles playback. K pauses. Arrows seek five seconds. F toggles fullscreen. M toggles mute."
         }
         onMouseMove={showControls}

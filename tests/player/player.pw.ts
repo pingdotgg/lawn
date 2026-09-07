@@ -184,3 +184,127 @@ test("speed button cycles from the reverse shuttle magnitude instead of a stale 
   const time = (await mediaState(page)).time;
   await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThan(time);
 });
+
+test("Space works before player focus and after mouse-operated layout controls, without repeating", async ({
+  page,
+}) => {
+  await ready(page);
+  await page
+    .getByRole("region", { name: "Video player" })
+    .evaluate((element) => (element as HTMLElement).blur());
+  await page.keyboard.press("Space");
+  await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
+  await page.keyboard.press("Space");
+  await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
+  const comments = page.getByRole("button", { name: "Toggle comments" });
+  await comments.click();
+  await page.keyboard.down("Space");
+  await page.keyboard.down("Space");
+  await page.keyboard.up("Space");
+  await expect.poll(async () => (await mediaState(page)).paused).toBe(false);
+  await expect(comments).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Enter theater mode" }).click();
+  await page.keyboard.press("Space");
+  await expect.poll(async () => (await mediaState(page)).paused).toBe(true);
+  await expect(page.getByRole("button", { name: "Exit theater mode" })).toBeVisible();
+});
+
+for (const direction of ["j", "l"]) {
+  test(`K with ${direction}: tap steps one frame, hold plays half speed, release stops`, async ({
+    page,
+  }) => {
+    await ready(page);
+    await page.keyboard.down("k");
+    await page.keyboard.press(direction);
+    expect((await mediaState(page)).time).toBeCloseTo(10 + (direction === "j" ? -1 : 1) / 30, 3);
+    expect((await mediaState(page)).paused).toBe(true);
+    await page.keyboard.down(direction);
+    const speed = direction === "j" ? "-0.5" : "0.5";
+    await expect(
+      page.getByRole("button", { name: `Playback speed ${speed}x`, exact: true }),
+    ).toBeVisible();
+    const before = (await mediaState(page)).time;
+    await expect
+      .poll(async () => Math.abs((await mediaState(page)).time - before))
+      .toBeGreaterThan(0.05);
+    await page.keyboard.up(direction);
+    const stopped = (await mediaState(page)).time;
+    await page.waitForTimeout(250);
+    expect((await mediaState(page)).time).toBeCloseTo(stopped, 3);
+    await page.keyboard.up("k");
+    await page.keyboard.press("l");
+    await expect(
+      page.getByRole("button", { name: "Playback speed 1x", exact: true }),
+    ).toBeVisible();
+  });
+}
+
+test("arrows stop and step playback, Shift arrows step ten frames, and editing cancels a held shuttle", async ({
+  page,
+}) => {
+  await ready(page);
+  await page.keyboard.press("l");
+  await page.keyboard.press("ArrowLeft");
+  expect((await mediaState(page)).paused).toBe(true);
+  const before = (await mediaState(page)).time;
+  await page.keyboard.press("Shift+ArrowRight");
+  expect((await mediaState(page)).time).toBeCloseTo(before + 10 / 30, 3);
+  await page.keyboard.down("k");
+  await page.keyboard.down("l");
+  await page.getByLabel("Comment", { exact: true }).focus();
+  await page.waitForTimeout(300);
+  expect((await mediaState(page)).paused).toBe(true);
+  await page.keyboard.up("l");
+  await page.keyboard.up("k");
+  const stopped = (await mediaState(page)).time;
+  await page.keyboard.type("j k l ");
+  expect((await mediaState(page)).time).toBeCloseTo(stopped, 3);
+});
+
+test("shuttle reaches 32x with safe native rates and remains controlled by Space", async ({
+  page,
+}) => {
+  await ready(page);
+  await page.locator("video").evaluate((video: HTMLVideoElement) => {
+    video.currentTime = 0;
+  });
+  for (const speed of [1, 2, 4, 8, 16, 32]) {
+    await page.keyboard.press("l");
+    await expect(
+      page.getByRole("button", { name: `Playback speed ${speed}x`, exact: true }),
+    ).toBeVisible();
+  }
+  const before = (await mediaState(page)).time;
+  await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThan(before);
+  expect((await mediaState(page)).rate).toBeLessThanOrEqual(16);
+  await page.keyboard.press("Space");
+  const stopped = (await mediaState(page)).time;
+  await page.waitForTimeout(100);
+  expect((await mediaState(page)).time).toBeCloseTo(stopped, 3);
+});
+
+test("Option J/L plays half speed and Shift Space plays backward", async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press("Alt+l");
+  await expect(
+    page.getByRole("button", { name: "Playback speed 0.5x", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Alt+j");
+  await expect(
+    page.getByRole("button", { name: "Playback speed -0.5x", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Shift+Space");
+  await expect(page.getByRole("button", { name: "Playback speed -1x", exact: true })).toBeVisible();
+});
+
+test("public player buttons keep their native Space action after mouse clicks", async ({
+  page,
+}) => {
+  await ready(page, "/?public");
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+  await page.keyboard.press("Space");
+  expect(await page.locator("video").evaluate((video: HTMLVideoElement) => video.muted)).toBe(
+    false,
+  );
+  expect((await mediaState(page)).paused).toBe(true);
+});
