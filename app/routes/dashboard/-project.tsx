@@ -886,7 +886,9 @@ export default function ProjectPage({
                           eager={shouldEagerLoadThumbnail}
                           priority={index === 0}
                           onProcessedLoad={() => {
-                            if (thumbnailSrc) releaseThumbnail(video._id, thumbnailSrc);
+                            if (thumbnailSrc && localThumbnails.has(video._id)) {
+                              releaseThumbnail(video._id, thumbnailSrc);
+                            }
                           }}
                         />
                       ) : (
@@ -1076,7 +1078,9 @@ export default function ProjectPage({
                         eager={shouldEagerLoadThumbnail}
                         priority={index === 0}
                         onProcessedLoad={() => {
-                          if (thumbnailSrc) releaseThumbnail(video._id, thumbnailSrc);
+                          if (thumbnailSrc && localThumbnails.has(video._id)) {
+                            releaseThumbnail(video._id, thumbnailSrc);
+                          }
                         }}
                       />
                     ) : (

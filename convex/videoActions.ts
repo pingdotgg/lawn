@@ -19,7 +19,7 @@ import {
   getMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
-import { canDownloadOriginal } from "./originalFile";
+import { canDownloadOriginal, type OriginalFileFields } from "./originalFile";
 import {
   abortMultipartUploadSession,
   completeMultipartUploadSession,
@@ -103,15 +103,9 @@ async function buildDownloadResult(
   };
 }
 
-async function downloadOriginal(video: {
-  status: string;
-  s3Key?: string;
-  s3MultipartUploadId?: string;
-  uploadCompletedAt?: number;
-  fileSize?: number;
-  title?: string;
-  contentType?: string;
-}) {
+async function downloadOriginal(
+  video: OriginalFileFields & Pick<Doc<"videos">, "fileSize" | "title" | "contentType">,
+) {
   if (!canDownloadOriginal(video) || !video.s3Key) {
     throw new Error("The original file has not finished uploading or is no longer available.");
   }
@@ -121,12 +115,15 @@ async function downloadOriginal(video: {
       Key: normalizeBucketKey(video.s3Key),
     }),
   );
+  if (!head.ContentLength || !Number.isFinite(head.ContentLength) || head.ContentLength <= 0) {
+    throw new Error("The original file is missing or invalid.");
+  }
+  // Mux already validated ready originals; only early downloads must still
+  // match the object that passed server-side completion checks.
   if (
-    !head.ContentLength ||
-    !Number.isFinite(head.ContentLength) ||
-    head.ContentLength <= 0 ||
-    (video.fileSize !== undefined && head.ContentLength !== video.fileSize) ||
-    !isAllowedUploadContentType(normalizeContentType(head.ContentType ?? video.contentType))
+    video.status !== "ready" &&
+    ((video.fileSize !== undefined && head.ContentLength !== video.fileSize) ||
+      !isAllowedUploadContentType(normalizeContentType(head.ContentType ?? video.contentType)))
   ) {
     throw new Error("The original file is missing or invalid.");
   }
@@ -825,13 +822,16 @@ export const markUploadComplete = action({
         expiresIn: 60 * 60 * 24,
       });
       const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl);
-      if (asset.id) {
-        await ctx.runMutation(internal.videos.setMuxAssetReference, {
-          videoId: args.videoId,
-          expectedS3Key: video.s3Key,
-          muxAssetId: asset.id,
-        });
+      // Webhooks no longer attach assets to S3 uploads, so a missing id here
+      // would leave the row processing forever. Fail it so it stays retryable.
+      if (!asset.id) {
+        throw new Error("Mux did not return an asset id.");
       }
+      await ctx.runMutation(internal.videos.setMuxAssetReference, {
+        videoId: args.videoId,
+        expectedS3Key: video.s3Key,
+        muxAssetId: asset.id,
+      });
     } catch (error) {
       const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
       if (shouldDeleteObject) {

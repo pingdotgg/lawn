@@ -22,7 +22,7 @@ export function VideoThumbnail({
       {localSrc && (!src || loadedSrc !== src) && (
         <img
           src={localSrc}
-          alt={alt}
+          alt=""
           draggable={false}
           className="absolute inset-0 h-full w-full object-cover"
         />

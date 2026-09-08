@@ -1208,23 +1208,15 @@ export const reconcileUploadedObjectMetadata = internalMutation({
       throw new Error("Project not found");
     }
 
-    const declaredSize =
-      video.status !== "failed" &&
-      typeof video.fileSize === "number" &&
-      Number.isFinite(video.fileSize)
-        ? Math.max(0, video.fileSize)
-        : 0;
-    const actualSize = Number.isFinite(args.fileSize) ? Math.max(0, args.fileSize) : 0;
-    const sizeDelta = actualSize - declaredSize;
-
-    if (sizeDelta > 0) {
-      await assertTeamCanStoreBytes(ctx, project.teamId, sizeDelta);
+    // A failed retry no longer counts toward storage, so re-check quota for it.
+    if (video.status === "failed") {
+      await assertTeamCanStoreBytes(ctx, project.teamId, args.fileSize);
     } else {
       await assertTeamHasActiveSubscription(ctx, project.teamId);
     }
 
     await ctx.db.patch(args.videoId, {
-      fileSize: actualSize,
+      fileSize: args.fileSize,
       uploadCompletedAt: Date.now(),
       contentType: args.contentType,
     });

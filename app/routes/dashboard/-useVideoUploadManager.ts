@@ -143,13 +143,15 @@ export function useVideoUploadManager() {
   const releaseThumbnail = useCallback(
     (videoId: Id<"videos">, processedThumbnailUrl: string) => {
       updateUploads((items) =>
-        items.flatMap((item) =>
-          item.videoId !== videoId
-            ? [item]
-            : item.dismissed
-              ? []
-              : [{ ...item, previewReleased: true, processedThumbnailUrl }],
-        ),
+        items.some((item) => item.videoId === videoId && !item.previewReleased)
+          ? items.flatMap((item) =>
+              item.videoId !== videoId
+                ? [item]
+                : item.dismissed
+                  ? []
+                  : [{ ...item, previewReleased: true, processedThumbnailUrl }],
+            )
+          : items,
       );
     },
     [updateUploads],

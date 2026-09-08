@@ -124,6 +124,19 @@ test("a Mux ingest failure keeps a validated original downloadable", async () =>
     expect(download.url).toContain("first.mp4");
 });
 
+test("a Mux response without an asset id fails the row instead of leaving it processing", async () => {
+  const { owner, t, videoId, downloads } = await seed();
+  mocks.mux.mockResolvedValueOnce({});
+  await expect(owner.action(api.videoActions.markUploadComplete, { videoId })).rejects.toThrow(
+    "Retry processing",
+  );
+  const video = await t.run((ctx) => ctx.db.get(videoId));
+  expect(video?.status).toBe("failed");
+  expect(video?.muxAssetId).toBeUndefined();
+  for (const download of await Promise.all(downloads()))
+    expect(download.url).toContain("first.mp4");
+});
+
 test.each([
   { ContentLength: 0, ContentType: "video/mp4" },
   { ContentLength: 50, ContentType: "video/mp4" },
@@ -273,14 +286,20 @@ test("public download follows the displayed ready cut, browsing settings, and vi
   ).rejects.toThrow();
 });
 
-test("legacy ready originals work, but missing or changed objects are never signed", async () => {
+test("legacy ready originals work despite drifted metadata, but missing objects are never signed", async () => {
   const { t, owner, videoId } = await seed();
   await t.run((ctx) => ctx.db.patch(videoId, { status: "ready" }));
   await expect(owner.action(api.videoActions.getDownloadUrl, { videoId })).resolves.toMatchObject({
     filename: "First_cut.mp4",
   });
+  // Mux already validated ready originals; stale size or bucket content type
+  // must not break downloads that work today.
+  mocks.send.mockResolvedValueOnce({ ContentLength: 99, ContentType: "binary/octet-stream" });
+  await expect(owner.action(api.videoActions.getDownloadUrl, { videoId })).resolves.toMatchObject({
+    filename: "First_cut.mp4",
+  });
   mocks.sign.mockClear();
-  mocks.send.mockResolvedValueOnce({ ContentLength: 99, ContentType: "video/mp4" });
+  mocks.send.mockResolvedValueOnce({ ContentLength: 0, ContentType: "video/mp4" });
   await expect(owner.action(api.videoActions.getDownloadUrl, { videoId })).rejects.toThrow(
     "invalid",
   );
