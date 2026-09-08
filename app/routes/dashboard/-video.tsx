@@ -818,11 +818,12 @@ export default function VideoPage() {
       const result = await getDownloadUrl({ videoId: resolvedVideoId });
       return result;
     } catch (error) {
-      setDownloadRequest({
-        videoId: resolvedVideoId,
-        pending: false,
-        error: error instanceof Error ? error.message : "Unable to prepare download.",
-      });
+      const message = error instanceof Error ? error.message : "Unable to prepare download.";
+      setDownloadRequest((request) =>
+        request?.videoId === resolvedVideoId
+          ? { videoId: resolvedVideoId, pending: false, error: message }
+          : request,
+      );
       return null;
     } finally {
       setDownloadRequest((request) =>
