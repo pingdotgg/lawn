@@ -453,7 +453,7 @@ export default function SharePage() {
             variant="outline"
             size="sm"
             onClick={() => void handleDownload()}
-            disabled={!grantToken || isDownloading}
+            disabled={!grantToken || isDownloading || !videoData.canDownload}
           >
             <Download className="h-4 w-4" />
             {isDownloading ? "Preparing..." : "Download"}
@@ -520,10 +520,21 @@ export default function SharePage() {
               ) : null}
               <div className="absolute inset-0 bg-black/45" />
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                {videoData.processingFailed ? (
+                  <AlertCircle className="h-8 w-8 text-[#f87171]" aria-hidden="true" />
+                ) : (
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+                )}
                 <p className="text-sm font-medium text-white/85">
-                  {activePlaybackError ??
-                    (isLoadingPlayback ? "Loading stream..." : "Preparing stream...")}
+                  {videoData.processingFailed
+                    ? "Processing failed."
+                    : videoData.processing
+                      ? "Stream is still processing."
+                      : (activePlaybackError ??
+                        (isLoadingPlayback ? "Loading stream..." : "Preparing stream..."))}
+                  {videoData.processing &&
+                    videoData.canDownload &&
+                    " Original file available to download."}
                 </p>
               </div>
             </div>

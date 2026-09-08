@@ -20,7 +20,8 @@ import {
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
-import { triggerTextDownload } from "@/lib/download";
+import { canDownloadOriginal } from "@convex/originalFile";
+import { triggerDownload, triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
 import { VideoWatchers } from "@/components/presence/VideoWatchers";
@@ -352,6 +353,11 @@ export default function VideoPage() {
   } | null>(null);
   const [isRetryingFailedProcessing, setIsRetryingFailedProcessing] = useState(false);
   const [retryFailedProcessingError, setRetryFailedProcessingError] = useState<string | null>(null);
+  const [downloadRequest, setDownloadRequest] = useState<{
+    videoId: Id<"videos">;
+    pending: boolean;
+    error?: string;
+  } | null>(null);
   const [deletingVideoId, setDeletingVideoId] = useState<Id<"videos"> | null>(null);
   const [deleteNotice, setDeleteNotice] = useState<{
     tone: "success" | "error";
@@ -807,14 +813,29 @@ export default function VideoPage() {
     setTimeout(() => setHighlightedCommentId(undefined), 3000);
   }, []);
 
+  // The banner and player share this handler but maintain separate button state.
+  const pendingDownloadIds = useRef(new Set<Id<"videos">>());
   const requestDownload = useCallback(async () => {
-    if (!video || video.status !== "ready" || !resolvedVideoId) return null;
+    if (!video || !canDownloadOriginal(video) || !resolvedVideoId) return null;
+    if (pendingDownloadIds.current.has(resolvedVideoId)) return null;
+    pendingDownloadIds.current.add(resolvedVideoId);
+    setDownloadRequest({ videoId: resolvedVideoId, pending: true });
     try {
       const result = await getDownloadUrl({ videoId: resolvedVideoId });
       return result;
     } catch (error) {
-      console.error("Failed to prepare download:", error);
+      const message = error instanceof Error ? error.message : "Unable to prepare download.";
+      setDownloadRequest((request) =>
+        request?.videoId === resolvedVideoId
+          ? { videoId: resolvedVideoId, pending: false, error: message }
+          : request,
+      );
       return null;
+    } finally {
+      pendingDownloadIds.current.delete(resolvedVideoId);
+      setDownloadRequest((request) =>
+        request?.videoId === resolvedVideoId ? { ...request, pending: false } : request,
+      );
     }
   }, [getDownloadUrl, video, resolvedVideoId]);
 
@@ -1288,6 +1309,28 @@ export default function VideoPage() {
         </div>
       </DashboardHeader>
 
+      {canDownloadOriginal(video) && video.status !== "ready" && (
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b px-5 py-2">
+          <span className="text-sm">Original file available.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={downloadRequest?.videoId === resolvedVideoId && downloadRequest.pending}
+            onClick={() =>
+              void requestDownload().then((result) => {
+                if (result) triggerDownload(result.url, result.filename);
+              })
+            }
+          >
+            <Download className="h-4 w-4" /> Download original
+          </Button>
+        </div>
+      )}
+      {downloadRequest?.videoId === resolvedVideoId && downloadRequest.error && (
+        <p role="alert" className="px-5 py-2 text-sm text-red-700">
+          {downloadRequest.error}
+        </p>
+      )}
       {/* Main content - horizontal split */}
       <div className="flex flex-1 overflow-hidden">
         {/* Video player area — full black, Frame.io style */}
@@ -1378,7 +1421,7 @@ export default function VideoPage() {
               comments={comments || []}
               onTimeUpdate={handleTimeUpdate}
               onMarkerClick={handleMarkerClick}
-              allowDownload={video.status === "ready"}
+              allowDownload={canDownloadOriginal(video)}
               downloadFilename={`${video.title}.mp4`}
               onRequestDownload={requestDownload}
               controlsBelow

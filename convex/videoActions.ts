@@ -1,5 +1,6 @@
 "use node";
 
+import { randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -17,8 +18,10 @@ import {
   createMuxAssetFromInputUrl,
   createPublicPlaybackId,
   getMuxAsset,
+  deleteMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
+import { canDownloadOriginal, type OriginalFileFields } from "./originalFile";
 import {
   abortMultipartUploadSession,
   completeMultipartUploadSession,
@@ -102,17 +105,31 @@ async function buildDownloadResult(
   };
 }
 
-function getDownloadUnavailableMessage(status: string) {
-  switch (status) {
-    case "uploading":
-      return "This video is still uploading and isn't ready to download yet.";
-    case "processing":
-      return "This video is still processing and isn't ready to download yet.";
-    case "failed":
-      return "This video couldn't be processed, so it isn't available to download.";
-    default:
-      return "This video isn't ready to download yet.";
+async function downloadOriginal(
+  video: OriginalFileFields & Pick<Doc<"videos">, "fileSize" | "title" | "contentType">,
+) {
+  if (!canDownloadOriginal(video) || !video.s3Key) {
+    throw new Error("The original file has not finished uploading or is no longer available.");
   }
+  const head = await getS3Client().send(
+    new HeadObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: normalizeBucketKey(video.s3Key),
+    }),
+  );
+  if (!head.ContentLength || !Number.isFinite(head.ContentLength) || head.ContentLength <= 0) {
+    throw new Error("The original file is missing or invalid.");
+  }
+  // Mux already validated ready originals; only early downloads must still
+  // match the object that passed server-side completion checks.
+  if (
+    video.status !== "ready" &&
+    ((video.fileSize !== undefined && head.ContentLength !== video.fileSize) ||
+      !isAllowedUploadContentType(normalizeContentType(head.ContentType ?? video.contentType)))
+  ) {
+    throw new Error("The original file is missing or invalid.");
+  }
+  return buildDownloadResult(video.s3Key, video);
 }
 
 function normalizeBucketKey(key: string): string {
@@ -148,11 +165,6 @@ async function buildSignedBucketObjectUrl(
   return await getSignedUrl(s3, command, { expiresIn: options?.expiresIn ?? 600 });
 }
 
-function getValueString(value: unknown, field: string): string | null {
-  const raw = (value as Record<string, unknown>)[field];
-  return typeof raw === "string" && raw.length > 0 ? raw : null;
-}
-
 function normalizeContentType(contentType: string | null | undefined): string {
   if (!contentType) return "";
   return contentType.split(";")[0].trim().toLowerCase();
@@ -185,7 +197,7 @@ function validateSinglePutSizeOrThrow(fileSize: number) {
 
 function buildVideoObjectKey(videoId: Id<"videos">, filename: string) {
   const ext = getExtensionFromKey(filename);
-  return `videos/${videoId}/${Date.now()}.${ext}`;
+  return `videos/${videoId}/${Date.now()}-${randomUUID()}.${ext}`;
 }
 
 function normalizePartEtag(etag: string) {
@@ -255,6 +267,7 @@ function shouldDeleteUploadedObjectOnFailure(error: unknown): boolean {
     error.message.includes("Unsupported video format") ||
     error.message.includes("Video file is too large") ||
     error.message.includes("Uploaded video file not found") ||
+    error.message.includes("Uploaded video size does not match") ||
     error.message.includes("Storage limit reached")
   );
 }
@@ -641,12 +654,14 @@ export const completeMultipartUpload = action({
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLengthRaw,
         contentType: normalizedContentType,
       });
 
       await ctx.runMutation(internal.videos.clearMultipartUploadId, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
       });
     } catch (error) {
       try {
@@ -664,6 +679,7 @@ export const completeMultipartUpload = action({
 
       await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
         videoId: args.videoId,
+        expectedS3Key: video.s3Key,
         uploadError: error instanceof Error ? error.message : "Upload failed after completion.",
       });
       throw error;
@@ -764,10 +780,12 @@ export const markUploadComplete = action({
     if (!video || !video.s3Key) {
       throw new Error("Original bucket file not found for this video");
     }
+    if (video.status === "processing" || video.status === "ready") return { success: true };
     if (video.status !== "uploading" && video.status !== "failed") {
       throw new Error("Video is not waiting for upload processing.");
     }
 
+    let uploadCompletedAt: number | undefined;
     try {
       const s3 = getS3Client();
       const head = await s3.send(
@@ -792,51 +810,63 @@ export const markUploadComplete = action({
         throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
       }
 
-      await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
+      const claim = await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
         fileSize: contentLength,
         contentType: normalizedContentType,
+        startProcessing: true,
       });
-
-      await ctx.runMutation(internal.videos.markAsProcessing, {
-        videoId: args.videoId,
-      });
+      if (claim === false) return { success: true };
+      uploadCompletedAt = claim;
 
       const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
         expiresIn: 60 * 60 * 24,
       });
       const asset = await createMuxAssetFromInputUrl(args.videoId, ingestUrl);
-      if (asset.id) {
-        await ctx.runMutation(internal.videos.setMuxAssetReference, {
-          videoId: args.videoId,
-          muxAssetId: asset.id,
-        });
+      // Webhooks no longer attach assets to S3 uploads, so a missing id here
+      // would leave the row processing forever. Fail it so it stays retryable.
+      if (!asset.id) {
+        throw new Error("Mux did not return an asset id.");
+      }
+      const attached = await ctx.runMutation(internal.videos.setMuxAssetReference, {
+        videoId: args.videoId,
+        expectedS3Key: video.s3Key,
+        expectedUploadCompletedAt: uploadCompletedAt,
+        muxAssetId: asset.id,
+      });
+      // Delete only after a confirmed rejection. A transport error could mean
+      // association committed, so deleting in the catch could break playback.
+      if (!attached) {
+        try {
+          await deleteMuxAsset(asset.id);
+        } catch (error) {
+          console.error("Failed to delete unbound Mux asset", asset.id, error);
+        }
+        throw new Error("Upload was cancelled or replaced.");
       }
     } catch (error) {
       const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
-      if (shouldDeleteObject) {
-        try {
-          await deleteUploadedObject(video.s3Key);
-        } catch {
-          // No-op: preserve original processing failure.
-        }
-      }
-
       const uploadError =
         shouldDeleteObject && error instanceof Error
           ? error.message
           : "Mux ingest failed after upload.";
-      if (shouldDeleteObject) {
-        await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
-          videoId: args.videoId,
-          uploadError,
-        });
-        throw error;
-      }
-      await ctx.runMutation(internal.videos.markAsFailed, {
+      const failed = await ctx.runMutation(internal.videos.failUploadCompletion, {
         videoId: args.videoId,
+        s3Key: video.s3Key,
+        uploadCompletedAt,
+        previousUploadCompletedAt: video.uploadCompletedAt,
+        discardOriginal: shouldDeleteObject,
         uploadError,
       });
+      if (failed && shouldDeleteObject) {
+        try {
+          await deleteUploadedObject(video.s3Key);
+        } catch {
+          // Preserve the validation error; storage cleanup can be retried later.
+        }
+      }
+      if (shouldDeleteObject) throw error;
       throw new Error("Mux ingest failed after upload. Retry processing without re-uploading.");
     }
 
@@ -1165,19 +1195,7 @@ export const getDownloadUrl = action({
       throw new Error("Video not found");
     }
 
-    if (video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(video.status));
-    }
-
-    const key = getValueString(video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: video.title,
-      contentType: video.contentType,
-    });
+    return await downloadOriginal(video);
   },
 });
 
@@ -1196,19 +1214,7 @@ export const getPublicDownloadUrl = action({
       throw new Error("Video not found");
     }
 
-    if (result.video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(result.video.status));
-    }
-
-    const key = getValueString(result.video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: result.video.title,
-      contentType: result.video.contentType,
-    });
+    return await downloadOriginal(result.video);
   },
 });
 
@@ -1231,18 +1237,6 @@ export const getSharedDownloadUrl = action({
       throw new Error("Downloads are disabled for this shared link.");
     }
 
-    if (result.video.status !== "ready") {
-      throw new Error(getDownloadUnavailableMessage(result.video.status));
-    }
-
-    const key = getValueString(result.video, "s3Key");
-    if (!key) {
-      throw new Error("Original bucket file not found for this video");
-    }
-
-    return await buildDownloadResult(key, {
-      title: result.video.title,
-      contentType: result.video.contentType,
-    });
+    return await downloadOriginal(result.video);
   },
 });

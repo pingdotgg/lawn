@@ -1,5 +1,5 @@
 import { useAction, useMutation } from "convex/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import type { UploadStatus } from "@/components/upload/UploadProgress";
@@ -23,6 +23,9 @@ const UPLOAD_FILE_CONCURRENCY = 2;
 
 export interface ManagedUploadItem {
   id: string;
+  dismissed?: boolean;
+  previewReleased?: boolean;
+  processedThumbnailUrl?: string;
   teamSlug?: string;
   projectId: Id<"projects">;
   creationIntent: UploadCreationIntent;
@@ -96,6 +99,62 @@ export function useVideoUploadManager() {
       });
     },
     [],
+  );
+
+  // Keep the existing upload row briefly after its toast closes so project
+  // previews survive Mux processing. No IndexedDB or server thumbnail storage.
+  const completionTimers = useRef(new Map<string, ReturnType<typeof setTimeout>[]>());
+  useEffect(() => {
+    for (const upload of uploads) {
+      if (upload.status !== "complete" || completionTimers.current.has(upload.id)) continue;
+      const dismiss = setTimeout(
+        () => {
+          updateUploads((items) =>
+            items.flatMap((item) =>
+              item.id !== upload.id
+                ? [item]
+                : item.previewReleased
+                  ? []
+                  : [{ ...item, dismissed: true }],
+            ),
+          );
+        },
+        upload.creationIntent.kind === "version" ? 10_000 : 3000,
+      );
+      const expire = setTimeout(() => {
+        updateUploads((items) => items.filter((item) => item.id !== upload.id));
+      }, 10 * 60_000);
+      completionTimers.current.set(upload.id, [dismiss, expire]);
+    }
+    for (const [id, timers] of completionTimers.current) {
+      if (uploads.some((upload) => upload.id === id)) continue;
+      timers.forEach(clearTimeout);
+      completionTimers.current.delete(id);
+    }
+  }, [uploads, updateUploads]);
+  useEffect(
+    () => () => {
+      for (const timers of completionTimers.current.values()) timers.forEach(clearTimeout);
+      completionTimers.current.clear();
+    },
+    [],
+  );
+
+  const releaseThumbnail = useCallback(
+    (videoId: Id<"videos">, processedThumbnailUrl: string) => {
+      updateUploads((items) =>
+        items.some((item) => item.videoId === videoId && !item.previewReleased)
+          ? items.flatMap((item) =>
+              item.videoId !== videoId
+                ? [item]
+                : item.dismissed
+                  ? []
+                  : [{ ...item, previewReleased: true, processedThumbnailUrl }],
+            )
+          : items,
+      );
+    },
+    [updateUploads],
   );
 
   const processUpload = useCallback(
@@ -276,13 +335,6 @@ export function useVideoUploadManager() {
           ),
         );
 
-        setTimeout(
-          () => {
-            updateUploads((prev) => prev.filter((upload) => upload.id !== uploadId));
-          },
-          creationIntent.kind === "version" ? 10_000 : 3000,
-        );
-
         return createdVideoId;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Upload failed";
@@ -449,12 +501,6 @@ export function useVideoUploadManager() {
               : item,
           ),
         );
-        setTimeout(
-          () => {
-            updateUploads((prev) => prev.filter((item) => item.id !== uploadId));
-          },
-          upload.creationIntent.kind === "version" ? 10_000 : 3000,
-        );
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Processing failed";
         const canRetryProcessing = isProcessingRetryError(error);
@@ -480,6 +526,7 @@ export function useVideoUploadManager() {
 
   return {
     uploads,
+    releaseThumbnail,
     uploadFilesToProject,
     uploadNewVersion,
     cancelUpload,
