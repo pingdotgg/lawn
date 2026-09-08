@@ -1,3 +1,4 @@
+import { canDownloadOriginal } from "./originalFile";
 import { MINUTE, RateLimiter } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
 import { components } from "./_generated/api";
@@ -212,7 +213,7 @@ export const getByToken = query({
     }
 
     const video = await ctx.db.get(link.videoId);
-    if (!video || video.status !== "ready") {
+    if (!video || (video.status !== "ready" && !canDownloadOriginal(video))) {
       return { status: "missing" as const };
     }
 
@@ -259,7 +260,7 @@ export const issueAccessGrant = mutation({
     }
 
     const video = await ctx.db.get(link.videoId);
-    if (!video || video.status !== "ready") {
+    if (!video || (video.status !== "ready" && !canDownloadOriginal(video))) {
       return { ok: false, grantToken: null };
     }
 

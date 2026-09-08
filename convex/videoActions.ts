@@ -1,5 +1,6 @@
 "use node";
 
+import { randomUUID } from "node:crypto";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -17,6 +18,7 @@ import {
   createMuxAssetFromInputUrl,
   createPublicPlaybackId,
   getMuxAsset,
+  deleteMuxAsset,
 } from "./mux";
 import { BUCKET_NAME, getS3Client } from "./s3";
 import { canDownloadOriginal, type OriginalFileFields } from "./originalFile";
@@ -195,7 +197,7 @@ function validateSinglePutSizeOrThrow(fileSize: number) {
 
 function buildVideoObjectKey(videoId: Id<"videos">, filename: string) {
   const ext = getExtensionFromKey(filename);
-  return `videos/${videoId}/${Date.now()}.${ext}`;
+  return `videos/${videoId}/${Date.now()}-${randomUUID()}.${ext}`;
 }
 
 function normalizePartEtag(etag: string) {
@@ -778,10 +780,12 @@ export const markUploadComplete = action({
     if (!video || !video.s3Key) {
       throw new Error("Original bucket file not found for this video");
     }
+    if (video.status === "processing" || video.status === "ready") return { success: true };
     if (video.status !== "uploading" && video.status !== "failed") {
       throw new Error("Video is not waiting for upload processing.");
     }
 
+    let uploadCompletedAt: number | undefined;
     try {
       const s3 = getS3Client();
       const head = await s3.send(
@@ -806,17 +810,15 @@ export const markUploadComplete = action({
         throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
       }
 
-      await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
+      const claim = await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
         videoId: args.videoId,
         s3Key: video.s3Key,
         fileSize: contentLength,
         contentType: normalizedContentType,
+        startProcessing: true,
       });
-
-      await ctx.runMutation(internal.videos.markAsProcessing, {
-        videoId: args.videoId,
-        expectedS3Key: video.s3Key,
-      });
+      if (claim === false) return { success: true };
+      uploadCompletedAt = claim;
 
       const ingestUrl = await buildSignedBucketObjectUrl(video.s3Key, {
         expiresIn: 60 * 60 * 24,
@@ -827,38 +829,44 @@ export const markUploadComplete = action({
       if (!asset.id) {
         throw new Error("Mux did not return an asset id.");
       }
-      await ctx.runMutation(internal.videos.setMuxAssetReference, {
+      const attached = await ctx.runMutation(internal.videos.setMuxAssetReference, {
         videoId: args.videoId,
         expectedS3Key: video.s3Key,
+        expectedUploadCompletedAt: uploadCompletedAt,
         muxAssetId: asset.id,
       });
+      // Delete only after a confirmed rejection. A transport error could mean
+      // association committed, so deleting in the catch could break playback.
+      if (!attached) {
+        try {
+          await deleteMuxAsset(asset.id);
+        } catch (error) {
+          console.error("Failed to delete unbound Mux asset", asset.id, error);
+        }
+        throw new Error("Upload was cancelled or replaced.");
+      }
     } catch (error) {
       const shouldDeleteObject = shouldDeleteUploadedObjectOnFailure(error);
-      if (shouldDeleteObject) {
-        try {
-          await deleteUploadedObject(video.s3Key);
-        } catch {
-          // No-op: preserve original processing failure.
-        }
-      }
-
       const uploadError =
         shouldDeleteObject && error instanceof Error
           ? error.message
           : "Mux ingest failed after upload.";
-      if (shouldDeleteObject) {
-        await ctx.runMutation(internal.videos.finalizeAbandonedUpload, {
-          videoId: args.videoId,
-          expectedS3Key: video.s3Key,
-          uploadError,
-        });
-        throw error;
-      }
-      await ctx.runMutation(internal.videos.markAsFailed, {
+      const failed = await ctx.runMutation(internal.videos.failUploadCompletion, {
         videoId: args.videoId,
-        expectedS3Key: video.s3Key,
+        s3Key: video.s3Key,
+        uploadCompletedAt,
+        previousUploadCompletedAt: video.uploadCompletedAt,
+        discardOriginal: shouldDeleteObject,
         uploadError,
       });
+      if (failed && shouldDeleteObject) {
+        try {
+          await deleteUploadedObject(video.s3Key);
+        } catch {
+          // Preserve the validation error; storage cleanup can be retried later.
+        }
+      }
+      if (shouldDeleteObject) throw error;
       throw new Error("Mux ingest failed after upload. Retry processing without re-uploading.");
     }
 

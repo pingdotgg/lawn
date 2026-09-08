@@ -1189,6 +1189,7 @@ export const reconcileUploadedObjectMetadata = internalMutation({
     s3Key: v.string(),
     fileSize: v.number(),
     contentType: v.string(),
+    startProcessing: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const video = await ctx.db.get(args.videoId);
@@ -1196,6 +1197,12 @@ export const reconcileUploadedObjectMetadata = internalMutation({
       throw new Error("Video not found");
     }
 
+    if (
+      video.s3Key === args.s3Key &&
+      args.startProcessing &&
+      (video.status === "processing" || video.status === "ready")
+    )
+      return false;
     if (video.s3Key !== args.s3Key || !["uploading", "failed"].includes(video.status)) {
       throw new Error("Upload was cancelled or replaced.");
     }
@@ -1215,11 +1222,69 @@ export const reconcileUploadedObjectMetadata = internalMutation({
       await assertTeamHasActiveSubscription(ctx, project.teamId);
     }
 
+    // This existing completion marker also identifies the ingest claim. Advance
+    // it on retries even within one millisecond so stale actions cannot own them.
+    const uploadCompletedAt = Math.max(Date.now(), (video.uploadCompletedAt ?? 0) + 1);
     await ctx.db.patch(args.videoId, {
       fileSize: args.fileSize,
-      uploadCompletedAt: Date.now(),
+      uploadCompletedAt,
       contentType: args.contentType,
+      ...(args.startProcessing
+        ? {
+            status: "processing" as const,
+            muxAssetId: undefined,
+            muxAssetStatus: "preparing" as const,
+            uploadError: undefined,
+            s3MultipartUploadId: undefined,
+            s3MultipartPartSizeBytes: undefined,
+            s3MultipartPartCount: undefined,
+            uploadUpdatedAt: Date.now(),
+            muxLastPolledAt: Date.now(),
+          }
+        : {}),
     });
+    return uploadCompletedAt;
+  },
+});
+
+// Only the request owning this ingest may fail it. A late HEAD failure must
+// neither fail another request's ingest nor authorize deleting its original.
+export const failUploadCompletion = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    s3Key: v.string(),
+    uploadCompletedAt: v.optional(v.number()),
+    previousUploadCompletedAt: v.optional(v.number()),
+    discardOriginal: v.boolean(),
+    uploadError: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    if (!video || video.s3Key !== args.s3Key) return false;
+    if (args.uploadCompletedAt === undefined) {
+      if (
+        (video.status !== "uploading" && video.status !== "failed") ||
+        video.uploadCompletedAt !== args.previousUploadCompletedAt
+      )
+        return false;
+    } else if (
+      video.status !== "processing" ||
+      video.muxAssetId ||
+      video.uploadCompletedAt !== args.uploadCompletedAt
+    ) {
+      return false;
+    }
+    if (args.discardOriginal) {
+      await failOrRollbackUpload(ctx, video, args.uploadError);
+    } else {
+      await ctx.db.patch(video._id, {
+        status: "failed",
+        muxAssetStatus: "errored",
+        uploadError: args.uploadError,
+        uploadUpdatedAt: Date.now(),
+      });
+    }
+    return true;
   },
 });
 
@@ -1488,13 +1553,19 @@ export const setMuxAssetReference = internalMutation({
     videoId: v.id("videos"),
     muxAssetId: v.string(),
     expectedS3Key: v.optional(v.string()),
+    expectedUploadCompletedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const video = await ctx.db.get(args.videoId);
     if (!video) return false;
     if (args.expectedS3Key !== undefined) {
-      if (video.s3Key !== args.expectedS3Key || video.status !== "processing") {
-        throw new Error("Upload was cancelled or replaced.");
+      if (
+        video.s3Key !== args.expectedS3Key ||
+        video.status !== "processing" ||
+        (args.expectedUploadCompletedAt !== undefined &&
+          video.uploadCompletedAt !== args.expectedUploadCompletedAt)
+      ) {
+        return false;
       }
     } else if (
       video.s3Key ||
@@ -1601,7 +1672,7 @@ export const claimMuxProcessingCandidates = internalMutation({
     // Order by muxLastPolledAt so the oldest-polled processing videos are
     // checked first, giving fair round-robin distribution across the queue.
     // Take extra headroom because some processing videos may not have a
-    // muxAssetId yet (the brief window between markAsProcessing and
+    // muxAssetId yet (the brief window between claiming completion and
     // setMuxAssetReference); those are skipped by the guard below.
     const videos = await ctx.db
       .query("videos")
@@ -1612,10 +1683,22 @@ export const claimMuxProcessingCandidates = internalMutation({
     const candidates = [];
     for (const video of videos) {
       if (!video.muxAssetId) {
-        // Rotate interrupted processing rows to the back of the queue. Without
-        // this write, enough asset-less rows can permanently hide valid work
-        // beyond the bounded scan window.
-        await ctx.db.patch(video._id, { muxLastPolledAt: claimedAt });
+        const ingestStartedAt =
+          video.uploadUpdatedAt ?? video.uploadCompletedAt ?? video._creationTime;
+        if (video.s3Key && claimedAt - ingestStartedAt > 15 * 60_000) {
+          // An interrupted action cannot be recovered from video-id-only Mux
+          // webhooks. Preserve its original and expose the existing retry flow.
+          await ctx.db.patch(video._id, {
+            status: "failed",
+            muxAssetStatus: "errored",
+            uploadError: "Mux ingest was interrupted. Retry processing without re-uploading.",
+            muxLastPolledAt: claimedAt,
+          });
+        } else {
+          // Rotate asset-less rows so they cannot hide valid work beyond the
+          // bounded scan window while the action is still attaching its asset.
+          await ctx.db.patch(video._id, { muxLastPolledAt: claimedAt });
+        }
         continue;
       }
       await ctx.db.patch(video._id, { muxLastPolledAt: claimedAt });

@@ -811,8 +811,12 @@ export default function VideoPage() {
     setTimeout(() => setHighlightedCommentId(undefined), 3000);
   }, []);
 
+  // The banner and player share this handler but maintain separate button state.
+  const pendingDownloadIds = useRef(new Set<Id<"videos">>());
   const requestDownload = useCallback(async () => {
     if (!video || !canDownloadOriginal(video) || !resolvedVideoId) return null;
+    if (pendingDownloadIds.current.has(resolvedVideoId)) return null;
+    pendingDownloadIds.current.add(resolvedVideoId);
     setDownloadRequest({ videoId: resolvedVideoId, pending: true });
     try {
       const result = await getDownloadUrl({ videoId: resolvedVideoId });
@@ -826,6 +830,7 @@ export default function VideoPage() {
       );
       return null;
     } finally {
+      pendingDownloadIds.current.delete(resolvedVideoId);
       setDownloadRequest((request) =>
         request?.videoId === resolvedVideoId ? { ...request, pending: false } : request,
       );

@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
+import { hashPassword } from "./security";
 import { beforeEach, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { createVersionRecord } from "./videos";
@@ -9,12 +11,14 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   sign: vi.fn(),
   mux: vi.fn(),
+  deleteMux: vi.fn(),
 }));
 vi.mock("./s3", () => ({ BUCKET_NAME: "test-videos", getS3Client: () => ({ send: mocks.send }) }));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: mocks.sign }));
 vi.mock("./mux", async (original) => ({
   ...(await original<typeof import("./mux")>()),
   createMuxAssetFromInputUrl: mocks.mux,
+  deleteMuxAsset: mocks.deleteMux,
 }));
 vi.mock("./billingHelpers", async (original) => ({
   ...(await original<typeof import("./billingHelpers")>()),
@@ -29,10 +33,12 @@ beforeEach(() => {
     async (_client, command) => `https://storage.test/${command.input.Key}`,
   );
   mocks.mux.mockResolvedValue({ id: "mux-asset" });
+  mocks.deleteMux.mockResolvedValue(undefined);
 });
 
 async function seed() {
   const t = convexTest(schema, modules);
+  rateLimiterTest.register(t);
   const ids = await t.run(async (ctx) => {
     const teamId = await ctx.db.insert("teams", {
       name: "Test",
@@ -436,6 +442,7 @@ test("a late Mux creation response cannot attach its asset to a replacement uplo
   const replacement = await t.run((ctx) => ctx.db.get(videoId));
   expect(replacement).toMatchObject({ status: "uploading", s3Key: "replacement.mp4" });
   expect(replacement?.muxAssetId).toBeUndefined();
+  expect(mocks.deleteMux).toHaveBeenCalledExactlyOnceWith("old-asset");
   await expect(owner.action(api.videoActions.getDownloadUrl, { videoId })).rejects.toThrow();
 });
 
@@ -478,4 +485,263 @@ test("Mux created webhooks cannot bypass S3 attempt binding; legacy direct uploa
     }),
   ).resolves.toBe(true);
   expect((await t.run((ctx) => ctx.db.get(videoId)))?.muxAssetId).toBe("direct-asset");
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+test("overlapping completion requests claim one ingest and accept a late successful HEAD", async () => {
+  const { t, owner, videoId } = await seed();
+  const head = deferred<{ ContentLength: number; ContentType: string }>();
+  const headStarted = deferred<void>();
+  mocks.send.mockImplementationOnce(() => {
+    headStarted.resolve();
+    return head.promise;
+  });
+  const late = owner.action(api.videoActions.markUploadComplete, { videoId });
+  await headStarted.promise;
+  const asset = deferred<{ id: string }>();
+  const ingestStarted = deferred<void>();
+  mocks.mux.mockImplementationOnce(() => {
+    ingestStarted.resolve();
+    return asset.promise;
+  });
+  const winner = owner.action(api.videoActions.markUploadComplete, { videoId });
+  await ingestStarted.promise;
+  head.resolve({ ContentLength: 100, ContentType: "video/mp4" });
+  await expect(late).resolves.toEqual({ success: true });
+  expect(mocks.mux).toHaveBeenCalledTimes(1);
+  asset.resolve({ id: "winner" });
+  await winner;
+  expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+    status: "processing",
+    muxAssetId: "winner",
+  });
+  await expect(owner.action(api.videoActions.markUploadComplete, { videoId })).resolves.toEqual({
+    success: true,
+  });
+  expect(mocks.mux).toHaveBeenCalledTimes(1);
+});
+
+test.each(["network", "empty", "type"])(
+  "a losing HEAD %s failure cannot fail or delete the winner's original",
+  async (failure) => {
+    const { t, owner, videoId } = await seed();
+    const head = deferred<{ ContentLength: number; ContentType: string }>();
+    const started = deferred<void>();
+    mocks.send.mockImplementationOnce(() => {
+      started.resolve();
+      return head.promise;
+    });
+    const late = owner.action(api.videoActions.markUploadComplete, { videoId });
+    const rejected = expect(late).rejects.toThrow();
+    await started.promise;
+    await owner.action(api.videoActions.markUploadComplete, { videoId });
+    if (failure === "network") head.reject(new Error("HEAD unavailable"));
+    else
+      head.resolve({
+        ContentLength: failure === "empty" ? 0 : 100,
+        ContentType: failure === "type" ? "text/plain" : "video/mp4",
+      });
+    await rejected;
+    expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+      status: "processing",
+      muxAssetId: "mux-asset",
+      s3Key: "first.mp4",
+    });
+    expect(
+      mocks.send.mock.calls.every(([command]) => command.constructor.name === "HeadObjectCommand"),
+    ).toBe(true);
+    expect(mocks.deleteMux).not.toHaveBeenCalled();
+  },
+);
+
+test("an old ingest claim cannot attach to or fail a retry of the same object", async () => {
+  const { t, owner, videoId } = await seed();
+  const old = await t.mutation(internal.videos.reconcileUploadedObjectMetadata, {
+    videoId,
+    s3Key: "first.mp4",
+    fileSize: 100,
+    contentType: "video/mp4",
+    startProcessing: true,
+  });
+  if (old === false) throw new Error("Expected first claim");
+  await t.mutation(internal.videos.markAsFailed, { videoId, uploadError: "retry" });
+  await owner.action(api.videoActions.markUploadComplete, { videoId });
+  expect(
+    await t.mutation(internal.videos.setMuxAssetReference, {
+      videoId,
+      muxAssetId: "stale",
+      expectedS3Key: "first.mp4",
+      expectedUploadCompletedAt: old,
+    }),
+  ).toBe(false);
+  expect(
+    await t.mutation(internal.videos.failUploadCompletion, {
+      videoId,
+      s3Key: "first.mp4",
+      uploadCompletedAt: old,
+      discardOriginal: false,
+      uploadError: "stale",
+    }),
+  ).toBe(false);
+  expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+    status: "processing",
+    muxAssetId: "mux-asset",
+  });
+});
+
+test("upload attempts produce distinct object keys even in the same millisecond", async () => {
+  const { owner, videoId } = await seed();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(1788800000000);
+  try {
+    const input = { videoId, filename: "same.mp4", fileSize: 100, contentType: "video/mp4" };
+    const first = await owner.action(api.videoActions.initiateVideoUpload, input);
+    const second = await owner.action(api.videoActions.initiateVideoUpload, input);
+    expect(first.key).not.toBe(second.key);
+    expect(first.key.endsWith(".mp4")).toBe(true);
+    expect(second.key.endsWith(".mp4")).toBe(true);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("interrupted ingest claims expire safely and remain retryable without another upload", async () => {
+  const { t, owner, videoId } = await seed();
+  const claim = await t.mutation(internal.videos.reconcileUploadedObjectMetadata, {
+    videoId,
+    s3Key: "first.mp4",
+    fileSize: 100,
+    contentType: "video/mp4",
+    startProcessing: true,
+  });
+  if (claim === false) throw new Error("Expected first claim");
+  await t.mutation(internal.videos.claimMuxProcessingCandidates, { limit: 10 });
+  expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+    status: "processing",
+    uploadCompletedAt: claim,
+  });
+  const clock = vi.spyOn(Date, "now").mockReturnValue(claim + 16 * 60_000);
+  try {
+    await t.mutation(internal.videos.claimMuxProcessingCandidates, { limit: 10 });
+    expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+      status: "failed",
+      s3Key: "first.mp4",
+      uploadCompletedAt: claim,
+    });
+    expect((await owner.action(api.videoActions.getDownloadUrl, { videoId })).url).toContain(
+      "first.mp4",
+    );
+    expect(
+      await t.mutation(internal.videos.setMuxAssetReference, {
+        videoId,
+        muxAssetId: "interrupted",
+        expectedS3Key: "first.mp4",
+        expectedUploadCompletedAt: claim,
+      }),
+    ).toBe(false);
+    await owner.action(api.videoActions.markUploadComplete, { videoId });
+    expect(await t.run((ctx) => ctx.db.get(videoId))).toMatchObject({
+      status: "processing",
+      muxAssetId: "mux-asset",
+    });
+    expect(
+      await t.mutation(internal.videos.setMuxAssetReference, {
+        videoId,
+        muxAssetId: "interrupted",
+        expectedS3Key: "first.mp4",
+        expectedUploadCompletedAt: claim,
+      }),
+    ).toBe(false);
+    expect(mocks.mux).toHaveBeenCalledTimes(1);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test.each([
+  { failed: false, protected: false },
+  { failed: false, protected: true },
+  { failed: true, protected: false },
+  { failed: true, protected: true },
+])(
+  "share recipients can acquire a real grant and download a validated original: %j",
+  async (scenario) => {
+    const { t, owner, videoId, linkId } = await seed();
+    await t.run((ctx) => ctx.db.patch(linkId, { passwordHash: undefined }));
+    expect(await t.query(api.shareLinks.getByToken, { token: "link" })).toEqual({
+      status: "missing",
+    });
+    expect(await t.mutation(api.shareLinks.issueAccessGrant, { token: "link" })).toEqual({
+      ok: false,
+      grantToken: null,
+    });
+    await owner.action(api.videoActions.markUploadComplete, { videoId });
+    if (scenario.failed)
+      await t.mutation(internal.videos.markAsFailed, { videoId, uploadError: "Mux failed" });
+    if (scenario.protected) {
+      const passwordHash = await hashPassword("correct password");
+      await t.run((ctx) => ctx.db.patch(linkId, { passwordHash }));
+      expect(
+        await t.mutation(api.shareLinks.issueAccessGrant, {
+          token: "link",
+          password: "wrong password",
+        }),
+      ).toEqual({ ok: false, grantToken: null });
+    }
+    expect(await t.query(api.shareLinks.getByToken, { token: "link" })).toEqual({
+      status: scenario.protected ? "requiresPassword" : "ok",
+    });
+    const grant = await t.mutation(api.shareLinks.issueAccessGrant, {
+      token: "link",
+      ...(scenario.protected ? { password: "correct password" } : {}),
+    });
+    expect(grant.ok).toBe(true);
+    if (!grant.grantToken) throw new Error("Expected recipient grant");
+    expect(
+      await t.query(api.videos.getByShareGrant, { grantToken: grant.grantToken }),
+    ).toMatchObject({
+      processing: true,
+      processingFailed: scenario.failed,
+      canDownload: true,
+      video: { _id: videoId },
+    });
+    expect(
+      (await t.action(api.videoActions.getSharedDownloadUrl, { grantToken: grant.grantToken })).url,
+    ).toContain("first.mp4");
+    await t.run((ctx) => ctx.db.patch(linkId, { expiresAt: Date.now() - 1 }));
+    expect(await t.query(api.shareLinks.getByToken, { token: "link" })).toEqual({
+      status: "expired",
+    });
+    expect(
+      await t.mutation(api.shareLinks.issueAccessGrant, {
+        token: "link",
+        password: "correct password",
+      }),
+    ).toEqual({ ok: false, grantToken: null });
+    await expect(
+      t.action(api.videoActions.getSharedDownloadUrl, { grantToken: grant.grantToken }),
+    ).rejects.toThrow();
+  },
+);
+
+test("real share admission preserves disabled downloads on a processing video", async () => {
+  const { t, owner, videoId, linkId } = await seed();
+  await owner.action(api.videoActions.markUploadComplete, { videoId });
+  await t.run((ctx) => ctx.db.patch(linkId, { passwordHash: undefined, allowDownload: false }));
+  const grant = await t.mutation(api.shareLinks.issueAccessGrant, { token: "link" });
+  if (!grant.grantToken) throw new Error("Expected recipient grant");
+  expect(await t.query(api.videos.getByShareGrant, { grantToken: grant.grantToken })).toMatchObject(
+    { canDownload: false },
+  );
+  await expect(
+    t.action(api.videoActions.getSharedDownloadUrl, { grantToken: grant.grantToken }),
+  ).rejects.toThrow("disabled");
 });
