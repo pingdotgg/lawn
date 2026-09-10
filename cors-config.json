@@ -1,10 +1,13 @@
 {
   "CORSRules": [
     {
-      "AllowedOrigins": ["*"],
-      "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+      "AllowedOrigins": [
+        "https://lawn.video",
+        "https://www.lawn.video"
+      ],
+      "AllowedMethods": ["GET", "PUT", "HEAD"],
       "AllowedHeaders": ["*"],
-      "ExposeHeaders": ["ETag", "x-amz-request-id", "x-amz-id-2"],
+      "ExposeHeaders": ["ETag"],
       "MaxAgeSeconds": 3600
     }
   ]
