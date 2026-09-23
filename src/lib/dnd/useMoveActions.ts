@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { runBulkVideoAction } from "@/lib/videoSelection";
 import type { DragPayload } from "./payload";
 
 type MoveOutcome = { ok: boolean; error?: string };
@@ -25,6 +26,20 @@ export function useMoveActions() {
       });
     }
   });
+
+  const moveManyVideos = useMutation(api.videos.moveMany).withOptimisticUpdate(
+    (localStore, { videoIds }) => {
+      const moved = new Set(videoIds);
+      for (const { args, value } of localStore.getAllQueries(api.videos.list)) {
+        if (!value) continue;
+        if (!value.page.some((video) => moved.has(video._id))) continue;
+        localStore.setQuery(api.videos.list, args, {
+          ...value,
+          page: value.page.filter((video) => !moved.has(video._id)),
+        });
+      }
+    },
+  );
 
   const moveFolder = useMutation(api.projects.move).withOptimisticUpdate(
     (localStore, { projectId }) => {
@@ -65,6 +80,16 @@ export function useMoveActions() {
     [moveVideo],
   );
 
+  const moveVideosTo = useCallback(
+    (videoIds: readonly Id<"videos">[], destProjectId: Id<"projects">): Promise<MoveOutcome> =>
+      runBulkVideoAction(
+        videoIds,
+        (chunk) => moveManyVideos({ videoIds: chunk, projectId: destProjectId }),
+        "Failed to move videos",
+      ),
+    [moveManyVideos],
+  );
+
   const moveFolderTo = useCallback(
     async (folderId: Id<"projects">, destParentId?: Id<"projects">): Promise<MoveOutcome> => {
       try {
@@ -101,7 +126,7 @@ export function useMoveActions() {
   );
 
   return useMemo(
-    () => ({ moveVideoTo, moveFolderTo, moveFromDrop }),
-    [moveVideoTo, moveFolderTo, moveFromDrop],
+    () => ({ moveVideoTo, moveVideosTo, moveFolderTo, moveFromDrop }),
+    [moveVideoTo, moveVideosTo, moveFolderTo, moveFromDrop],
   );
 }

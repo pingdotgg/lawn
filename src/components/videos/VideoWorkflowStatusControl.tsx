@@ -25,7 +25,7 @@ function workflowStatusLabel(status: VideoWorkflowStatus) {
   return option?.label ?? "Review";
 }
 
-function workflowStatusDotColor(status: VideoWorkflowStatus) {
+export function workflowStatusDotColor(status: VideoWorkflowStatus) {
   if (status === "done") return "bg-[#2d5a2d]";
   if (status === "rework") return "bg-[#ca8a04]";
   return "bg-[#888]";

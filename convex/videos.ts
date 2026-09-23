@@ -27,6 +27,9 @@ const dashboardSortValidator = v.union(v.literal("last-uploaded"), v.literal("al
 
 const VIDEO_DEPENDENT_DELETE_BATCH_DOCS = 8;
 export const MAX_VIDEO_STACK_SIZE = 100;
+export const MAX_BULK_VIDEO_ACTION = 100;
+// Each deleted version schedules one cleanup; Convex caps a mutation at 1,000.
+const MAX_BULK_DELETE_VERSIONS = 1_000;
 const VIDEO_STACK_LIMIT_ERROR = `A video can have at most ${MAX_VIDEO_STACK_SIZE} versions.`;
 const VIDEO_STACK_HEAD_ERROR = "A video version stack must have exactly one latest version.";
 const VIDEO_STACK_CHAIN_ERROR =
@@ -924,35 +927,97 @@ export const update = mutation({
   },
 });
 
+// Dedupes ids and enforces the bulk cap. Bulk mutations run every id through
+// the same checks as the single mutation, so one failure rolls back the batch.
+function uniqueBulkVideoIds(videoIds: Id<"videos">[]) {
+  if (videoIds.length > MAX_BULK_VIDEO_ACTION) {
+    throw new Error(`You can act on at most ${MAX_BULK_VIDEO_ACTION} videos at once.`);
+  }
+  return [...new Set(videoIds)];
+}
+
+// Applies a whole-stack action to each id once. Selections can include several
+// versions of one stack, so ids already covered by an earlier stack are skipped.
+async function forEachVideoStack(
+  videoIds: Id<"videos">[],
+  applyToStack: (videoId: Id<"videos">) => Promise<Id<"videos">[]>,
+) {
+  const handled = new Set<Id<"videos">>();
+  for (const videoId of uniqueBulkVideoIds(videoIds)) {
+    if (handled.has(videoId)) continue;
+    for (const stackVideoId of await applyToStack(videoId)) {
+      handled.add(stackVideoId);
+    }
+  }
+}
+
+// Returns the ids of every version in the moved stack.
+async function moveVideoStack(ctx: MutationCtx, videoId: Id<"videos">, projectId: Id<"projects">) {
+  // Validate access to the SOURCE: `requireVideoAccess` loads the video and its
+  // current (source) project, and requires `member` on the source folder's team.
+  const { project: sourceProject, video } = await requireVideoAccess(ctx, videoId, "member");
+  const { versions } = await getStackVersions(ctx, video);
+  const versionIds = versions.map((version) => version._id);
+
+  if (!versions.every((version) => version.projectId === sourceProject._id)) {
+    throw new Error("All versions of a video must belong to the same project");
+  }
+
+  if (sourceProject._id === projectId) {
+    return versionIds; // no-op: dropped back into the same folder
+  }
+
+  // Validate the DESTINATION: caller must be a member of the destination
+  // folder's team, and that team must match the source video's team.
+  const { project: dest } = await requireProjectAccess(ctx, projectId, "member");
+  if (dest.teamId !== sourceProject.teamId) {
+    throw new Error("Can't move a video to a different team");
+  }
+
+  await Promise.all(versionIds.map((id) => ctx.db.patch(id, { projectId })));
+  return versionIds;
+}
+
+async function loadStackForDelete(ctx: MutationCtx, videoId: Id<"videos">) {
+  const { video } = await requireVideoAccess(ctx, videoId, "admin");
+  const { versions } = await getStackVersions(ctx, video);
+  return versions.map((version) => version._id);
+}
+
+async function deleteStackVersions(ctx: MutationCtx, versionIds: Id<"videos">[]) {
+  for (const versionId of versionIds) {
+    await ctx.db.delete(versionId);
+    await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, { videoId: versionId });
+  }
+}
+
+async function updateVideoWorkflowStatus(
+  ctx: MutationCtx,
+  videoId: Id<"videos">,
+  workflowStatus: WorkflowStatus,
+) {
+  await requireVideoAccess(ctx, videoId, "member");
+  await ctx.db.patch(videoId, { workflowStatus });
+}
+
 export const move = mutation({
   args: {
     videoId: v.id("videos"),
     projectId: v.id("projects"), // destination folder
   },
   handler: async (ctx, args) => {
-    // Validate access to the SOURCE: `requireVideoAccess` loads the video and its
-    // current (source) project, and requires `member` on the source folder's team.
-    const { project: sourceProject, video } = await requireVideoAccess(ctx, args.videoId, "member");
-    const { versions } = await getStackVersions(ctx, video);
+    await moveVideoStack(ctx, args.videoId, args.projectId);
+  },
+});
 
-    if (!versions.every((version) => version.projectId === sourceProject._id)) {
-      throw new Error("All versions of a video must belong to the same project");
-    }
-
-    if (sourceProject._id === args.projectId) {
-      return; // no-op: dropped back into the same folder
-    }
-
-    // Validate the DESTINATION: caller must be a member of the destination
-    // folder's team, and that team must match the source video's team.
-    const { project: dest } = await requireProjectAccess(ctx, args.projectId, "member");
-    if (dest.teamId !== sourceProject.teamId) {
-      throw new Error("Can't move a video to a different team");
-    }
-
-    await Promise.all(
-      versions.map((version) => ctx.db.patch(version._id, { projectId: args.projectId })),
+export const moveMany = mutation({
+  args: { videoIds: v.array(v.id("videos")), projectId: v.id("projects") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await forEachVideoStack(args.videoIds, (videoId) =>
+      moveVideoStack(ctx, videoId, args.projectId),
     );
+    return null;
   },
 });
 
@@ -1005,11 +1070,18 @@ export const updateWorkflowStatus = mutation({
     workflowStatus: workflowStatusValidator,
   },
   handler: async (ctx, args) => {
-    await requireVideoAccess(ctx, args.videoId, "member");
+    await updateVideoWorkflowStatus(ctx, args.videoId, args.workflowStatus);
+  },
+});
 
-    await ctx.db.patch(args.videoId, {
-      workflowStatus: args.workflowStatus,
-    });
+export const updateWorkflowStatusMany = mutation({
+  args: { videoIds: v.array(v.id("videos")), workflowStatus: workflowStatusValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const videoId of uniqueBulkVideoIds(args.videoIds)) {
+      await updateVideoWorkflowStatus(ctx, videoId, args.workflowStatus);
+    }
+    return null;
   },
 });
 
@@ -1039,16 +1111,27 @@ export const removeStack = mutation({
   args: { videoId: v.id("videos") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { video } = await requireVideoAccess(ctx, args.videoId, "admin");
-    const { versions } = await getStackVersions(ctx, video);
+    await deleteStackVersions(ctx, await loadStackForDelete(ctx, args.videoId));
+    return null;
+  },
+});
 
-    for (const version of versions) {
-      await ctx.db.delete(version._id);
-      await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, {
-        videoId: version._id,
-      });
+export const removeStacks = mutation({
+  args: { videoIds: v.array(v.id("videos")) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // Check access and count every version before deleting anything, so the
+    // version cap fails cleanly instead of hitting the scheduler limit.
+    const versionIds: Id<"videos">[] = [];
+    await forEachVideoStack(args.videoIds, async (videoId) => {
+      const stackVersionIds = await loadStackForDelete(ctx, videoId);
+      versionIds.push(...stackVersionIds);
+      return stackVersionIds;
+    });
+    if (versionIds.length > MAX_BULK_DELETE_VERSIONS) {
+      throw new Error("Too many versions to delete at once. Select fewer videos.");
     }
-
+    await deleteStackVersions(ctx, versionIds);
     return null;
   },
 });
