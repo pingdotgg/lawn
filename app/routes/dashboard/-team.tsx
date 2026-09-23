@@ -145,7 +145,11 @@ export default function TeamPage() {
       <DashboardHeader paths={[{ label: team?.slug ?? "team" }]}>
         <DashboardSortControl value={sort} onChange={setSort} />
         {team && (
-          <Button variant="outline" onClick={() => navigate({ to: teamSettingsPath(team.slug) })}>
+          <Button
+            variant="outline"
+            aria-label="Settings"
+            onClick={() => navigate({ to: teamSettingsPath(team.slug) })}
+          >
             <Settings className="h-4 w-4 sm:mr-1.5" />
             <span className="hidden sm:inline">Settings</span>
           </Button>
