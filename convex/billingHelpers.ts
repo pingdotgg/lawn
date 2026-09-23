@@ -126,7 +126,9 @@ export async function assertTeamCanStoreBytes(
 
   if (storageUsedBytes + requestedBytes > storageLimitBytes) {
     throw new ConvexError(
-      `Storage limit reached for the ${state.plan} plan. Upgrade to continue uploading.`,
+      state.plan === "pro"
+        ? "Storage limit reached for the pro plan. Delete old videos or versions to free up space."
+        : "Storage limit reached for the basic plan. Upgrade to continue uploading.",
     );
   }
 

@@ -140,6 +140,8 @@ export default function TeamSettingsPage() {
   const storageUsed = billing?.storageUsedBytes ?? 0;
   const storageLimit = planConfig.storageLimitBytes;
   const storagePct = storageLimit > 0 ? Math.min((storageUsed / storageLimit) * 100, 100) : 0;
+  const storageBarColor =
+    storagePct >= 100 ? "bg-[#dc2626]" : storagePct >= 90 ? "bg-[#ca8a04]" : "bg-[#2d5a2d]";
 
   const handleSaveName = async () => {
     if (!editedName.trim()) return;
@@ -349,7 +351,7 @@ export default function TeamSettingsPage() {
               </p>
               <div className="mt-2 h-1.5 bg-[#ddd]">
                 <div
-                  className="h-full bg-[#2d5a2d] transition-all duration-500"
+                  className={`h-full transition-all duration-500 ${storageBarColor}`}
                   style={{ width: `${storagePct}%` }}
                 />
               </div>
