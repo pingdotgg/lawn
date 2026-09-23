@@ -978,19 +978,17 @@ async function moveVideoStack(ctx: MutationCtx, videoId: Id<"videos">, projectId
   return versionIds;
 }
 
-// Returns the ids of every deleted version in the stack.
-async function removeVideoStack(ctx: MutationCtx, videoId: Id<"videos">) {
+async function loadStackForDelete(ctx: MutationCtx, videoId: Id<"videos">) {
   const { video } = await requireVideoAccess(ctx, videoId, "admin");
   const { versions } = await getStackVersions(ctx, video);
-
-  for (const version of versions) {
-    await ctx.db.delete(version._id);
-    await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, {
-      videoId: version._id,
-    });
-  }
-
   return versions.map((version) => version._id);
+}
+
+async function deleteStackVersions(ctx: MutationCtx, versionIds: Id<"videos">[]) {
+  for (const versionId of versionIds) {
+    await ctx.db.delete(versionId);
+    await ctx.scheduler.runAfter(0, internal.videos.continueVideoDelete, { videoId: versionId });
+  }
 }
 
 async function updateVideoWorkflowStatus(
@@ -1113,7 +1111,7 @@ export const removeStack = mutation({
   args: { videoId: v.id("videos") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await removeVideoStack(ctx, args.videoId);
+    await deleteStackVersions(ctx, await loadStackForDelete(ctx, args.videoId));
     return null;
   },
 });
@@ -1122,15 +1120,18 @@ export const removeStacks = mutation({
   args: { videoIds: v.array(v.id("videos")) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    let deletedVersions = 0;
+    // Check access and count every version before deleting anything, so the
+    // version cap fails cleanly instead of hitting the scheduler limit.
+    const versionIds: Id<"videos">[] = [];
     await forEachVideoStack(args.videoIds, async (videoId) => {
-      const versionIds = await removeVideoStack(ctx, videoId);
-      deletedVersions += versionIds.length;
-      if (deletedVersions > MAX_BULK_DELETE_VERSIONS) {
-        throw new Error("Too many versions to delete at once. Select fewer videos.");
-      }
-      return versionIds;
+      const stackVersionIds = await loadStackForDelete(ctx, videoId);
+      versionIds.push(...stackVersionIds);
+      return stackVersionIds;
     });
+    if (versionIds.length > MAX_BULK_DELETE_VERSIONS) {
+      throw new Error("Too many versions to delete at once. Select fewer videos.");
+    }
+    await deleteStackVersions(ctx, versionIds);
     return null;
   },
 });
