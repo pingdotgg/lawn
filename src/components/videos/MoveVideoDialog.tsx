@@ -11,41 +11,50 @@ import {
 } from "@/components/ui/dialog";
 import { useMoveActions } from "@/lib/dnd/useMoveActions";
 
+export type MoveVideoTarget = {
+  _id: Id<"videos">;
+  title: string;
+  projectId: Id<"projects">;
+  versionNumber: number;
+};
+
 type MoveVideoDialogProps = {
   teamId: Id<"teams">;
-  /** The video being moved, plus its current folder so we can exclude it. */
-  video: {
-    _id: Id<"videos">;
-    title: string;
-    projectId: Id<"projects">;
-    versionNumber: number;
-  } | null;
+  /** The videos being moved, plus their current folder so we can exclude it. */
+  videos: MoveVideoTarget[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function MoveVideoDialog({ teamId, video, open, onOpenChange }: MoveVideoDialogProps) {
+export function MoveVideoDialog({ teamId, videos, open, onOpenChange }: MoveVideoDialogProps) {
   const folders = useQuery(api.projects.listForMove, open ? { teamId } : "skip");
-  const { moveVideoTo } = useMoveActions();
+  const { moveVideoTo, moveVideosTo } = useMoveActions();
   const [isMoving, setIsMoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const video = videos.length === 1 ? videos[0] : null;
+  const videosKey = videos.map((item) => item._id).join(",");
 
-  // Clear a stale error when the dialog is reopened for another video.
+  // Clear a stale error when the dialog is reopened for other videos.
   useEffect(() => {
     if (open) setError(null);
-  }, [open, video?._id]);
+  }, [open, videosKey]);
 
-  // A video can move into any folder except the one it already lives in.
-  const destinations = useMemo(
-    () => (folders ?? []).filter((folder) => folder._id !== video?.projectId),
-    [folders, video?.projectId],
-  );
+  // Videos can move into any folder except the one they already live in.
+  const destinations = useMemo(() => {
+    const sourceProjectIds = new Set(videos.map((item) => item.projectId));
+    return (folders ?? []).filter((folder) => !sourceProjectIds.has(folder._id));
+  }, [folders, videos]);
 
   const handleMove = async (destProjectId: Id<"projects">) => {
-    if (!video) return;
+    if (videos.length === 0) return;
     setIsMoving(true);
     setError(null);
-    const result = await moveVideoTo(video._id, destProjectId);
+    const result = video
+      ? await moveVideoTo(video._id, destProjectId)
+      : await moveVideosTo(
+          videos.map((item) => item._id),
+          destProjectId,
+        );
     setIsMoving(false);
     if (result.ok) {
       onOpenChange(false);
@@ -59,12 +68,16 @@ export function MoveVideoDialog({ teamId, video, open, onOpenChange }: MoveVideo
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {video ? `Move all versions of "${video.title}"` : "Move video"}
+            {video
+              ? `Move all versions of "${video.title}"`
+              : videos.length > 1
+                ? `Move ${videos.length} videos`
+                : "Move videos"}
           </DialogTitle>
           <DialogDescription>
             {video
               ? `Choose a folder for every version of this video, including the latest version (v${video.versionNumber}).`
-              : "Choose which folder this video should live in."}
+              : "Choose a folder for every version of these videos."}
           </DialogDescription>
         </DialogHeader>
 

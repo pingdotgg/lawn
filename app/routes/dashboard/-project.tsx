@@ -26,6 +26,7 @@ import {
   Eye,
   FolderPlus,
   FolderInput,
+  Check,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,7 +51,10 @@ import { projectPath, teamHomePath, videoPath, watchPath } from "@/lib/routes";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 import { MoveProjectDialog } from "@/components/projects/MoveProjectDialog";
-import { MoveVideoDialog } from "@/components/videos/MoveVideoDialog";
+import { MoveVideoDialog, type MoveVideoTarget } from "@/components/videos/MoveVideoDialog";
+import { VideoSelectionBar } from "@/components/videos/VideoSelectionBar";
+import { useVideoSelection } from "@/lib/videoSelection";
+import { useBulkVideoActions } from "@/lib/useBulkVideoActions";
 import { useMoveActions } from "@/lib/dnd/useMoveActions";
 import { useDraggableCard } from "@/lib/dnd/useDraggableCard";
 import type { DragPayload } from "@/lib/dnd/payload";
@@ -331,6 +335,8 @@ type VideoIntentTargetProps = {
   videoId: Id<"videos">;
   muxPlaybackId?: string;
   onOpen: () => void;
+  /** Shift-click selects instead of opening when provided. */
+  onShiftSelect?: () => void;
   children: ReactNode;
   dragPayload: DragPayload;
   dragDisabled?: boolean;
@@ -344,6 +350,7 @@ function VideoIntentTarget({
   videoId,
   muxPlaybackId,
   onOpen,
+  onShiftSelect,
   children,
   dragPayload,
   dragDisabled,
@@ -377,7 +384,11 @@ function VideoIntentTarget({
     <div
       ref={targetRef}
       className={cn("relative", className, isDragging && "opacity-50")}
-      onClick={onOpen}
+      onClick={(event) => (event.shiftKey && onShiftSelect ? onShiftSelect() : onOpen())}
+      onMouseDown={(event) => {
+        // Keep shift-click selection from also selecting page text.
+        if (event.shiftKey && onShiftSelect) event.preventDefault();
+      }}
       {...prewarmIntentHandlers}
     >
       <button
@@ -386,11 +397,56 @@ function VideoIntentTarget({
         aria-label={dragPayload.kind === "video" ? `Open video ${dragPayload.title}` : "Open video"}
         onClick={(event) => {
           event.stopPropagation();
-          onOpen();
+          if (event.shiftKey && onShiftSelect) onShiftSelect();
+          else onOpen();
         }}
       />
       {children}
     </div>
+  );
+}
+
+function SelectionCheckbox({
+  checked,
+  visible,
+  label,
+  onToggle,
+  className,
+}: {
+  checked: boolean;
+  /** Always shown (selection mode); otherwise revealed on hover/focus. */
+  visible: boolean;
+  label: string;
+  onToggle: (extendRange: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      aria-label={label}
+      data-no-drag
+      className={cn(
+        "z-30 inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center border-2 transition-opacity",
+        checked
+          ? "border-[#2d5a2d] bg-[#2d5a2d] text-[#f0f0e8]"
+          : "border-white bg-black/40 text-transparent hover:bg-black/60",
+        visible || checked
+          ? "opacity-100"
+          : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:opacity-100",
+        className,
+      )}
+      onMouseDown={(event) => {
+        if (event.shiftKey) event.preventDefault();
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle(event.shiftKey);
+      }}
+    >
+      <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -465,12 +521,9 @@ export default function ProjectPage({
     _id: Id<"projects">;
     name: string;
   } | null>(null);
-  const [moveVideoTarget, setMoveVideoTarget] = useState<{
-    _id: Id<"videos">;
-    title: string;
-    projectId: Id<"projects">;
-    versionNumber: number;
-  } | null>(null);
+  const [moveVideoTargets, setMoveVideoTargets] = useState<MoveVideoTarget[]>([]);
+  const selection = useVideoSelection(presenceCandidateVideoIds, resolvedProjectId);
+  const { deleteVideos, setWorkflowStatus } = useBulkVideoActions();
   const [dndError, setDndError] = useState<string | null>(null);
   const sortedChildFolders = useMemo(
     () => sortDashboardItems(childFolders ?? [], sort),
@@ -601,6 +654,44 @@ export default function ProjectPage({
     [updateVideoWorkflowStatus],
   );
 
+  const selectedVideoIds = videos
+    ?.filter((video) => selection.selectedIds.has(video._id))
+    .map((video) => video._id);
+
+  const handleBulkMove = () => {
+    if (!videos) return;
+    setMoveVideoTargets(
+      videos
+        .filter((video) => selection.selectedIds.has(video._id))
+        .map((video) => ({
+          _id: video._id,
+          title: video.title,
+          projectId: video.projectId,
+          versionNumber: video.versionNumber,
+        })),
+    );
+  };
+
+  const handleBulkStatus = async (workflowStatus: VideoWorkflowStatus) => {
+    if (!selectedVideoIds?.length) return;
+    const result = await setWorkflowStatus(selectedVideoIds, workflowStatus);
+    if (!result.ok) setDndError(result.error);
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedVideoIds?.length ?? 0;
+    if (!selectedVideoIds || count === 0) return;
+    if (
+      !confirm(
+        `Delete ${count} ${count === 1 ? "video" : "videos"} and all their versions? Their comments and share links will be deleted. This can't be undone.`,
+      )
+    )
+      return;
+    const result = await deleteVideos(selectedVideoIds);
+    if (result.ok) selection.clear();
+    else setDndError(result.error);
+  };
+
   const showShareToast = useCallback((toast: ShareToastState, autoDismiss: boolean) => {
     setShareToast(toast);
     if (shareToastTimeoutRef.current !== null) {
@@ -665,6 +756,9 @@ export default function ProjectPage({
 
   const canUpload = project?.role !== "viewer";
   const canDeleteVideo = project?.role === "owner" || project?.role === "admin";
+  // Every bulk action needs at least member access; viewers get no selection UI.
+  const canSelect = canUpload;
+  const selectionActive = canSelect && selection.selectedIds.size > 0;
   const activeProjectId = project?._id ?? resolvedProjectId ?? projectId;
   const hasChildFolders = (childFolders?.length ?? 0) > 0;
   const hasVideos = (videos?.length ?? 0) > 0;
@@ -834,6 +928,7 @@ export default function ProjectPage({
                   ? projectPresenceCounts?.counts?.[video._id]
                   : undefined;
                 const isVersionStack = video.versionNumber > 1;
+                const isSelected = selection.selectedIds.has(video._id);
 
                 return (
                   <VideoIntentTarget
@@ -857,10 +952,12 @@ export default function ProjectPage({
                         to: videoPath(resolvedTeamSlug, activeProjectId, video._id),
                       })
                     }
+                    onShiftSelect={canSelect ? () => selection.toggle(video._id, true) : undefined}
                   >
                     <div
                       className={cn(
                         "relative aspect-video overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px]",
+                        isSelected && "outline-3 outline-offset-2 outline-[color:var(--accent)]",
                         isVersionStack
                           ? "shadow-[3px_3px_0px_0px_#c8c8c0,6px_6px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_#c8c8c0,4px_4px_0px_0px_var(--shadow-color)]"
                           : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
@@ -903,6 +1000,15 @@ export default function ProjectPage({
                           </span>
                         </div>
                       )}
+                      {canSelect && (
+                        <SelectionCheckbox
+                          checked={isSelected}
+                          visible={selectionActive}
+                          label={`Select ${video.title}`}
+                          onToggle={(extendRange) => selection.toggle(video._id, extendRange)}
+                          className="absolute bottom-2 left-2"
+                        />
+                      )}
                       {/* Hover menu */}
                       <div className="absolute top-2 right-2">
                         <DropdownMenu>
@@ -941,12 +1047,14 @@ export default function ProjectPage({
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setMoveVideoTarget({
-                                    _id: video._id,
-                                    title: video.title,
-                                    projectId: activeProjectId,
-                                    versionNumber: video.versionNumber,
-                                  });
+                                  setMoveVideoTargets([
+                                    {
+                                      _id: video._id,
+                                      title: video.title,
+                                      projectId: activeProjectId,
+                                      versionNumber: video.versionNumber,
+                                    },
+                                  ]);
                                 }}
                               >
                                 <FolderInput className="mr-2 h-4 w-4" />
@@ -1023,6 +1131,7 @@ export default function ProjectPage({
                 ? projectPresenceCounts?.counts?.[video._id]
                 : undefined;
               const isVersionStack = video.versionNumber > 1;
+              const isSelected = selection.selectedIds.has(video._id);
 
               return (
                 <VideoIntentTarget
@@ -1046,11 +1155,13 @@ export default function ProjectPage({
                       to: videoPath(resolvedTeamSlug, activeProjectId, video._id),
                     })
                   }
+                  onShiftSelect={canSelect ? () => selection.toggle(video._id, true) : undefined}
                 >
                   {/* Thumbnail */}
                   <div
                     className={cn(
                       "relative aspect-video w-44 shrink-0 overflow-hidden border-2 border-[#1a1a1a] bg-[#e8e8e0] transition-all group-hover:translate-x-[2px] group-hover:translate-y-[2px]",
+                      isSelected && "outline-3 outline-offset-2 outline-[color:var(--accent)]",
                       isVersionStack
                         ? "shadow-[3px_3px_0px_0px_#c8c8c0,6px_6px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_#c8c8c0,4px_4px_0px_0px_var(--shadow-color)]"
                         : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
@@ -1092,6 +1203,15 @@ export default function ProjectPage({
                       >
                         Version {video.versionNumber}
                       </Badge>
+                    )}
+                    {canSelect && (
+                      <SelectionCheckbox
+                        checked={isSelected}
+                        visible={selectionActive}
+                        label={`Select ${video.title}`}
+                        onToggle={(extendRange) => selection.toggle(video._id, extendRange)}
+                        className="absolute bottom-1 left-1"
+                      />
                     )}
                   </div>
 
@@ -1167,12 +1287,14 @@ export default function ProjectPage({
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              setMoveVideoTarget({
-                                _id: video._id,
-                                title: video.title,
-                                projectId: activeProjectId,
-                                versionNumber: video.versionNumber,
-                              });
+                              setMoveVideoTargets([
+                                {
+                                  _id: video._id,
+                                  title: video.title,
+                                  projectId: activeProjectId,
+                                  versionNumber: video.versionNumber,
+                                },
+                              ]);
                             }}
                           >
                             <FolderInput className="mr-2 h-4 w-4" />
@@ -1300,11 +1422,21 @@ export default function ProjectPage({
       {teamId && (
         <MoveVideoDialog
           teamId={teamId}
-          video={moveVideoTarget}
-          open={moveVideoTarget !== null}
+          videos={moveVideoTargets}
+          open={moveVideoTargets.length > 0}
           onOpenChange={(open) => {
-            if (!open) setMoveVideoTarget(null);
+            if (!open) setMoveVideoTargets([]);
           }}
+        />
+      )}
+
+      {selectionActive && (
+        <VideoSelectionBar
+          count={selection.selectedIds.size}
+          onMove={canUpload ? handleBulkMove : undefined}
+          onSetStatus={canUpload ? (status) => void handleBulkStatus(status) : undefined}
+          onDelete={canDeleteVideo ? () => void handleBulkDelete() : undefined}
+          onClear={selection.clear}
         />
       )}
     </div>

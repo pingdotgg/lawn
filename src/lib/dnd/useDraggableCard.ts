@@ -40,8 +40,17 @@ export function useDraggableCard<T extends HTMLElement>({
     const element = ref.current;
     if (!element || disabled) return;
 
-    return draggable({
+    // Controls marked `data-no-drag` (e.g. selection checkboxes) never start a drag.
+    let pressStartedOnNoDrag = false;
+    const handlePointerDown = (event: PointerEvent) => {
+      pressStartedOnNoDrag =
+        event.target instanceof Element && event.target.closest("[data-no-drag]") !== null;
+    };
+    element.addEventListener("pointerdown", handlePointerDown, true);
+
+    const cleanupDraggable = draggable({
       element,
+      canDrag: () => !pressStartedOnNoDrag,
       getInitialData: () => makeDragData(payloadRef.current),
       onGenerateDragPreview: ({ nativeSetDragImage }) => {
         setCustomNativeDragPreview({
@@ -68,6 +77,11 @@ export function useDraggableCard<T extends HTMLElement>({
       onDragStart: () => setIsDragging(true),
       onDrop: () => setIsDragging(false),
     });
+
+    return () => {
+      element.removeEventListener("pointerdown", handlePointerDown, true);
+      cleanupDraggable();
+    };
   }, [disabled]);
 
   return { ref, isDragging };
