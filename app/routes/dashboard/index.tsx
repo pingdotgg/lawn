@@ -176,7 +176,7 @@ export default function DashboardPage() {
                       to={teamSettingsPath(team.slug)}
                       className="text-sm font-bold text-[#888] transition-colors hover:text-[#1a1a1a]"
                     >
-                      Billing
+                      Settings
                     </Link>
                     <Link
                       to={teamHomePath(team.slug)}

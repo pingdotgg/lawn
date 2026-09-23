@@ -7,7 +7,7 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { action, ActionCtx, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
@@ -43,6 +43,7 @@ import {
 } from "./uploadLimits";
 const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
   "video/mp4",
+  "video/x-m4v",
   "video/quicktime",
   "video/webm",
   "video/x-matroska",
@@ -171,7 +172,7 @@ function validateUploadRequestOrThrow(args: { fileSize: number; contentType: str
 
   const normalizedContentType = normalizeContentType(args.contentType);
   if (!isAllowedUploadContentType(normalizedContentType)) {
-    throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+    throw new ConvexError("Unsupported video format. Allowed: mp4, m4v, mov, webm, mkv.");
   }
 
   return normalizedContentType;
@@ -636,7 +637,7 @@ export const completeMultipartUpload = action({
 
       const normalizedContentType = normalizeContentType(head.ContentType ?? video.contentType);
       if (!isAllowedUploadContentType(normalizedContentType)) {
-        throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+        throw new ConvexError("Unsupported video format. Allowed: mp4, m4v, mov, webm, mkv.");
       }
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
@@ -789,7 +790,7 @@ export const markUploadComplete = action({
 
       const normalizedContentType = normalizeContentType(head.ContentType ?? video.contentType);
       if (!isAllowedUploadContentType(normalizedContentType)) {
-        throw new Error("Unsupported video format. Allowed: mp4, mov, webm, mkv.");
+        throw new ConvexError("Unsupported video format. Allowed: mp4, m4v, mov, webm, mkv.");
       }
 
       await ctx.runMutation(internal.videos.reconcileUploadedObjectMetadata, {
