@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { Id } from "@convex/_generated/dataModel";
 import {
   MAX_SIGN_PARTS_BATCH,
@@ -108,9 +109,14 @@ export function createFrameCoalescedPublisher<T>(
   };
 }
 
+export function getUploadErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ConvexError && typeof error.data === "string") return error.data;
+  return error instanceof Error ? error.message : fallback;
+}
+
 export class ResumableUploadError extends Error {
   constructor(error: unknown) {
-    const message = error instanceof Error ? error.message : "Upload failed";
+    const message = getUploadErrorMessage(error, "Upload failed");
     super(message);
     this.name = "ResumableUploadError";
   }
@@ -118,7 +124,7 @@ export class ResumableUploadError extends Error {
 
 export class ProcessingRetryError extends Error {
   constructor(error: unknown) {
-    const message = error instanceof Error ? error.message : "Processing failed";
+    const message = getUploadErrorMessage(error, "Processing failed");
     super(message);
     this.name = "ProcessingRetryError";
   }

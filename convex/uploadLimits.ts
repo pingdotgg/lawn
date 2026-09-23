@@ -1,3 +1,5 @@
+import { ConvexError } from "convex/values";
+
 export const GIBIBYTE = 1024 ** 3;
 export const MEBIBYTE = 1024 ** 2;
 
@@ -31,6 +33,6 @@ export function isAboveLegacySinglePutMaxBytes(fileSize: number) {
 
 export function assertVideoFileSizeAllowed(fileSize: number) {
   if (fileSize > MAX_VIDEO_FILE_SIZE_BYTES) {
-    throw new Error("Video file is too large. Maximum size is 50 GiB.");
+    throw new ConvexError("Video file is too large. Maximum size is 50 GiB.");
   }
 }

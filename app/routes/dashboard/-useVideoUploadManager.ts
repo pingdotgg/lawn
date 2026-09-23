@@ -13,6 +13,7 @@ import {
 } from "@/lib/uploadResumeDb";
 import {
   createAsyncTaskQueue,
+  getUploadErrorMessage,
   isProcessingRetryError,
   isResumableUploadError,
   uploadVideoFile,
@@ -133,7 +134,7 @@ export function useVideoUploadManager() {
                 ? {
                     ...upload,
                     status: "error",
-                    error: error instanceof Error ? error.message : "Upload failed",
+                    error: getUploadErrorMessage(error, "Upload failed"),
                   }
                 : upload,
             ),
@@ -285,7 +286,7 @@ export function useVideoUploadManager() {
 
         return createdVideoId;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Upload failed";
+        const errorMessage = getUploadErrorMessage(error, "Upload failed");
         const cancelled = abortController.signal.aborted;
         const resumable = isResumableUploadError(error);
         const canRetryProcessing = isProcessingRetryError(error);
@@ -456,7 +457,7 @@ export function useVideoUploadManager() {
           upload.creationIntent.kind === "version" ? 10_000 : 3000,
         );
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Processing failed";
+        const errorMessage = getUploadErrorMessage(error, "Processing failed");
         const canRetryProcessing = isProcessingRetryError(error);
         if (!canRetryProcessing) {
           await deleteUploadResumeSession(upload.videoId);
