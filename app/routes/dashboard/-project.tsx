@@ -434,7 +434,7 @@ function SelectionCheckbox({
           : "border-white bg-black/40 text-transparent hover:bg-black/60",
         visible || checked
           ? "opacity-100"
-          : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:opacity-100",
+          : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
         className,
       )}
       onMouseDown={(event) => {

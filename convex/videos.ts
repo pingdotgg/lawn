@@ -28,6 +28,8 @@ const dashboardSortValidator = v.union(v.literal("last-uploaded"), v.literal("al
 const VIDEO_DEPENDENT_DELETE_BATCH_DOCS = 8;
 export const MAX_VIDEO_STACK_SIZE = 100;
 export const MAX_BULK_VIDEO_ACTION = 100;
+// Each deleted version schedules one cleanup; Convex caps a mutation at 1,000.
+const MAX_BULK_DELETE_VERSIONS = 1_000;
 const VIDEO_STACK_LIMIT_ERROR = `A video can have at most ${MAX_VIDEO_STACK_SIZE} versions.`;
 const VIDEO_STACK_HEAD_ERROR = "A video version stack must have exactly one latest version.";
 const VIDEO_STACK_CHAIN_ERROR =
@@ -1120,7 +1122,15 @@ export const removeStacks = mutation({
   args: { videoIds: v.array(v.id("videos")) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await forEachVideoStack(args.videoIds, (videoId) => removeVideoStack(ctx, videoId));
+    let deletedVersions = 0;
+    await forEachVideoStack(args.videoIds, async (videoId) => {
+      const versionIds = await removeVideoStack(ctx, videoId);
+      deletedVersions += versionIds.length;
+      if (deletedVersions > MAX_BULK_DELETE_VERSIONS) {
+        throw new Error("Too many versions to delete at once. Select fewer videos.");
+      }
+      return versionIds;
+    });
     return null;
   },
 });

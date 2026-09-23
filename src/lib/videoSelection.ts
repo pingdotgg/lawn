@@ -68,21 +68,30 @@ export function chunk<T>(items: readonly T[], size: number) {
   return chunks;
 }
 
-/** Runs a bulk action in server-sized chunks and reports failure as a value. */
+/**
+ * Runs a bulk action in server-sized chunks, one at a time, stopping at the first
+ * failure. Each chunk is its own transaction, so on failure the error says how
+ * many videos were already done.
+ */
 export async function runBulkVideoAction<T>(
   ids: readonly T[],
   action: (chunkIds: T[]) => Promise<unknown>,
   fallbackError: string,
 ) {
-  try {
-    await Promise.all(chunk(ids, BULK_VIDEO_ACTION_LIMIT).map(action));
-    return { ok: true as const };
-  } catch (error) {
-    return {
-      ok: false as const,
-      error: error instanceof Error ? error.message : fallbackError,
-    };
+  let completed = 0;
+  for (const chunkIds of chunk(ids, BULK_VIDEO_ACTION_LIMIT)) {
+    try {
+      await action(chunkIds);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : fallbackError;
+      return {
+        ok: false as const,
+        error: completed > 0 ? `${message} (${completed} of ${ids.length} already done)` : message,
+      };
+    }
+    completed += chunkIds.length;
   }
+  return { ok: true as const };
 }
 
 /**
