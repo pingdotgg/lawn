@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { components } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
@@ -106,7 +107,7 @@ export async function getTeamStorageUsedBytes(ctx: BillingCtx, teamId: Id<"teams
 export async function assertTeamHasActiveSubscription(ctx: BillingCtx, teamId: Id<"teams">) {
   const state = await getTeamSubscriptionState(ctx, teamId);
   if (!state.hasActiveSubscription) {
-    throw new Error("An active Basic or Pro subscription is required.");
+    throw new ConvexError("An active Basic or Pro subscription is required.");
   }
   return state;
 }
@@ -124,7 +125,7 @@ export async function assertTeamCanStoreBytes(
   const requestedBytes = Number.isFinite(incomingBytes) ? Math.max(0, incomingBytes) : 0;
 
   if (storageUsedBytes + requestedBytes > storageLimitBytes) {
-    throw new Error(
+    throw new ConvexError(
       `Storage limit reached for the ${state.plan} plan. Upgrade to continue uploading.`,
     );
   }

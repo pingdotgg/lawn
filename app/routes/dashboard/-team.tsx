@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Folder, Plus, Users, CreditCard } from "lucide-react";
+import { Folder, Plus, Users, Settings } from "lucide-react";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { cn } from "@/lib/utils";
 import { projectPath, teamSettingsPath } from "@/lib/routes";
@@ -144,13 +144,10 @@ export default function TeamPage() {
       {/* Header */}
       <DashboardHeader paths={[{ label: team?.slug ?? "team" }]}>
         <DashboardSortControl value={sort} onChange={setSort} />
-        {canAccessBilling && team && (
-          <Button
-            variant="outline"
-            onClick={() => navigate({ to: billingPath ?? teamSettingsPath(team.slug) })}
-          >
-            <CreditCard className="h-4 w-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">Billing</span>
+        {team && (
+          <Button variant="outline" onClick={() => navigate({ to: teamSettingsPath(team.slug) })}>
+            <Settings className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Settings</span>
           </Button>
         )}
         {canManageMembers && (

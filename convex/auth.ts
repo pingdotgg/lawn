@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
@@ -81,11 +82,11 @@ export async function requireTeamAccess(
     .unique();
 
   if (!membership) {
-    throw new Error("Not a team member");
+    throw new ConvexError("Not a team member");
   }
 
   if (requiredRole && ROLE_HIERARCHY[membership.role] < ROLE_HIERARCHY[requiredRole]) {
-    throw new Error(`Requires ${requiredRole} role or higher`);
+    throw new ConvexError(`Requires ${requiredRole} role or higher`);
   }
 
   return { user, membership };
@@ -100,7 +101,7 @@ export async function requireProjectAccess(
 
   const project = await ctx.db.get(projectId);
   if (!project) {
-    throw new Error("Project not found");
+    throw new ConvexError("Project not found");
   }
 
   const membership = await ctx.db
@@ -111,11 +112,11 @@ export async function requireProjectAccess(
     .unique();
 
   if (!membership) {
-    throw new Error("Not a team member");
+    throw new ConvexError("Not a team member");
   }
 
   if (requiredRole && ROLE_HIERARCHY[membership.role] < ROLE_HIERARCHY[requiredRole]) {
-    throw new Error(`Requires ${requiredRole} role or higher`);
+    throw new ConvexError(`Requires ${requiredRole} role or higher`);
   }
 
   return { user, membership, project };
@@ -146,11 +147,11 @@ export async function requireVideoAccess(
     .unique();
 
   if (!membership) {
-    throw new Error("Not a team member");
+    throw new ConvexError("Not a team member");
   }
 
   if (requiredRole && ROLE_HIERARCHY[membership.role] < ROLE_HIERARCHY[requiredRole]) {
-    throw new Error(`Requires ${requiredRole} role or higher`);
+    throw new ConvexError(`Requires ${requiredRole} role or higher`);
   }
 
   return { user, membership, project, video };
