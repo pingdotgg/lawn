@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useUploadThumbnails } from "@/lib/useUploadThumbnails";
 import { UploadProgress } from "@/components/upload/UploadProgress";
 import { useVideoUploadManager, type ManagedUploadItem } from "./-useVideoUploadManager";
 import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
@@ -32,11 +33,13 @@ function dragEventHasFiles(event: DragEvent) {
 
 const DashboardUploadProgressItem = memo(function DashboardUploadProgressItem({
   upload,
+  thumbnailUrl,
   cancelUpload,
   retryProcessing,
   viewUploadedVersion,
 }: {
   upload: ManagedUploadItem;
+  thumbnailUrl?: string;
   cancelUpload: (uploadId: string) => void;
   retryProcessing: (uploadId: string) => void;
   viewUploadedVersion: (teamSlug: string, projectId: Id<"projects">, videoId: Id<"videos">) => void;
@@ -49,6 +52,7 @@ const DashboardUploadProgressItem = memo(function DashboardUploadProgressItem({
 
   return (
     <UploadProgress
+      thumbnailUrl={upload.processedThumbnailUrl ?? thumbnailUrl}
       fileName={upload.file.name}
       fileSize={upload.file.size}
       progress={upload.progress}
@@ -106,8 +110,14 @@ function DashboardUploadBoundary({
     api.projects.listUploadTargets,
     shouldLoadUploadTargets ? (teamSlug ? { teamSlug } : {}) : "skip",
   );
-  const { uploads, uploadFilesToProject, uploadNewVersion, cancelUpload, retryProcessing } =
-    useVideoUploadManager();
+  const {
+    uploads,
+    releaseThumbnail,
+    uploadFilesToProject,
+    uploadNewVersion,
+    cancelUpload,
+    retryProcessing,
+  } = useVideoUploadManager();
 
   const requestUpload = useCallback(
     (inputFiles: File[], preferredProjectId?: Id<"projects">) => {
@@ -279,12 +289,30 @@ function DashboardUploadBoundary({
     [convex, navigate],
   );
 
+  const thumbnailUrls = useUploadThumbnails(uploads);
+  // Progress ticks do not change previews; keep the context value stable for
+  // project-list consumers until a thumbnail or its video association changes.
+  const thumbnailsRef = useRef<ReadonlyMap<Id<"videos">, string>>(new Map());
+  const thumbnailEntries = uploads.flatMap((upload) => {
+    const url = thumbnailUrls.get(upload.id);
+    return upload.videoId && url ? [[upload.videoId, url] as const] : [];
+  });
+  if (
+    thumbnailsRef.current.size !== thumbnailEntries.length ||
+    thumbnailEntries.some(([id, url]) => thumbnailsRef.current.get(id) !== url)
+  ) {
+    thumbnailsRef.current = new Map(thumbnailEntries);
+  }
+  const thumbnails = thumbnailsRef.current;
+
   const uploadCommands = useMemo(
     () => ({
       requestUpload,
       requestVersionUpload,
+      thumbnails,
+      releaseThumbnail,
     }),
-    [requestUpload, requestVersionUpload],
+    [requestUpload, requestVersionUpload, thumbnails, releaseThumbnail],
   );
 
   return (
@@ -308,17 +336,20 @@ function DashboardUploadBoundary({
         </div>
       )}
 
-      {uploads.length > 0 && (
+      {uploads.some((upload) => !upload.dismissed) && (
         <div className="fixed top-16 right-4 left-4 z-50 max-h-[calc(100dvh-5rem)] space-y-2 overflow-y-auto overscroll-contain sm:top-auto sm:right-auto sm:bottom-4 sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:max-w-sm">
-          {uploads.map((upload) => (
-            <DashboardUploadProgressItem
-              key={upload.id}
-              upload={upload}
-              cancelUpload={cancelUpload}
-              retryProcessing={retryProcessing}
-              viewUploadedVersion={viewUploadedVersion}
-            />
-          ))}
+          {uploads
+            .filter((upload) => !upload.dismissed)
+            .map((upload) => (
+              <DashboardUploadProgressItem
+                key={upload.id}
+                upload={upload}
+                thumbnailUrl={thumbnailUrls.get(upload.id)}
+                cancelUpload={cancelUpload}
+                retryProcessing={retryProcessing}
+                viewUploadedVersion={viewUploadedVersion}
+              />
+            ))}
         </div>
       )}
 
