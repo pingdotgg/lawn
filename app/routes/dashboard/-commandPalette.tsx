@@ -60,10 +60,14 @@ function useDebounced<T>(value: T, ms: number) {
 }
 
 // Holds the last loaded value while a query reloads, so results don't flash.
-function useStableValue<T>(value: T | undefined) {
-  const [stable, setStable] = useState(value);
-  if (value !== undefined && value !== stable) setStable(value);
-  return stable;
+// Changing `key` drops the held value so one team's results never show in another.
+function useStableValue<T>(value: T | undefined, key: string | undefined) {
+  const [stable, setStable] = useState({ key, value });
+  if (stable.key !== key || (value !== undefined && value !== stable.value)) {
+    setStable({ key, value });
+    return value;
+  }
+  return stable.value;
 }
 
 const matches = (words: string[], text: string) =>
@@ -132,7 +136,7 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
     api.search.search,
     open && teamSlug && term ? { teamSlug, query: term } : "skip",
   );
-  const results = useStableValue(liveResults);
+  const results = useStableValue(liveResults, teamSlug);
   const searching = Boolean(teamSlug && trimmed);
   const pending = searching && (liveResults === undefined || term !== trimmed);
 

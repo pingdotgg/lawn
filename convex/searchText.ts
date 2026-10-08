@@ -78,14 +78,18 @@ function wordStarts(text: string) {
 
 // [start, end) ranges of `text` that query words prefix, for highlighting.
 export function highlightRanges(text: string, query: string[]) {
-  // Fold accents per code unit, remembering which original offset each folded
+  // Fold accents per code point, remembering which original offset each folded
   // unit came from so ranges point back into the original title.
-  const units = text.split("").flatMap((char, offset) =>
+  const codePoints = Array.from(text);
+  const offsets = codePoints.map((_, i) =>
+    codePoints.slice(0, i).reduce((total, char) => total + char.length, 0),
+  );
+  const units = codePoints.flatMap((char, i) =>
     fold(char)
       .split("")
       .map((unit) => {
         const lower = unit.toLowerCase();
-        return { unit, lower: lower.length === 1 ? lower : unit, offset };
+        return { unit, lower: lower.length === 1 ? lower : unit, offset: offsets[i] };
       }),
   );
   const folded = units.map(({ unit }) => unit).join("");
