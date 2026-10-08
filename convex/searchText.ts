@@ -78,21 +78,30 @@ function wordStarts(text: string) {
 
 // [start, end) ranges of `text` that query words prefix, for highlighting.
 export function highlightRanges(text: string, query: string[]) {
-  // Fold per character so offsets still line up with the original text.
-  const folded = text
-    .split("")
-    .map((char) => {
-      const base = fold(char).toLowerCase();
-      return base.length === char.length ? base : char.toLowerCase();
-    })
-    .join("");
+  // Fold accents per code unit, remembering which original offset each folded
+  // unit came from so ranges point back into the original title.
+  const units = text.split("").flatMap((char, offset) =>
+    fold(char)
+      .split("")
+      .map((unit) => {
+        const lower = unit.toLowerCase();
+        return { unit, lower: lower.length === 1 ? lower : unit, offset };
+      }),
+  );
+  const folded = units.map(({ unit }) => unit).join("");
+  const lower = units.map(({ lower }) => lower).join("");
+
   const ranges: Array<[number, number]> = [];
-  for (const start of wordStarts(text)) {
-    if (start < (ranges.at(-1)?.[1] ?? 0)) continue;
+  for (const start of wordStarts(folded)) {
+    const begin = units[start].offset;
+    if (begin < (ranges.at(-1)?.[1] ?? 0)) continue;
     const longest = query
-      .filter((word) => folded.startsWith(word, start))
+      .filter((word) => lower.startsWith(word, start))
       .reduce((best, word) => (word.length > best.length ? word : best), "");
-    if (longest) ranges.push([start, start + longest.length]);
+    if (!longest) continue;
+    // End at the next folded unit so trailing combining marks stay highlighted.
+    const end = units[start + longest.length]?.offset ?? text.length;
+    ranges.push([begin, Math.max(end, units[start + longest.length - 1].offset + 1)]);
   }
   return ranges;
 }

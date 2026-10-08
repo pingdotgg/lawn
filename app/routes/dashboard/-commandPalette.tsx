@@ -136,10 +136,11 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
   const searching = Boolean(teamSlug && trimmed);
   const pending = searching && (liveResults === undefined || term !== trimmed);
 
-  const setOpen = (next: boolean) => {
-    palette?.setOpen(next);
-    if (!next) setSearch("");
-  };
+  const setOpen = (next: boolean) => palette?.setOpen(next);
+  // Every close path (Escape, selection, the Cmd/Ctrl+K toggle) starts fresh next time.
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
   const go = (to: string, hash?: string) => {
     setOpen(false);
     void navigate({ to, hash });

@@ -67,5 +67,10 @@ test("highlightRanges marks word, camelCase and accent-folded prefixes", () => {
   ]);
   assert.deepEqual(highlightRanges("Director's cut", ["cut"]), [[11, 14]]);
   assert.deepEqual(highlightRanges("Café interview", ["cafe"]), [[0, 4]]);
+  assert.deepEqual(highlightRanges("nai\u0308ve take", ["naive", "ta"]), [
+    [0, 6],
+    [7, 9],
+  ]);
+  assert.deepEqual(highlightRanges("nai\u0308ve", ["nai"]), [[0, 4]]);
   assert.deepEqual(highlightRanges("Rough edit", ["cut"]), []);
 });
