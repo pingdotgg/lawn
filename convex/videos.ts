@@ -1,13 +1,7 @@
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import {
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-  MutationCtx,
-  QueryCtx,
-} from "./_generated/server";
+import { internalQuery, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation } from "./functions";
 import { internal } from "./_generated/api";
 import { identityName, requireProjectAccess, requireVideoAccess } from "./auth";
 import { Doc, Id } from "./_generated/dataModel";

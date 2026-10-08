@@ -2,7 +2,8 @@ import { StripeSubscriptions } from "@convex-dev/stripe";
 import { v } from "convex/values";
 import Stripe from "stripe";
 import { api, components, internal } from "./_generated/api";
-import { action, internalMutation, query } from "./_generated/server";
+import { action, query } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { getIdentity, requireTeamAccess } from "./auth";
 import {
   getStripePriceIdForPlan,
