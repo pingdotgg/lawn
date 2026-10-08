@@ -9,47 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignUpRouteImport } from './routes/sign-up'
-import { Route as SignInRouteImport } from './routes/sign-in'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as MonoRouteImport } from './routes/mono'
-import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as WatchPublicIdRouteImport } from './routes/watch.$publicId'
-import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
-import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
-import { Route as ShareTokenRouteImport } from './routes/share.$token'
-import { Route as InviteTokenRouteImport } from './routes/invite.$token'
-import { Route as ForVideoEditorsRouteImport } from './routes/for.video-editors'
-import { Route as ForAgenciesRouteImport } from './routes/for.agencies'
-import { Route as DashboardTeamSlugRouteImport } from './routes/dashboard/$teamSlug'
-import { Route as CompareWipsterRouteImport } from './routes/compare.wipster'
+import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
+import { Route as MonoRouteImport } from './routes/mono'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as CompareFrameioRouteImport } from './routes/compare.frameio'
+import { Route as CompareWipsterRouteImport } from './routes/compare.wipster'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as DashboardTeamSlugRouteImport } from './routes/dashboard/$teamSlug'
+import { Route as ForAgenciesRouteImport } from './routes/for.agencies'
+import { Route as ForVideoEditorsRouteImport } from './routes/for.video-editors'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
+import { Route as SignInSplatRouteImport } from './routes/sign-in.$'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
+import { Route as WatchPublicIdRouteImport } from './routes/watch.$publicId'
 import { Route as DashboardTeamSlugIndexRouteImport } from './routes/dashboard/$teamSlug.index'
-import { Route as DashboardTeamSlugSettingsRouteImport } from './routes/dashboard/$teamSlug.settings'
 import { Route as DashboardTeamSlugProjectIdRouteImport } from './routes/dashboard/$teamSlug.$projectId'
+import { Route as DashboardTeamSlugSettingsRouteImport } from './routes/dashboard/$teamSlug.settings'
 import { Route as DashboardTeamSlugProjectIdIndexRouteImport } from './routes/dashboard/$teamSlug.$projectId.index'
 import { Route as DashboardTeamSlugProjectIdVideoIdRouteImport } from './routes/dashboard/$teamSlug.$projectId.$videoId'
 
-const SignUpRoute = SignUpRouteImport.update({
-  id: '/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MonoRoute = MonoRouteImport.update({
-  id: '/mono',
-  path: '/mono',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRouteRoute = DashboardRouteRouteImport.update({
@@ -57,59 +42,24 @@ const DashboardRouteRoute = DashboardRouteRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const MonoRoute = MonoRouteImport.update({
+  id: '/mono',
+  path: '/mono',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
-const WatchPublicIdRoute = WatchPublicIdRouteImport.update({
-  id: '/watch/$publicId',
-  path: '/watch/$publicId',
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignUpSplatRoute = SignUpSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => SignUpRoute,
-} as any)
-const SignInSplatRoute = SignInSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => SignInRoute,
-} as any)
-const ShareTokenRoute = ShareTokenRouteImport.update({
-  id: '/share/$token',
-  path: '/share/$token',
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
-const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForVideoEditorsRoute = ForVideoEditorsRouteImport.update({
-  id: '/for/video-editors',
-  path: '/for/video-editors',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForAgenciesRoute = ForAgenciesRouteImport.update({
-  id: '/for/agencies',
-  path: '/for/agencies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardTeamSlugRoute = DashboardTeamSlugRouteImport.update({
-  id: '/$teamSlug',
-  path: '/$teamSlug',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
-const CompareWipsterRoute = CompareWipsterRouteImport.update({
-  id: '/compare/wipster',
-  path: '/compare/wipster',
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompareFrameioRoute = CompareFrameioRouteImport.update({
@@ -117,21 +67,71 @@ const CompareFrameioRoute = CompareFrameioRouteImport.update({
   path: '/compare/frameio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompareWipsterRoute = CompareWipsterRouteImport.update({
+  id: '/compare/wipster',
+  path: '/compare/wipster',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardIndexRoute = DashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardTeamSlugRoute = DashboardTeamSlugRouteImport.update({
+  id: '/$teamSlug',
+  path: '/$teamSlug',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const ForAgenciesRoute = ForAgenciesRouteImport.update({
+  id: '/for/agencies',
+  path: '/for/agencies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForVideoEditorsRoute = ForVideoEditorsRouteImport.update({
+  id: '/for/video-editors',
+  path: '/for/video-editors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInSplatRoute = SignInSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SignInRoute,
+} as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => SignUpRoute,
+} as any)
+const WatchPublicIdRoute = WatchPublicIdRouteImport.update({
+  id: '/watch/$publicId',
+  path: '/watch/$publicId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardTeamSlugIndexRoute = DashboardTeamSlugIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardTeamSlugRoute,
 } as any)
-const DashboardTeamSlugSettingsRoute =
-  DashboardTeamSlugSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => DashboardTeamSlugRoute,
-  } as any)
 const DashboardTeamSlugProjectIdRoute =
   DashboardTeamSlugProjectIdRouteImport.update({
     id: '/$projectId',
     path: '/$projectId',
+    getParentRoute: () => DashboardTeamSlugRoute,
+  } as any)
+const DashboardTeamSlugSettingsRoute =
+  DashboardTeamSlugSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
     getParentRoute: () => DashboardTeamSlugRoute,
   } as any)
 const DashboardTeamSlugProjectIdIndexRoute =
@@ -307,32 +307,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sign-up': {
-      id: '/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof SignUpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mono': {
-      id: '/mono'
-      path: '/mono'
-      fullPath: '/mono'
-      preLoaderRoute: typeof MonoRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -342,81 +321,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/mono': {
+      id: '/mono'
+      path: '/mono'
+      fullPath: '/mono'
+      preLoaderRoute: typeof MonoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
-    '/watch/$publicId': {
-      id: '/watch/$publicId'
-      path: '/watch/$publicId'
-      fullPath: '/watch/$publicId'
-      preLoaderRoute: typeof WatchPublicIdRouteImport
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sign-up/$': {
-      id: '/sign-up/$'
-      path: '/$'
-      fullPath: '/sign-up/$'
-      preLoaderRoute: typeof SignUpSplatRouteImport
-      parentRoute: typeof SignUpRoute
-    }
-    '/sign-in/$': {
-      id: '/sign-in/$'
-      path: '/$'
-      fullPath: '/sign-in/$'
-      preLoaderRoute: typeof SignInSplatRouteImport
-      parentRoute: typeof SignInRoute
-    }
-    '/share/$token': {
-      id: '/share/$token'
-      path: '/share/$token'
-      fullPath: '/share/$token'
-      preLoaderRoute: typeof ShareTokenRouteImport
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/for/video-editors': {
-      id: '/for/video-editors'
-      path: '/for/video-editors'
-      fullPath: '/for/video-editors'
-      preLoaderRoute: typeof ForVideoEditorsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/for/agencies': {
-      id: '/for/agencies'
-      path: '/for/agencies'
-      fullPath: '/for/agencies'
-      preLoaderRoute: typeof ForAgenciesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/$teamSlug': {
-      id: '/dashboard/$teamSlug'
-      path: '/$teamSlug'
-      fullPath: '/dashboard/$teamSlug'
-      preLoaderRoute: typeof DashboardTeamSlugRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
-    '/compare/wipster': {
-      id: '/compare/wipster'
-      path: '/compare/wipster'
-      fullPath: '/compare/wipster'
-      preLoaderRoute: typeof CompareWipsterRouteImport
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/compare/frameio': {
@@ -426,6 +356,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompareFrameioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/compare/wipster': {
+      id: '/compare/wipster'
+      path: '/compare/wipster'
+      fullPath: '/compare/wipster'
+      preLoaderRoute: typeof CompareWipsterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/': {
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/$teamSlug': {
+      id: '/dashboard/$teamSlug'
+      path: '/$teamSlug'
+      fullPath: '/dashboard/$teamSlug'
+      preLoaderRoute: typeof DashboardTeamSlugRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/for/agencies': {
+      id: '/for/agencies'
+      path: '/for/agencies'
+      fullPath: '/for/agencies'
+      preLoaderRoute: typeof ForAgenciesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/for/video-editors': {
+      id: '/for/video-editors'
+      path: '/for/video-editors'
+      fullPath: '/for/video-editors'
+      preLoaderRoute: typeof ForVideoEditorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in/$': {
+      id: '/sign-in/$'
+      path: '/$'
+      fullPath: '/sign-in/$'
+      preLoaderRoute: typeof SignInSplatRouteImport
+      parentRoute: typeof SignInRoute
+    }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
+      parentRoute: typeof SignUpRoute
+    }
+    '/watch/$publicId': {
+      id: '/watch/$publicId'
+      path: '/watch/$publicId'
+      fullPath: '/watch/$publicId'
+      preLoaderRoute: typeof WatchPublicIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/$teamSlug/': {
       id: '/dashboard/$teamSlug/'
       path: '/'
@@ -433,18 +433,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTeamSlugIndexRouteImport
       parentRoute: typeof DashboardTeamSlugRoute
     }
-    '/dashboard/$teamSlug/settings': {
-      id: '/dashboard/$teamSlug/settings'
-      path: '/settings'
-      fullPath: '/dashboard/$teamSlug/settings'
-      preLoaderRoute: typeof DashboardTeamSlugSettingsRouteImport
-      parentRoute: typeof DashboardTeamSlugRoute
-    }
     '/dashboard/$teamSlug/$projectId': {
       id: '/dashboard/$teamSlug/$projectId'
       path: '/$projectId'
       fullPath: '/dashboard/$teamSlug/$projectId'
       preLoaderRoute: typeof DashboardTeamSlugProjectIdRouteImport
+      parentRoute: typeof DashboardTeamSlugRoute
+    }
+    '/dashboard/$teamSlug/settings': {
+      id: '/dashboard/$teamSlug/settings'
+      path: '/settings'
+      fullPath: '/dashboard/$teamSlug/settings'
+      preLoaderRoute: typeof DashboardTeamSlugSettingsRouteImport
       parentRoute: typeof DashboardTeamSlugRoute
     }
     '/dashboard/$teamSlug/$projectId/': {
