@@ -3,11 +3,11 @@ import { api } from "@convex/_generated/api";
 import { makeRouteQuerySpec, prewarmSpecs } from "@/lib/convexRouteData";
 
 export function getDashboardIndexEssentialSpecs() {
-  return [makeRouteQuerySpec(api.teams.listWithProjects, {})];
+  return [makeRouteQuerySpec(api.teams.list, {})];
 }
 
 export function useDashboardIndexData() {
-  const teams = useQuery(api.teams.listWithProjects);
+  const teams = useQuery(api.teams.list);
   return { teams };
 }
 

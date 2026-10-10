@@ -11,6 +11,7 @@ import { useFolderDropTarget } from "@/lib/dnd/useFolderDropTarget";
 import type { FolderNode } from "@/lib/folderTree";
 import type { DragPayload } from "@/lib/dnd/payload";
 import { prewarmDashboardIndex } from "../../app/routes/dashboard/-index.data";
+import { TeamSwitcher } from "@/components/teams/TeamSwitcher";
 
 function ThemeToggleButton() {
   const { theme, toggleTheme, mounted } = useTheme();
@@ -122,6 +123,7 @@ export function DashboardHeader({
 
       {/* User controls — pinned top-right */}
       <div className="col-start-2 row-start-1 flex h-8 items-center gap-4 border-l-2 border-[#1a1a1a]/10 pl-4 sm:col-start-3">
+        <TeamSwitcher />
         <ThemeToggleButton />
         <UserButton
           appearance={{
