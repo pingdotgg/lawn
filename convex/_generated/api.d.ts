@@ -15,6 +15,7 @@ import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
+import type * as migrations from "../migrations.js";
 import type * as mux from "../mux.js";
 import type * as muxActions from "../muxActions.js";
 import type * as projects from "../projects.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   functions: typeof functions;
   http: typeof http;
+  migrations: typeof migrations;
   mux: typeof mux;
   muxActions: typeof muxActions;
   projects: typeof projects;
@@ -93,6 +95,7 @@ export declare const internal: FilterApi<
 >;
 
 export declare const components: {
+  migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
   presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;

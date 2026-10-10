@@ -1,17 +1,13 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internal } from "./_generated/api";
-import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { query, type QueryCtx } from "./_generated/server";
 import { getUser } from "./auth";
-import { internalMutation } from "./functions";
 import { MAX_FOLDER_DEPTH } from "./projects";
-import { syncFolderEntry, syncVideoEntry } from "./searchEntries";
 import { matchRank, queryWords } from "./searchText";
 
 const CANDIDATE_LIMIT = 50;
 const RESULT_LIMIT = 20;
 const RECENT_LIMIT = 5;
-const BACKFILL_BATCH_SIZE = 200;
 
 // Soft membership check: the palette gets an empty list instead of an error.
 async function teamForMember(ctx: QueryCtx, teamSlug: string) {
@@ -124,44 +120,5 @@ export const recent = query({
       .take(RECENT_LIMIT);
     const pathFor = folderPathResolver(ctx);
     return await Promise.all(entries.map((entry) => toResult(ctx, entry, pathFor)));
-  },
-});
-
-type PaginationOpts = { cursor: string | null; numItems: number };
-
-async function backfillFolders(ctx: MutationCtx, paginationOpts: PaginationOpts) {
-  const page = await ctx.db.query("projects").paginate(paginationOpts);
-  for (const project of page.page) await syncFolderEntry(ctx, project._id, project);
-  return page;
-}
-
-async function backfillVideos(ctx: MutationCtx, paginationOpts: PaginationOpts) {
-  const page = await ctx.db.query("videos").paginate(paginationOpts);
-  for (const video of page.page) await syncVideoEntry(ctx, video._id, video);
-  return page;
-}
-
-// One-off backfill for data that predates the search triggers. Idempotent.
-// bunx convex run search:backfill '{"table":"projects","cursor":null}'
-export const backfill = internalMutation({
-  args: {
-    table: v.union(v.literal("projects"), v.literal("videos")),
-    cursor: v.union(v.string(), v.null()),
-  },
-  handler: async (ctx, args) => {
-    const paginationOpts = { cursor: args.cursor, numItems: BACKFILL_BATCH_SIZE };
-    const result =
-      args.table === "projects"
-        ? await backfillFolders(ctx, paginationOpts)
-        : await backfillVideos(ctx, paginationOpts);
-
-    if (!result.isDone) {
-      await ctx.scheduler.runAfter(0, internal.search.backfill, {
-        table: args.table,
-        cursor: result.continueCursor,
-      });
-    } else if (args.table === "projects") {
-      await ctx.scheduler.runAfter(0, internal.search.backfill, { table: "videos", cursor: null });
-    }
   },
 });

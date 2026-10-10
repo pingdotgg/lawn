@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import { convexTest } from "convex-test";
+import migrationsTest from "@convex-dev/migrations/test";
 import { expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -163,7 +164,7 @@ test("recent lists the team's newest videos first", async () => {
   expect(recent.map((r) => r.kind === "video" && r.videoId)).toEqual([cafeId, finalCutId]);
 });
 
-test("backfill indexes rows written before the triggers existed", async () => {
+test("migrations index rows written before the triggers existed", async () => {
   vi.useFakeTimers();
   try {
     await backfillIndexesExistingRows();
@@ -174,6 +175,7 @@ test("backfill indexes rows written before the triggers existed", async () => {
 
 async function backfillIndexesExistingRows() {
   const t = convexTest(schema, modules);
+  migrationsTest.register(t);
   await t.run(async (ctx) => {
     const teamId = await ctx.db.insert("teams", {
       name: "Garden",
@@ -196,7 +198,7 @@ async function backfillIndexesExistingRows() {
     [],
   );
 
-  await t.mutation(internal.search.backfill, { table: "projects", cursor: null });
+  await t.mutation(internal.migrations.runAll, {});
   await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 
   expect(
