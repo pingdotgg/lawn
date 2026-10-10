@@ -146,20 +146,24 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
     if (!open) setSearch("");
   }, [open]);
   // Dismissing returns focus to where it was; running a command leaves focus to
-  // whatever the command opened or navigated to.
+  // whatever the command opened or navigated to. The dialog has no trigger, so
+  // Radix can't restore focus on its own.
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const ranCommandRef = useRef(false);
-  const closeForCommand = () => {
-    ranCommandRef.current = true;
+  const closeForCommand = (restoreFocus = false) => {
+    ranCommandRef.current = !restoreFocus;
     setOpen(false);
   };
   const go = (to: string, hash?: string) => {
     closeForCommand();
     void navigate({ to, hash });
   };
-  const runAndClose = (run: () => void) => () => {
-    closeForCommand();
-    run();
-  };
+  const runAndClose =
+    (run: () => void, restoreFocus = false) =>
+    () => {
+      closeForCommand(restoreFocus);
+      run();
+    };
 
   const commands: PaletteCommand[] = [
     ...(teamSlug
@@ -229,7 +233,7 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
       label: theme === "dark" ? "Switch to light theme" : "Switch to dark theme",
       keywords: ["dark", "light", "mode", "appearance"],
       icon: theme === "dark" ? Sun : Moon,
-      run: runAndClose(toggleTheme),
+      run: runAndClose(toggleTheme, true),
     },
   ];
 
@@ -313,8 +317,14 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
           <DialogOverlay />
           <DialogPrimitive.Content
             aria-describedby={undefined}
+            onOpenAutoFocus={() => {
+              const active = document.activeElement;
+              previousFocusRef.current = active instanceof HTMLElement ? active : null;
+            }}
             onCloseAutoFocus={(event) => {
-              if (ranCommandRef.current) event.preventDefault();
+              event.preventDefault();
+              if (!ranCommandRef.current) previousFocusRef.current?.focus();
+              previousFocusRef.current = null;
               ranCommandRef.current = false;
             }}
             className="fixed top-[12vh] left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 border-2 border-[#1a1a1a] bg-[#f0f0e8] shadow-[8px_8px_0px_0px_var(--shadow-color)]"
