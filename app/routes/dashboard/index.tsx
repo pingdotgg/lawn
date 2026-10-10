@@ -1,229 +1,57 @@
-import { useConvex } from "convex/react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Plus, ArrowRight, Folder } from "lucide-react";
+import { Users, Plus } from "lucide-react";
 import { CreateTeamDialog } from "@/components/teams/CreateTeamDialog";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { teamHomePath, teamSettingsPath, projectPath } from "@/lib/routes";
-import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
-import { prewarmProject } from "./-project.data";
+import { teamHomePath } from "@/lib/routes";
 import { useDashboardIndexData } from "./-index.data";
-import { Id } from "@convex/_generated/dataModel";
 import { DashboardHeader } from "@/components/DashboardHeader";
-import { formatProjectMeta } from "@/components/projects/ProjectCard";
-import { ExpandableTitle } from "@/components/ExpandableTitle";
-import { sortDashboardItems } from "@/lib/dashboardSort";
-import type { DashboardSort } from "@/lib/dashboardSort";
-import { DashboardSortControl } from "@/components/DashboardSortControl";
+import { pickCurrentTeam, readLastTeamSlug } from "@/lib/currentTeam";
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
 });
 
-type DashboardProjectCardProps = {
-  teamSlug: string;
-  project: {
-    _id: Id<"projects">;
-    name: string;
-    videoCount: number;
-    subfolderCount: number;
-    videoCountIsCapped: boolean;
-    subfolderCountIsCapped: boolean;
-    lastUploadedAt?: number;
-  };
-  onOpen: () => void;
-};
-
-function formatTeamPlanLabel(plan: string, billingStatus?: string, stripeSubscriptionId?: string) {
-  if (!stripeSubscriptionId && billingStatus !== "active") {
-    return "Unpaid";
-  }
-
-  if (
-    billingStatus &&
-    billingStatus !== "active" &&
-    billingStatus !== "trialing" &&
-    billingStatus !== "past_due"
-  ) {
-    return "Unpaid";
-  }
-  if (plan === "pro" || plan === "team") return "Pro";
-  return "Basic";
-}
-
-function DashboardProjectCard({ teamSlug, project, onOpen }: DashboardProjectCardProps) {
-  const convex = useConvex();
-  const prewarmIntentHandlers = useRoutePrewarmIntent(() =>
-    prewarmProject(convex, {
-      teamSlug,
-      projectId: project._id,
-    }),
-  );
-
-  return (
-    <Card
-      className="group relative cursor-pointer transition-colors hover:bg-[#e8e8e0]"
-      onClick={onOpen}
-      {...prewarmIntentHandlers}
-    >
-      <button
-        type="button"
-        className="pointer-events-none absolute inset-0 z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2d5a2d]"
-        aria-label={`Open project ${project.name}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen();
-        }}
-      />
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-        <div className="min-w-0 flex-1">
-          <CardTitle className="text-base">
-            <ExpandableTitle title={project.name} />
-          </CardTitle>
-          <CardDescription className="mt-1">
-            {formatProjectMeta(
-              project.videoCount,
-              project.subfolderCount,
-              project.videoCountIsCapped,
-              project.subfolderCountIsCapped,
-            )}
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between text-sm text-[#888] transition-colors group-hover:text-[#1a1a1a]">
-          <span>Open project</span>
-          <ArrowRight className="h-4 w-4" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DashboardPage() {
   const { teams } = useDashboardIndexData();
-  const navigate = useNavigate({});
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [sort, setSort] = useState<DashboardSort>("last-uploaded");
 
-  const isLoading = teams === undefined;
-
-  // Empty state - no teams
-  if (teams && teams.length === 0) {
+  if (teams === undefined) {
     return (
       <div className="flex h-full flex-col">
         <DashboardHeader paths={[{ label: "dashboard" }]} />
-
-        <div className="animate-in fade-in flex flex-1 items-center justify-center p-8 duration-300">
-          <Card className="w-full max-w-sm text-center">
-            <CardHeader>
-              <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center bg-[#e8e8e0]">
-                <Users className="h-6 w-6 text-[#888]" />
-              </div>
-              <CardTitle className="text-lg">Create your first team</CardTitle>
-              <CardDescription>
-                Teams help you organize projects and collaborate on video reviews.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />
-                Create a team
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <CreateTeamDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
       </div>
     );
   }
 
+  const currentTeam = pickCurrentTeam(teams, undefined, readLastTeamSlug());
+  if (currentTeam) {
+    return <Navigate to={teamHomePath(currentTeam.slug)} replace />;
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <DashboardHeader paths={[{ label: "dashboard" }]}>
-        <DashboardSortControl value={sort} onChange={setSort} />
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          New team
-        </Button>
-      </DashboardHeader>
+      <DashboardHeader paths={[{ label: "dashboard" }]} />
 
-      <div className="flex-1 space-y-12 overflow-auto p-6">
-        <div
-          className={cn("transition-opacity duration-300", isLoading ? "opacity-0" : "opacity-100")}
-        >
-          {teams?.map((team) => {
-            if (!team) return null;
-            return (
-              <div key={team._id} className="mb-12 last:mb-0">
-                <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-black text-[#1a1a1a]">{team.name}</h2>
-                    <Badge variant="secondary">
-                      {formatTeamPlanLabel(
-                        team.plan,
-                        team.billingStatus,
-                        team.stripeSubscriptionId,
-                      )}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Link
-                      to={teamSettingsPath(team.slug)}
-                      className="text-sm font-bold text-[#888] transition-colors hover:text-[#1a1a1a]"
-                    >
-                      Settings
-                    </Link>
-                    <Link
-                      to={teamHomePath(team.slug)}
-                      className="flex items-center gap-1 text-sm font-bold text-[#888] transition-colors hover:text-[#1a1a1a]"
-                    >
-                      Manage team <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
-                </div>
-
-                {team.projects.length === 0 ? (
-                  <Card className="max-w-sm text-center">
-                    <CardHeader>
-                      <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center bg-[#e8e8e0]">
-                        <Folder className="h-6 w-6 text-[#888]" />
-                      </div>
-                      <CardTitle className="text-lg">No projects yet</CardTitle>
-                      <CardDescription>
-                        Head over to the team page to create your first project.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => navigate({ to: teamHomePath(team.slug) })}
-                      >
-                        Open team
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {sortDashboardItems(team.projects, sort).map((project) => (
-                      <DashboardProjectCard
-                        key={project._id}
-                        teamSlug={team.slug}
-                        project={project}
-                        onOpen={() => navigate({ to: projectPath(team.slug, project._id) })}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <div className="animate-in fade-in flex flex-1 items-center justify-center p-8 duration-300">
+        <Card className="w-full max-w-sm text-center">
+          <CardHeader>
+            <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center bg-[#e8e8e0]">
+              <Users className="h-6 w-6 text-[#888]" />
+            </div>
+            <CardTitle className="text-lg">Create your first team</CardTitle>
+            <CardDescription>
+              Teams help you organize projects and collaborate on video reviews.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create a team
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <CreateTeamDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />

@@ -35,7 +35,7 @@ export default function TeamPage() {
   const pathname = useLocation().pathname;
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
-  const { context, team, projects, billing } = useTeamData({ teamSlug });
+  const { context, team, projects, billing, isHeld } = useTeamData({ teamSlug });
   const createProject = useMutation(api.projects.create);
   const deleteProject = useMutation(api.projects.remove);
   const { moveFromDrop } = useMoveActions();
@@ -80,7 +80,7 @@ export default function TeamPage() {
   } | null>(null);
 
   const shouldCanonicalize =
-    !!context && !context.isCanonical && pathname !== context.canonicalPath;
+    !!context && !isHeld && !context.isCanonical && pathname !== context.canonicalPath;
 
   useEffect(() => {
     if (shouldCanonicalize && context) {
