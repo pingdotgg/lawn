@@ -145,12 +145,19 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
   useEffect(() => {
     if (!open) setSearch("");
   }, [open]);
-  const go = (to: string, hash?: string) => {
+  // Dismissing returns focus to where it was; running a command leaves focus to
+  // whatever the command opened or navigated to.
+  const ranCommandRef = useRef(false);
+  const closeForCommand = () => {
+    ranCommandRef.current = true;
     setOpen(false);
+  };
+  const go = (to: string, hash?: string) => {
+    closeForCommand();
     void navigate({ to, hash });
   };
   const runAndClose = (run: () => void) => () => {
-    setOpen(false);
+    closeForCommand();
     run();
   };
 
@@ -201,7 +208,7 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
             // The file picker must open inside this key/click handler.
             run: () => {
               fileInputRef.current?.click();
-              setOpen(false);
+              closeForCommand();
             },
           },
         ]
@@ -306,7 +313,10 @@ export function CommandPalette({ teamSlug, teamRole }: { teamSlug?: string; team
           <DialogOverlay />
           <DialogPrimitive.Content
             aria-describedby={undefined}
-            onCloseAutoFocus={(event) => event.preventDefault()}
+            onCloseAutoFocus={(event) => {
+              if (ranCommandRef.current) event.preventDefault();
+              ranCommandRef.current = false;
+            }}
             className="fixed top-[12vh] left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 border-2 border-[#1a1a1a] bg-[#f0f0e8] shadow-[8px_8px_0px_0px_var(--shadow-color)]"
           >
             <DialogPrimitive.Title className="sr-only">Search</DialogPrimitive.Title>
