@@ -68,6 +68,7 @@ import { useProjectData } from "./-project.data";
 import { prewarmTeam } from "./-team.data";
 import { prewarmVideo } from "./-video.data";
 import { useDashboardUploadContext } from "@/lib/dashboardUploadContext";
+import { useRegisterPaletteCommands, type PaletteCommand } from "@/lib/commandPalette";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { createRequestEpoch } from "@/lib/requestEpoch";
 import { DashboardSortControl } from "@/components/DashboardSortControl";
@@ -744,6 +745,24 @@ export default function ProjectPage({
     },
     [projectId, resolvedTeamSlug, showShareToast],
   );
+
+  const paletteCanCreateFolder = Boolean(project) && project?.role !== "viewer";
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () =>
+      paletteCanCreateFolder
+        ? [
+            {
+              id: "new-folder",
+              label: "New folder",
+              keywords: ["project", "create"],
+              icon: FolderPlus,
+              run: () => setCreateFolderOpen(true),
+            },
+          ]
+        : [],
+    [paletteCanCreateFolder],
+  );
+  useRegisterPaletteCommands(paletteCommands);
 
   // Not found state
   if (context === null || project === null) {

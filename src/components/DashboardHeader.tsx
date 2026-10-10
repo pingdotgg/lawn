@@ -1,17 +1,41 @@
 import { Link } from "@tanstack/react-router";
 import { UserButton } from "@clerk/tanstack-react-start";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Search, Sun } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeToggle";
 import React from "react";
 import { useConvex } from "convex/react";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
+import { useCommandPalette } from "@/lib/commandPalette";
 import { useFolderDropTarget } from "@/lib/dnd/useFolderDropTarget";
 import type { FolderNode } from "@/lib/folderTree";
 import type { DragPayload } from "@/lib/dnd/payload";
 import { prewarmDashboardIndex } from "../../app/routes/dashboard/-index.data";
 import { TeamSwitcher } from "@/components/teams/TeamSwitcher";
+
+function SearchButton() {
+  const palette = useCommandPalette();
+  const { mounted } = useTheme();
+  if (!palette) return null;
+
+  // Decided after mount so server and client markup match; the fixed width
+  // keeps the header from shifting when it appears.
+  const shortcut = !mounted ? "" : /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘K" : "Ctrl K";
+
+  return (
+    <button
+      type="button"
+      onClick={() => palette.setOpen(true)}
+      className="flex h-10 items-center gap-2 border-2 border-[#1a1a1a] px-2 font-mono text-xs text-[#888] transition-colors hover:bg-[#e8e8e0] hover:text-[#1a1a1a]"
+      aria-label="Search"
+    >
+      <Search className="h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Search</span>
+      <kbd className="hidden w-[6ch] text-center font-mono sm:inline-block">{shortcut}</kbd>
+    </button>
+  );
+}
 
 function ThemeToggleButton() {
   const { theme, toggleTheme, mounted } = useTheme();
@@ -123,6 +147,7 @@ export function DashboardHeader({
 
       {/* User controls — pinned top-right */}
       <div className="col-start-2 row-start-1 flex h-8 items-center gap-4 border-l-2 border-[#1a1a1a]/10 pl-4 sm:col-start-3">
+        <SearchButton />
         <TeamSwitcher />
         <ThemeToggleButton />
         <UserButton

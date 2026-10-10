@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { query, MutationCtx, QueryCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";

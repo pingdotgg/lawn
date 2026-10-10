@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, MutationCtx, QueryCtx } from "./_generated/server";
+import { MutationCtx, QueryCtx } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { generateUniqueToken } from "./security";
 

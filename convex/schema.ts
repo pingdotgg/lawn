@@ -1,6 +1,16 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+const searchEntryFields = {
+  teamId: v.id("teams"),
+  // The folder itself for folder entries; the containing folder for videos.
+  projectId: v.id("projects"),
+  title: v.string(),
+  searchText: v.string(),
+  // Source document's _creationTime, so backfilled entries sort correctly.
+  sortAt: v.number(),
+};
+
 export default defineSchema({
   teams: defineTable({
     name: v.string(),
@@ -168,4 +178,20 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_share_link", ["shareLinkId"])
     .index("by_expires_at", ["expiresAt"]),
+
+  // Command palette search index for folders and the latest version of each
+  // video. Maintained by triggers in convex/functions.ts.
+  searchEntries: defineTable(
+    v.union(
+      v.object({ kind: v.literal("folder"), ...searchEntryFields }),
+      v.object({ kind: v.literal("video"), videoId: v.id("videos"), ...searchEntryFields }),
+    ),
+  )
+    .index("by_kind_and_project_id", ["kind", "projectId"])
+    .index("by_video_id", ["videoId"])
+    .index("by_team_id_and_kind_and_sort_at", ["teamId", "kind", "sortAt"])
+    .searchIndex("search_search_text", {
+      searchField: "searchText",
+      filterFields: ["teamId"],
+    }),
 });

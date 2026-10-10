@@ -13,12 +13,17 @@ import type * as billing from "../billing.js";
 import type * as billingHelpers from "../billingHelpers.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
+import type * as functions from "../functions.js";
 import type * as http from "../http.js";
+import type * as migrations from "../migrations.js";
 import type * as mux from "../mux.js";
 import type * as muxActions from "../muxActions.js";
 import type * as projects from "../projects.js";
 import type * as s3 from "../s3.js";
 import type * as s3Multipart from "../s3Multipart.js";
+import type * as search from "../search.js";
+import type * as searchEntries from "../searchEntries.js";
+import type * as searchText from "../searchText.js";
 import type * as security from "../security.js";
 import type * as shareAccess from "../shareAccess.js";
 import type * as shareLinks from "../shareLinks.js";
@@ -41,12 +46,17 @@ declare const fullApi: ApiFromModules<{
   billingHelpers: typeof billingHelpers;
   comments: typeof comments;
   crons: typeof crons;
+  functions: typeof functions;
   http: typeof http;
+  migrations: typeof migrations;
   mux: typeof mux;
   muxActions: typeof muxActions;
   projects: typeof projects;
   s3: typeof s3;
   s3Multipart: typeof s3Multipart;
+  search: typeof search;
+  searchEntries: typeof searchEntries;
+  searchText: typeof searchText;
   security: typeof security;
   shareAccess: typeof shareAccess;
   shareLinks: typeof shareLinks;
@@ -85,6 +95,7 @@ export declare const internal: FilterApi<
 >;
 
 export declare const components: {
+  migrations: import("@convex-dev/migrations/_generated/component.js").ComponentApi<"migrations">;
   presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
   rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
   stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;

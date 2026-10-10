@@ -14,5 +14,17 @@ export default tseslint.config(js.configs.recommended, ...tseslint.configs.recom
   rules: {
     "no-undef": "off",
     "@typescript-eslint/no-empty-object-type": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          {
+            group: ["*/_generated/server"],
+            importNames: ["mutation", "internalMutation"],
+            message: "Import mutation builders from convex/functions.ts so search triggers run.",
+          },
+        ],
+      },
+    ],
   },
 });

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Folder, Plus, Users, Settings } from "lucide-react";
+import { Folder, FolderPlus, Plus, UserPlus, Users, Settings } from "lucide-react";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { cn } from "@/lib/utils";
 import { projectPath, teamSettingsPath } from "@/lib/routes";
@@ -27,6 +27,7 @@ import { useFolderDropTarget } from "@/lib/dnd/useFolderDropTarget";
 import type { DragPayload } from "@/lib/dnd/payload";
 import { DashboardSortControl } from "@/components/DashboardSortControl";
 import { sortDashboardItems, type DashboardSort } from "@/lib/dashboardSort";
+import { useRegisterPaletteCommands, type PaletteCommand } from "@/lib/commandPalette";
 
 export default function TeamPage() {
   const params = useParams({ strict: false });
@@ -89,6 +90,38 @@ export default function TeamPage() {
 
   const isLoadingData =
     context === undefined || billing === undefined || projects === undefined || shouldCanonicalize;
+
+  const paletteCanCreateFolder =
+    team?.role !== undefined && team.role !== "viewer" && Boolean(billing?.hasActiveSubscription);
+  const paletteCanInvite = team?.role === "owner" || team?.role === "admin";
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () => [
+      ...(paletteCanCreateFolder
+        ? [
+            {
+              id: "new-folder",
+              label: "New folder",
+              keywords: ["project", "create"],
+              icon: FolderPlus,
+              run: () => setCreateDialogOpen(true),
+            },
+          ]
+        : []),
+      ...(paletteCanInvite
+        ? [
+            {
+              id: "invite-member",
+              label: "Invite member",
+              keywords: ["people", "add", "team"],
+              icon: UserPlus,
+              run: () => setMemberDialogOpen(true),
+            },
+          ]
+        : []),
+    ],
+    [paletteCanCreateFolder, paletteCanInvite],
+  );
+  useRegisterPaletteCommands(paletteCommands);
 
   // Not found state
   if (context === null) {

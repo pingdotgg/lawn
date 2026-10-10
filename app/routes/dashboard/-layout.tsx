@@ -20,6 +20,8 @@ import { videoPath, watchPath } from "@/lib/routes";
 import { useHeldWhileLoading } from "@/lib/useHeldWhileLoading";
 import { prewarmVideo } from "./-video.data";
 import { resolveDashboardAccess } from "@/lib/dashboardAccess";
+import { CommandPaletteProvider } from "@/lib/commandPalette";
+import { CommandPalette } from "./-commandPalette";
 
 const VIDEO_FILE_EXTENSIONS = /\.(mp4|mov|m4v|webm|avi|mkv)$/i;
 
@@ -485,17 +487,22 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className={cn("relative flex h-full flex-col bg-[#f0f0e8]")}>
-      <DashboardUploadBoundary
-        teamSlug={resolvedTeamSlug}
-        routeProjectId={routeProjectId}
-        routeVideoId={routeVideoId}
-        uploadsEnabled={access.kind === "dashboard" && !isWorkspaceContextHeld}
-        canUploadToCurrentProject={canUploadToCurrentProject}
-        currentProjectIsViewer={currentProjectIsViewer}
-      >
-        {dashboardContent}
-      </DashboardUploadBoundary>
-    </div>
+    <CommandPaletteProvider>
+      <div className={cn("relative flex h-full flex-col bg-[#f0f0e8]")}>
+        <DashboardUploadBoundary
+          teamSlug={resolvedTeamSlug}
+          routeProjectId={routeProjectId}
+          routeVideoId={routeVideoId}
+          uploadsEnabled={access.kind === "dashboard" && !isWorkspaceContextHeld}
+          canUploadToCurrentProject={canUploadToCurrentProject}
+          currentProjectIsViewer={currentProjectIsViewer}
+        >
+          {dashboardContent}
+          {access.kind === "dashboard" && (
+            <CommandPalette teamSlug={resolvedTeamSlug} teamRole={currentTeamRole} />
+          )}
+        </DashboardUploadBoundary>
+      </div>
+    </CommandPaletteProvider>
   );
 }

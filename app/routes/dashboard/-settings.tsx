@@ -1,17 +1,18 @@
 import { useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, Trash2, Check, Pencil } from "lucide-react";
+import { CreditCard, Trash2, Check, Pencil, UserPlus } from "lucide-react";
 import { MemberInvite } from "@/components/teams/MemberInvite";
 import { dashboardHomePath, teamHomePath } from "@/lib/routes";
 import { useRoutePrewarmIntent } from "@/lib/useRoutePrewarmIntent";
 import { useSettingsData } from "./-settings.data";
 import { prewarmTeam } from "./-team.data";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import { useRegisterPaletteCommands, type PaletteCommand } from "@/lib/commandPalette";
 
 type BillingPlan = "basic" | "pro";
 
@@ -63,7 +64,7 @@ function formatUtcDateFromUnixSeconds(unixSeconds: number): string {
 export default function TeamSettingsPage() {
   const params = useParams({ strict: false });
   const navigate = useNavigate({});
-  const pathname = useLocation().pathname;
+  const { pathname, hash } = useLocation();
   const convex = useConvex();
   const teamSlug = typeof params.teamSlug === "string" ? params.teamSlug : "";
 
@@ -109,6 +110,29 @@ export default function TeamSettingsPage() {
       console.warn("Stripe billing reconciliation failed", error);
     });
   }, [reconcileTeamSubscription, team]);
+
+  const paletteCanInvite = team?.role === "owner" || team?.role === "admin";
+  const paletteCommands = useMemo<PaletteCommand[]>(
+    () =>
+      paletteCanInvite
+        ? [
+            {
+              id: "invite-member",
+              label: "Invite member",
+              keywords: ["people", "add", "team"],
+              icon: UserPlus,
+              run: () => setMemberDialogOpen(true),
+            },
+          ]
+        : [],
+    [paletteCanInvite],
+  );
+  useRegisterPaletteCommands(paletteCommands);
+
+  // Palette links land on #billing or #members; the sections render after data loads.
+  useEffect(() => {
+    if (hash && team) document.getElementById(hash)?.scrollIntoView({ block: "start" });
+  }, [hash, team]);
 
   if (context === undefined || shouldCanonicalize) {
     return (
@@ -365,7 +389,7 @@ export default function TeamSettingsPage() {
           {/* ── Two-column: Plans + Members ── */}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-12">
             {/* Plans column */}
-            <div className="lg:col-span-3">
+            <div id="billing" className="scroll-mt-6 lg:col-span-3">
               <h2 className="mb-4 text-[10px] font-bold tracking-[0.2em] text-[#888] uppercase">
                 Plans
               </h2>
@@ -468,7 +492,7 @@ export default function TeamSettingsPage() {
             </div>
 
             {/* Members column */}
-            <div className="lg:col-span-2">
+            <div id="members" className="scroll-mt-6 lg:col-span-2">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-[10px] font-bold tracking-[0.2em] text-[#888] uppercase">
                   Members
