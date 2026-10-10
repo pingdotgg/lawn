@@ -28,13 +28,14 @@ export function useTeamData(params: { teamSlug: string }) {
         : { context, projects, billing },
     [context, teamId, projects, billing],
   );
-  const held = useHeldWhileLoading(loaded);
+  const { value: held, isHeld } = useHeldWhileLoading(loaded);
 
   return {
     context: held?.context,
     team: held?.context?.team,
     projects: held?.projects,
     billing: held?.billing,
+    isHeld,
   };
 }
 

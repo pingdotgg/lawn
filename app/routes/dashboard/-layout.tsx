@@ -376,7 +376,8 @@ export default function DashboardLayout() {
   );
   const contextRequired = Boolean(teamSlug || rawProjectId || rawVideoId);
   // Held briefly while a new route's context loads so fast switches don't flash "Checking access".
-  const workspaceContext = useHeldWhileLoading(
+  // Uploads stay off while held so a drop can't target the previous route.
+  const { value: workspaceContext, isHeld: isWorkspaceContextHeld } = useHeldWhileLoading(
     useQuery(
       api.workspace.resolveContext,
       isLoaded &&
@@ -489,7 +490,7 @@ export default function DashboardLayout() {
         teamSlug={resolvedTeamSlug}
         routeProjectId={routeProjectId}
         routeVideoId={routeVideoId}
-        uploadsEnabled={access.kind === "dashboard"}
+        uploadsEnabled={access.kind === "dashboard" && !isWorkspaceContextHeld}
         canUploadToCurrentProject={canUploadToCurrentProject}
         currentProjectIsViewer={currentProjectIsViewer}
       >
