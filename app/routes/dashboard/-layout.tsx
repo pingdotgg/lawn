@@ -17,6 +17,7 @@ import { UploadProgress } from "@/components/upload/UploadProgress";
 import { useVideoUploadManager, type ManagedUploadItem } from "./-useVideoUploadManager";
 import { DashboardUploadProvider } from "@/lib/dashboardUploadContext";
 import { videoPath, watchPath } from "@/lib/routes";
+import { useHeldWhileLoading } from "@/lib/useHeldWhileLoading";
 import { prewarmVideo } from "./-video.data";
 import { resolveDashboardAccess } from "@/lib/dashboardAccess";
 
@@ -374,11 +375,18 @@ export default function DashboardLayout() {
     rawVideoId ? { videoId: rawVideoId } : "skip",
   );
   const contextRequired = Boolean(teamSlug || rawProjectId || rawVideoId);
-  const workspaceContext = useQuery(
-    api.workspace.resolveContext,
-    isLoaded && Boolean(userId) && !isConvexAuthLoading && isConvexAuthenticated && contextRequired
-      ? { teamSlug, projectId: rawProjectId, videoId: rawVideoId }
-      : "skip",
+  // Held briefly while a new route's context loads so fast switches don't flash "Checking access".
+  const workspaceContext = useHeldWhileLoading(
+    useQuery(
+      api.workspace.resolveContext,
+      isLoaded &&
+        Boolean(userId) &&
+        !isConvexAuthLoading &&
+        isConvexAuthenticated &&
+        contextRequired
+        ? { teamSlug, projectId: rawProjectId, videoId: rawVideoId }
+        : "skip",
+    ),
   );
   const access = resolveDashboardAccess({
     clerkLoaded: isLoaded,
