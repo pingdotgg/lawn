@@ -28,9 +28,9 @@ test("J/K/L, held keys, frame steps, Space, mute, fullscreen and browser shortcu
   await page.keyboard.press("k");
   expect((await mediaState(page)).paused).toBe(true);
   await page.keyboard.press("ArrowRight");
-  expect((await mediaState(page)).time).toBeCloseTo(10 + 1 / 30, 3);
+  expect((await mediaState(page)).time).toBeCloseTo(301.5 / 30, 3);
   await page.keyboard.press(",");
-  expect((await mediaState(page)).time).toBeCloseTo(10, 3);
+  expect((await mediaState(page)).time).toBeCloseTo(300.5 / 30, 3);
   await page.keyboard.press("l");
   await page.keyboard.press("l");
   await expect.poll(async () => (await mediaState(page)).rate).toBe(2);
@@ -39,6 +39,8 @@ test("J/K/L, held keys, frame steps, Space, mute, fullscreen and browser shortcu
   await page.keyboard.up("l");
   expect((await mediaState(page)).rate).toBe(4);
   await page.keyboard.press("k");
+  // Right after a seek, Chromium reports the seek target until the pause settles.
+  await page.waitForTimeout(100);
   const stopped = (await mediaState(page)).time;
   await page.keyboard.press("k");
   await page.waitForTimeout(150);
@@ -62,6 +64,63 @@ test("J/K/L, held keys, frame steps, Space, mute, fullscreen and browser shortcu
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
   await page.keyboard.press("f");
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+});
+
+/** Records the media time of each frame the browser presents. */
+const trackPresentedFrames = (page: Page) =>
+  page.locator("video").evaluate((video: HTMLVideoElement) => {
+    const onFrame: VideoFrameRequestCallback = (_now, metadata) => {
+      video.dataset.presentedTime = String(metadata.mediaTime);
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+  });
+const presentedFrame = (page: Page, fps: number) =>
+  page
+    .locator("video")
+    .evaluate(
+      (video: HTMLVideoElement, rate) => Math.round(Number(video.dataset.presentedTime) * rate),
+      fps,
+    );
+const timecode = (page: Page) => page.getByText(/^\d{2}:\d{2}:\d{2}:\d{2}$/);
+
+test("frame buttons, comma and period show the frame the timecode names", async ({ page }) => {
+  await ready(page);
+  await trackPresentedFrames(page);
+  await page.keyboard.press("k");
+  await expect(timecode(page)).toHaveText("00:00:10:00");
+  await page.getByRole("button", { name: "Step forward one frame" }).click();
+  await expect.poll(() => presentedFrame(page, 30)).toBe(301);
+  await expect(timecode(page)).toHaveText("00:00:10:01");
+  await page.keyboard.press(",");
+  await page.keyboard.press(",");
+  await expect.poll(() => presentedFrame(page, 30)).toBe(299);
+  await expect(timecode(page)).toHaveText("00:00:09:29");
+  for (let step = 0; step < 3; step++) await page.keyboard.press(".");
+  await expect.poll(() => presentedFrame(page, 30)).toBe(302);
+  await expect(timecode(page)).toHaveText("00:00:10:02");
+  await page.getByRole("button", { name: "Step back one frame" }).click();
+  await expect.poll(() => presentedFrame(page, 30)).toBe(301);
+  expect((await mediaState(page)).paused).toBe(true);
+});
+
+test("playback measures a 24 fps source before stepping", async ({ page }) => {
+  await page.goto("/?sample=sample-24fps.mp4");
+  await expect
+    .poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.readyState))
+    .toBeGreaterThanOrEqual(2);
+  await page.getByRole("region", { name: "Video player" }).focus();
+  await page.keyboard.press("Space");
+  await expect.poll(async () => (await mediaState(page)).time).toBeGreaterThan(1);
+  await page.keyboard.press("k");
+  await expect(timecode(page)).toHaveAttribute("title", "24 fps");
+  await trackPresentedFrames(page);
+  const frame = Math.floor((await mediaState(page)).time * 24);
+  await page.keyboard.press(".");
+  await expect.poll(() => presentedFrame(page, 24)).toBe(frame + 1);
+  const next = frame + 1;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  await expect(timecode(page)).toHaveText(`00:00:${pad(Math.floor(next / 24))}:${pad(next % 24)}`);
 });
 
 test("editable fields and nested contenteditable leave media alone", async ({ page }) => {
@@ -216,7 +275,10 @@ for (const direction of ["j", "l"]) {
     await ready(page);
     await page.keyboard.down("k");
     await page.keyboard.press(direction);
-    expect((await mediaState(page)).time).toBeCloseTo(10 + (direction === "j" ? -1 : 1) / 30, 3);
+    expect((await mediaState(page)).time).toBeCloseTo(
+      (300 + (direction === "j" ? -1 : 1) + 0.5) / 30,
+      3,
+    );
     expect((await mediaState(page)).paused).toBe(true);
     await page.keyboard.down(direction);
     const speed = direction === "j" ? "-0.5" : "0.5";
@@ -248,7 +310,7 @@ test("arrows stop and step playback, Shift arrows step ten frames, and editing c
   expect((await mediaState(page)).paused).toBe(true);
   const before = (await mediaState(page)).time;
   await page.keyboard.press("Shift+ArrowRight");
-  expect((await mediaState(page)).time).toBeCloseTo(before + 10 / 30, 3);
+  expect((await mediaState(page)).time).toBeCloseTo((Math.floor(before * 30) + 10.5) / 30, 3);
   await page.keyboard.down("k");
   await page.keyboard.down("l");
   await page.getByLabel("Comment", { exact: true }).focus();
