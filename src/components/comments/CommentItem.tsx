@@ -103,12 +103,10 @@ export function CommentItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {!isReply && (
-                  <DropdownMenuItem onClick={() => setIsReplying(true)}>
-                    <Reply className="mr-2 h-4 w-4" />
-                    Reply
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onClick={() => setIsReplying(true)}>
+                  <Reply className="mr-2 h-4 w-4" />
+                  Reply
+                </DropdownMenuItem>
                 {canResolve && !isReply && (
                   <DropdownMenuItem onClick={handleToggleResolved}>
                     <Check className="mr-2 h-4 w-4" />
@@ -135,7 +133,7 @@ export function CommentItem({
       </div>
 
       {isReplying && (
-        <div className="mt-3 ml-10">
+        <div className={cn("mt-3", !isReply && "ml-10")}>
           <CommentInput
             videoId={comment.videoId}
             timestampSeconds={comment.timestampSeconds}
@@ -143,7 +141,7 @@ export function CommentItem({
             onSubmit={() => setIsReplying(false)}
             onCancel={() => setIsReplying(false)}
             autoFocus
-            placeholder="Write a reply..."
+            placeholder={`Reply to ${comment.userName}...`}
           />
         </div>
       )}

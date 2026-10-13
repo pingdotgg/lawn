@@ -146,6 +146,8 @@ export default defineSchema({
     userAvatarUrl: v.optional(v.string()),
     text: v.string(),
     timestampSeconds: v.number(),
+    // Optional so existing comments stay top-level with no backfill. When set,
+    // it points at a top-level comment on the same video — threads are one deep.
     parentId: v.optional(v.id("comments")),
     resolved: v.boolean(),
   })
