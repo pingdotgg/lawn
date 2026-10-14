@@ -64,6 +64,21 @@ test("J/K/L, held keys, frame steps, Space, mute, fullscreen and browser shortcu
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
 });
 
+test("frame buttons and comma step one paused frame and show its timecode", async ({ page }) => {
+  await ready(page);
+  await page.getByRole("button", { name: "Next frame", exact: true }).click();
+  await expect.poll(async () => (await mediaState(page)).time).toBeCloseTo(10 + 1 / 30, 3);
+  expect((await mediaState(page)).paused).toBe(true);
+  await expect(page.getByRole("timer", { name: /Timecode 00:00:10:01, frame 301/ })).toBeVisible();
+  await page.keyboard.press(",");
+  await expect.poll(async () => (await mediaState(page)).time).toBeCloseTo(10, 3);
+  await expect(page.getByRole("timer", { name: /Timecode 00:00:10:00, frame 300/ })).toBeVisible();
+  await page.getByRole("button", { name: "Previous frame", exact: true }).click();
+  await expect.poll(async () => (await mediaState(page)).time).toBeCloseTo(10 - 1 / 30, 3);
+  await page.keyboard.press(".");
+  await expect.poll(async () => (await mediaState(page)).time).toBeCloseTo(10, 3);
+});
+
 test("editable fields and nested contenteditable leave media alone", async ({ page }) => {
   await ready(page);
   for (const label of ["Comment", "Rich comment", "Editable slider"]) {
@@ -145,6 +160,10 @@ test("public player retains arrow seeking without editor shuttle shortcuts", asy
   await page.keyboard.press("j");
   await page.keyboard.press("l");
   expect((await mediaState(page)).paused).toBe(true);
+  await page.keyboard.press(",");
+  await page.keyboard.press(".");
+  expect((await mediaState(page)).time).toBeCloseTo(10, 3);
+  await expect(page.getByRole("button", { name: "Next frame", exact: true })).toHaveCount(0);
   await page.keyboard.press("ArrowLeft");
   expect((await mediaState(page)).time).toBeCloseTo(5, 3);
   await page.keyboard.press("k");

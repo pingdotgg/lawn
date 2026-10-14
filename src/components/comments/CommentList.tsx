@@ -15,6 +15,7 @@ interface CommentListProps {
   onTimestampClick: (seconds: number) => void;
   highlightedCommentId?: Id<"comments">;
   canResolve?: boolean;
+  frameRate?: number;
 }
 
 export function CommentList(props: CommentListProps) {
@@ -24,6 +25,7 @@ export function CommentList(props: CommentListProps) {
     onTimestampClick,
     highlightedCommentId,
     canResolve = false,
+    frameRate,
   } = props;
   const hasProvidedComments = "comments" in props;
   const queriedComments = useQuery(
@@ -58,6 +60,7 @@ export function CommentList(props: CommentListProps) {
               onTimestampClick={onTimestampClick}
               isHighlighted={highlightedCommentId === comment._id}
               canResolve={canResolve}
+              frameRate={frameRate}
             />
             {comment.replies.length > 0 && (
               <div className="relative space-y-4 pr-4 pb-4 pl-14">
@@ -70,6 +73,7 @@ export function CommentList(props: CommentListProps) {
                     isHighlighted={highlightedCommentId === reply._id}
                     isReply
                     canResolve={canResolve}
+                    frameRate={frameRate}
                   />
                 ))}
               </div>

@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { formatTimestamp } from "@/lib/utils";
+import { formatFrameTimecode } from "@/components/video-player/frameStep";
 import { Send, X } from "lucide-react";
 
 interface CommentInputProps {
@@ -17,6 +18,7 @@ interface CommentInputProps {
   autoFocus?: boolean;
   placeholder?: string;
   showTimestamp?: boolean;
+  frameRate?: number;
   variant?: "default" | "seamless";
 }
 
@@ -29,6 +31,7 @@ export function CommentInput({
   autoFocus = false,
   placeholder,
   showTimestamp = false,
+  frameRate,
   variant = "default",
 }: CommentInputProps) {
   const [text, setText] = useState("");
@@ -36,9 +39,10 @@ export function CommentInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const createComment = useMutation(api.comments.create);
 
-  const defaultPlaceholder = showTimestamp
-    ? `Comment at ${formatTimestamp(timestampSeconds)}...`
-    : "Add a comment...";
+  const timeLabel = frameRate
+    ? formatFrameTimecode(timestampSeconds, frameRate)
+    : formatTimestamp(timestampSeconds);
+  const defaultPlaceholder = showTimestamp ? `Comment at ${timeLabel}...` : "Add a comment...";
   const finalPlaceholder = placeholder || defaultPlaceholder;
 
   useEffect(() => {
@@ -104,6 +108,17 @@ export function CommentInput({
         }
         rows={3}
       />
+      {showTimestamp && frameRate ? (
+        <span
+          className={
+            variant === "seamless"
+              ? "absolute bottom-3 left-4 font-mono text-[11px] text-[#888] tabular-nums"
+              : "absolute bottom-3 left-3 font-mono text-[11px] text-[#888] tabular-nums"
+          }
+        >
+          {timeLabel}
+        </span>
+      ) : null}
       <div
         className={
           variant === "seamless"

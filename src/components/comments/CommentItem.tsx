@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatTimestamp, formatRelativeTime, getInitials, cn } from "@/lib/utils";
+import { formatFrameTimecode } from "@/components/video-player/frameStep";
 import { Check, MoreVertical, Trash2, Reply } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ interface CommentItemProps {
   isHighlighted?: boolean;
   isReply?: boolean;
   canResolve?: boolean;
+  frameRate?: number;
 }
 
 export function CommentItem({
@@ -44,6 +46,7 @@ export function CommentItem({
   isHighlighted = false,
   isReply = false,
   canResolve = false,
+  frameRate,
 }: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false);
   const toggleResolved = useMutation(api.comments.toggleResolved);
@@ -88,7 +91,9 @@ export function CommentItem({
                 onClick={() => onTimestampClick(comment.timestampSeconds)}
                 className="shrink-0 font-mono text-xs font-bold text-[#2d5a2d] hover:text-[#1a1a1a]"
               >
-                {formatTimestamp(comment.timestampSeconds)}
+                {frameRate
+                  ? formatFrameTimecode(comment.timestampSeconds, frameRate)
+                  : formatTimestamp(comment.timestampSeconds)}
               </button>
               {comment.resolved && (
                 <Badge variant="success" className="shrink-0 text-[10px]">
