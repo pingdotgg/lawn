@@ -2,8 +2,18 @@ import { v } from "convex/values";
 import { query, MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { identityAvatarUrl, identityName, requireVideoAccess, requireUser } from "./auth";
+import {
+  commentTagsEqual,
+  filterCommentsByTags,
+  normalizeCommentTags,
+  type ActiveCommentTags,
+} from "./commentTags";
 import { resolveActiveShareGrant } from "./shareAccess";
 import { resolvePublicVideo } from "./videos";
+
+function activeTagsFromArgs(activeTags: string[] | undefined): ActiveCommentTags {
+  return activeTags === undefined ? "all" : activeTags;
+}
 
 function toThreadedComments<
   T extends { _id: string; parentId?: string; timestampSeconds: number; _creationTime: number },
@@ -45,6 +55,7 @@ function toPublicCommentPayload(comment: {
   resolved: boolean;
   userName: string;
   userAvatarUrl?: string;
+  tags?: string[];
 }) {
   return {
     _id: comment._id,
@@ -55,6 +66,7 @@ function toPublicCommentPayload(comment: {
     resolved: comment.resolved,
     userName: comment.userName,
     userAvatarUrl: comment.userAvatarUrl,
+    tags: comment.tags ?? [],
   };
 }
 
@@ -65,7 +77,10 @@ async function getPublicVideoByPublicId(ctx: QueryCtx | MutationCtx, publicId: s
 }
 
 export const list = query({
-  args: { videoId: v.id("videos") },
+  args: {
+    videoId: v.id("videos"),
+    activeTags: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     await requireVideoAccess(ctx, args.videoId);
 
@@ -74,7 +89,7 @@ export const list = query({
       .withIndex("by_video_and_timestamp", (q) => q.eq("videoId", args.videoId))
       .collect();
 
-    return comments;
+    return filterCommentsByTags(comments, activeTagsFromArgs(args.activeTags));
   },
 });
 
@@ -239,8 +254,50 @@ export const toggleResolved = mutation({
   },
 });
 
+export const addTag = mutation({
+  args: {
+    commentId: v.id("comments"),
+    tag: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment) throw new Error("Comment not found");
+
+    await requireVideoAccess(ctx, comment.videoId, "member");
+
+    const tags = normalizeCommentTags([...(comment.tags ?? []), args.tag]);
+    if (!commentTagsEqual(comment.tags, tags)) {
+      await ctx.db.patch(args.commentId, { tags });
+    }
+    return tags;
+  },
+});
+
+export const removeTag = mutation({
+  args: {
+    commentId: v.id("comments"),
+    tag: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment) throw new Error("Comment not found");
+
+    await requireVideoAccess(ctx, comment.videoId, "member");
+
+    const key = args.tag.trim().toLowerCase();
+    const tags = (comment.tags ?? []).filter((tag) => tag.toLowerCase() !== key);
+    if (!commentTagsEqual(comment.tags, tags)) {
+      await ctx.db.patch(args.commentId, { tags });
+    }
+    return tags;
+  },
+});
+
 export const getThreaded = query({
-  args: { videoId: v.id("videos") },
+  args: {
+    videoId: v.id("videos"),
+    activeTags: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     await requireVideoAccess(ctx, args.videoId);
 
@@ -249,7 +306,7 @@ export const getThreaded = query({
       .withIndex("by_video", (q) => q.eq("videoId", args.videoId))
       .collect();
 
-    return toThreadedComments(comments);
+    return toThreadedComments(filterCommentsByTags(comments, activeTagsFromArgs(args.activeTags)));
   },
 });
 

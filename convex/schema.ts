@@ -148,6 +148,9 @@ export default defineSchema({
     timestampSeconds: v.number(),
     parentId: v.optional(v.id("comments")),
     resolved: v.boolean(),
+    // Missing on comments written before tags existed. Missing and empty both
+    // mean untagged, so no backfill is required. Mutations cap the array.
+    tags: v.optional(v.array(v.string())),
   })
     .index("by_video", ["videoId"])
     .index("by_video_and_timestamp", ["videoId", "timestampSeconds"])
