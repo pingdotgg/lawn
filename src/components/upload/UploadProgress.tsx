@@ -20,6 +20,7 @@ function formatTimeRemaining(seconds: number | null): string {
 }
 
 interface UploadProgressProps {
+  thumbnailUrl?: string;
   fileName: string;
   fileSize: number;
   progress: number;
@@ -35,6 +36,7 @@ interface UploadProgressProps {
 }
 
 export function UploadProgress({
+  thumbnailUrl,
   fileName,
   fileSize,
   progress,
@@ -56,6 +58,15 @@ export function UploadProgress({
       aria-atomic="true"
     >
       <div className="flex items-start justify-between gap-4">
+        <div className="relative aspect-video w-20 shrink-0 overflow-hidden bg-black/10">
+          {thumbnailUrl && (
+            <img
+              src={thumbnailUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           {intentLabel && (
             <p className="mb-1 text-[10px] font-black tracking-wider text-[#2d5a2d] uppercase">
@@ -108,7 +119,9 @@ export function UploadProgress({
         </div>
       )}
 
-      {status === "processing" && <p className="mt-2 text-xs text-[#888]">Processing video...</p>}
+      {status === "processing" && (
+        <p className="mt-2 text-xs text-[#888]">Upload received. Preparing video...</p>
+      )}
 
       {status === "complete" && (
         <div className="mt-2 flex items-center justify-between gap-3">

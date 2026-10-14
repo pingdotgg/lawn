@@ -2,6 +2,8 @@ import { createContext, useContext, type ReactNode } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 
 export type DashboardUploadContextValue = {
+  thumbnails: ReadonlyMap<Id<"videos">, string>;
+  releaseThumbnail: (videoId: Id<"videos">, processedThumbnailUrl: string) => void;
   requestUpload: (files: File[], preferredProjectId?: Id<"projects">) => void;
   requestVersionUpload: (
     sourceVideoId: Id<"videos">,
