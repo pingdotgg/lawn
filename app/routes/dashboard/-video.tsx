@@ -20,6 +20,7 @@ import {
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { cn, formatDuration } from "@/lib/utils";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
+import { buildResolveMarkerEdl, buildResolveMarkerFilename } from "@/lib/resolveMarkers";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
 import { useSidebarCollapsed } from "@/lib/useSidebarCollapsed";
@@ -278,6 +279,36 @@ function VersionSelector({
   );
 }
 
+function CommentExportMenu({
+  disabled,
+  className,
+  onExport,
+}: {
+  disabled: boolean;
+  className?: string;
+  onExport: (format: "edl" | "csv") => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("px-2 text-[10px]", className)}
+          disabled={disabled}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => onExport("edl")}>Resolve markers (.edl)</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onExport("csv")}>CSV</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function VideoPage() {
   const params = useParams({ strict: false });
   const navigate = useNavigate({});
@@ -370,6 +401,10 @@ export default function VideoPage() {
     videoId: Id<"videos">;
     currentTime: number;
     wasPlaying: boolean;
+  } | null>(null);
+  const [reportedFrameRate, setReportedFrameRate] = useState<{
+    videoId: Id<"videos">;
+    fps: number;
   } | null>(null);
   const playerRef = useRef<VideoPlayerHandle | null>(null);
   const deletePendingRef = useRef(false);
@@ -826,11 +861,36 @@ export default function VideoPage() {
     [playerRef, setHighlightedCommentId],
   );
 
-  const handleExportComments = useCallback(() => {
-    if (!video || !commentsThreaded?.length) return;
+  const handleFrameRate = useCallback(
+    (fps: number) => {
+      if (!resolvedVideoId) return;
+      setReportedFrameRate({ videoId: resolvedVideoId, fps });
+    },
+    [resolvedVideoId],
+  );
 
-    triggerTextDownload(buildCommentsCsv(commentsThreaded), buildCommentsCsvFilename(video.title));
-  }, [commentsThreaded, video]);
+  const handleExportComments = useCallback(
+    (format: "edl" | "csv") => {
+      if (!video || !commentsThreaded?.length) return;
+
+      if (format === "csv") {
+        triggerTextDownload(
+          buildCommentsCsv(commentsThreaded),
+          buildCommentsCsvFilename(video.title),
+        );
+        return;
+      }
+
+      const frameRate =
+        reportedFrameRate?.videoId === resolvedVideoId ? reportedFrameRate.fps : null;
+      triggerTextDownload(
+        buildResolveMarkerEdl(commentsThreaded, { frameRate, title: video.title }),
+        buildResolveMarkerFilename(video.title),
+        { mimeType: "text/plain", bom: false },
+      );
+    },
+    [commentsThreaded, reportedFrameRate, resolvedVideoId, video],
+  );
 
   const handleSaveTitle = async () => {
     if (!editedTitle.trim() || !video || !resolvedVideoId) return;
@@ -1386,6 +1446,7 @@ export default function VideoPage() {
               editorControls
               theaterMode={theaterMode}
               onToggleTheater={() => setTheaterMode((current) => !current)}
+              onFrameRate={handleFrameRate}
               qualityOptionsConfig={[
                 {
                   id: "mux720",
@@ -1501,16 +1562,11 @@ export default function VideoPage() {
                   {comments.length} {comments.length === 1 ? "comment" : "comments"}
                 </span>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-[10px]"
-                onClick={handleExportComments}
+              <CommentExportMenu
+                className="h-7"
                 disabled={!commentsThreaded?.length}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
-              </Button>
+                onExport={handleExportComments}
+              />
             </div>
           </div>
           <div className="flex-1 overflow-hidden">
@@ -1548,16 +1604,11 @@ export default function VideoPage() {
               )}
             </h2>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-[10px]"
-                onClick={handleExportComments}
+              <CommentExportMenu
+                className="h-8"
                 disabled={!commentsThreaded?.length}
-              >
-                <Download className="h-3.5 w-3.5" />
-                Export CSV
-              </Button>
+                onExport={handleExportComments}
+              />
               <Button
                 variant="ghost"
                 size="icon"

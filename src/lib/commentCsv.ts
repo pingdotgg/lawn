@@ -33,7 +33,7 @@ export function buildCommentsCsv(comments: CsvCommentThread[]) {
   ].join("\r\n");
 }
 
-export function buildCommentsCsvFilename(videoTitle: string) {
+export function buildCommentsExportFilename(videoTitle: string, extension: string) {
   const slug = videoTitle
     .trim()
     .toLowerCase()
@@ -41,6 +41,11 @@ export function buildCommentsCsvFilename(videoTitle: string) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80)
     .replace(/-+$/g, "");
+  const safeExtension = extension.toLowerCase().replace(/[^a-z0-9]/g, "") || "txt";
 
-  return `${slug || "video"}-comments.csv`;
+  return `${slug || "video"}-comments.${safeExtension}`;
+}
+
+export function buildCommentsCsvFilename(videoTitle: string) {
+  return buildCommentsExportFilename(videoTitle, "csv");
 }

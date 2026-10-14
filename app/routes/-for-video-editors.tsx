@@ -18,7 +18,7 @@ const painPoints = [
     id: "03",
     title: "GETTING NOTES BACK INTO YOUR NLE",
     description:
-      "Comments are useless if you have to manually re-type them into your timeline. Export frame-accurate comments with timecodes and bring them straight back to Premiere, Resolve, or Final Cut.",
+      "Comments are useless if you have to manually re-type them into your timeline. Export frame-accurate comments as DaVinci Resolve timeline markers, or grab a CSV.",
   },
   {
     id: "04",
@@ -45,7 +45,7 @@ const steps = [
     step: "3",
     action: "COLLECT & EXPORT",
     description:
-      "Clients click anywhere on the video to leave comments at exact frames. You see every note with precise timecodes, ready to export back to your NLE timeline.",
+      "Clients click anywhere on the video to leave comments at exact frames. You see every note with precise timecodes, ready to drop back onto a DaVinci Resolve timeline.",
   },
 ];
 
