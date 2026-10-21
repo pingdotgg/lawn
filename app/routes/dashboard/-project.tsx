@@ -13,6 +13,8 @@ import {
 import { DropZone } from "@/components/upload/DropZone";
 import { UploadButton } from "@/components/upload/UploadButton";
 import { formatDuration, formatRelativeTime } from "@/lib/utils";
+import { canDownloadOriginal } from "@convex/originalFile";
+import { VideoThumbnail } from "@/components/upload/VideoThumbnail";
 import { triggerDownload } from "@/lib/download";
 import {
   Play,
@@ -506,7 +508,11 @@ export default function ProjectPage({
       ? { projectId: resolvedProjectId, videoIds: presenceVideoIds }
       : "skip",
   );
-  const { requestUpload } = useDashboardUploadContext();
+  const {
+    requestUpload,
+    thumbnails: localThumbnails,
+    releaseThumbnail,
+  } = useDashboardUploadContext();
   const deleteVideo = useMutation(api.videos.removeStack);
   const updateVideoWorkflowStatus = useMutation(api.videos.updateWorkflowStatus);
   const getDownloadUrl = useAction(api.videoActions.getDownloadUrl);
@@ -644,7 +650,14 @@ export default function ProjectPage({
           triggerDownload(result.url, result.filename ?? `${title}.mp4`);
         }
       } catch (error) {
-        console.error("Failed to download video:", error);
+        if (shareToastTimeoutRef.current !== null) {
+          window.clearTimeout(shareToastTimeoutRef.current);
+          shareToastTimeoutRef.current = null;
+        }
+        setShareToast({
+          tone: "error",
+          message: error instanceof Error ? error.message : "Unable to prepare download.",
+        });
       }
     },
     [getDownloadUrl],
@@ -927,8 +940,7 @@ export default function ProjectPage({
               {videos?.map((video, index) => {
                 const thumbnailSrc = thumbnailUrls.get(video._id);
                 const shouldEagerLoadThumbnail = index < EAGER_THUMBNAIL_COUNT;
-                const canDownload =
-                  Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+                const canDownload = canDownloadOriginal(video);
                 const watchingCount = presenceVideoIdSet.has(video._id)
                   ? projectPresenceCounts?.counts?.[video._id]
                   : undefined;
@@ -968,15 +980,18 @@ export default function ProjectPage({
                           : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
                       )}
                     >
-                      {thumbnailSrc ? (
-                        <img
+                      {thumbnailSrc || localThumbnails.has(video._id) ? (
+                        <VideoThumbnail
                           src={thumbnailSrc}
+                          localSrc={localThumbnails.get(video._id)}
                           alt={video.title}
-                          draggable={false}
-                          loading={shouldEagerLoadThumbnail ? "eager" : "lazy"}
-                          decoding="async"
-                          fetchPriority={index === 0 ? "high" : "auto"}
-                          className="h-full w-full object-cover"
+                          eager={shouldEagerLoadThumbnail}
+                          priority={index === 0}
+                          onProcessedLoad={() => {
+                            if (thumbnailSrc && localThumbnails.has(video._id)) {
+                              releaseThumbnail(video._id, thumbnailSrc);
+                            }
+                          }}
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -1130,8 +1145,7 @@ export default function ProjectPage({
             {videos?.map((video, index) => {
               const thumbnailSrc = thumbnailUrls.get(video._id);
               const shouldEagerLoadThumbnail = index < EAGER_THUMBNAIL_COUNT;
-              const canDownload =
-                Boolean(video.s3Key) && video.status !== "failed" && video.status !== "uploading";
+              const canDownload = canDownloadOriginal(video);
               const watchingCount = presenceVideoIdSet.has(video._id)
                 ? projectPresenceCounts?.counts?.[video._id]
                 : undefined;
@@ -1172,15 +1186,18 @@ export default function ProjectPage({
                         : "shadow-[4px_4px_0px_0px_var(--shadow-color)] group-hover:shadow-[2px_2px_0px_0px_var(--shadow-color)]",
                     )}
                   >
-                    {thumbnailSrc ? (
-                      <img
+                    {thumbnailSrc || localThumbnails.has(video._id) ? (
+                      <VideoThumbnail
                         src={thumbnailSrc}
+                        localSrc={localThumbnails.get(video._id)}
                         alt={video.title}
-                        draggable={false}
-                        loading={shouldEagerLoadThumbnail ? "eager" : "lazy"}
-                        decoding="async"
-                        fetchPriority={index === 0 ? "high" : "auto"}
-                        className="h-full w-full object-cover"
+                        eager={shouldEagerLoadThumbnail}
+                        priority={index === 0}
+                        onProcessedLoad={() => {
+                          if (thumbnailSrc && localThumbnails.has(video._id)) {
+                            releaseThumbnail(video._id, thumbnailSrc);
+                          }
+                        }}
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
