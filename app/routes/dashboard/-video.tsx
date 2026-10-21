@@ -19,6 +19,7 @@ import {
   type VideoWorkflowStatus,
 } from "@/components/videos/VideoWorkflowStatusControl";
 import { cn, formatDuration } from "@/lib/utils";
+import { FALLBACK_FRAME_RATE } from "@/components/video-player/frameStep";
 import { buildCommentsCsv, buildCommentsCsvFilename } from "@/lib/commentCsv";
 import { triggerTextDownload } from "@/lib/download";
 import { useVideoPresence } from "@/lib/useVideoPresence";
@@ -312,6 +313,7 @@ export default function VideoPage() {
   const { requestVersionUpload } = useDashboardUploadContext();
 
   const [currentTime, setCurrentTime] = useState(0);
+  const [playbackFrameRate, setPlaybackFrameRate] = useState(FALLBACK_FRAME_RATE);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [highlightedCommentId, setHighlightedCommentId] = useState<Id<"comments"> | undefined>();
@@ -680,6 +682,10 @@ export default function VideoPage() {
   const handleTimeUpdate = useCallback((time: number) => {
     setCurrentTime(time);
   }, []);
+
+  useEffect(() => {
+    setPlaybackFrameRate(FALLBACK_FRAME_RATE);
+  }, [resolvedVideoId]);
 
   const handleOriginalPlaybackIssue = useCallback(
     (issue: VideoPlaybackIssue) => {
@@ -1378,6 +1384,7 @@ export default function VideoPage() {
               poster={muxPlaybackSource?.posterUrl ?? video.thumbnailUrl}
               comments={comments || []}
               onTimeUpdate={handleTimeUpdate}
+              onFrameRateChange={setPlaybackFrameRate}
               onMarkerClick={handleMarkerClick}
               allowDownload={video.status === "ready"}
               downloadFilename={`${video.title}.mp4`}
@@ -1520,6 +1527,7 @@ export default function VideoPage() {
               onTimestampClick={handleTimestampClick}
               highlightedCommentId={highlightedCommentId}
               canResolve={canEdit}
+              frameRate={playbackFrameRate}
             />
           </div>
           {canComment && (
@@ -1527,6 +1535,7 @@ export default function VideoPage() {
               <CommentInput
                 videoId={resolvedVideoId}
                 timestampSeconds={currentTime}
+                frameRate={playbackFrameRate}
                 showTimestamp
                 variant="seamless"
               />
@@ -1578,6 +1587,7 @@ export default function VideoPage() {
               }}
               highlightedCommentId={highlightedCommentId}
               canResolve={canEdit}
+              frameRate={playbackFrameRate}
             />
           </div>
           {canComment && (
@@ -1585,6 +1595,7 @@ export default function VideoPage() {
               <CommentInput
                 videoId={resolvedVideoId}
                 timestampSeconds={currentTime}
+                frameRate={playbackFrameRate}
                 showTimestamp
                 variant="seamless"
               />

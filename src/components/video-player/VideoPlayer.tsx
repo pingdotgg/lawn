@@ -11,6 +11,15 @@ import {
   useImperativeHandle,
 } from "react";
 import { createShuttleController, bindPlaybackShortcuts, type PlaybackAction } from "./shuttle";
+import {
+  FALLBACK_FRAME_RATE,
+  formatFrameTimecode,
+  frameIndexAt,
+  frameRateFromLevels,
+  loadPlaylistFrameRate,
+  loadProgressiveFrameRate,
+  settledPlaybackTime,
+} from "./frameStep";
 import type Hls from "hls.js";
 import {
   Play,
@@ -22,6 +31,8 @@ import {
   Download,
   RotateCcw,
   RotateCw,
+  StepBack,
+  StepForward,
   Timer,
   Settings2,
   Check,
@@ -55,6 +66,7 @@ interface VideoPlayerProps {
   poster?: string;
   comments?: Comment[];
   onTimeUpdate?: (currentTime: number) => void;
+  onFrameRateChange?: (frameRate: number) => void;
   onMarkerClick?: (comment: Comment) => void;
   initialTime?: number;
   initialPlay?: boolean;
@@ -123,6 +135,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     poster,
     comments = [],
     onTimeUpdate,
+    onFrameRateChange,
     onMarkerClick,
     initialTime,
     initialPlay = false,
@@ -151,6 +164,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [frameRate, setFrameRate] = useState(FALLBACK_FRAME_RATE);
   const [bufferedPercent, setBufferedPercent] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMediaReady, setIsMediaReady] = useState(false);
@@ -178,12 +192,53 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   const resumeTimeOnSourceChangeRef = useRef<number | null>(null);
   const resumePlaybackOnSourceChangeRef = useRef(initialPlay);
   const hasAttachedSourceRef = useRef(false);
+  const frameRateRef = useRef(FALLBACK_FRAME_RATE);
+  const steppedTimeRef = useRef<number | null>(null);
+  const stepCorrectionRef = useRef(false);
+  const editorControlsRef = useRef(editorControls);
+  frameRateRef.current = frameRate;
+  editorControlsRef.current = editorControls;
   const notifyPlaybackIssue = useEffectEvent((issue: VideoPlaybackIssue) => {
     onPlaybackIssue?.(issue);
   });
   const reportTimeUpdate = useEffectEvent((time: number) => {
     onTimeUpdate?.(time);
   });
+  const reportFrameRate = useEffectEvent((rate: number) => {
+    onFrameRateChange?.(rate);
+  });
+
+  useEffect(() => {
+    reportFrameRate(frameRate);
+  }, [frameRate]);
+
+  useEffect(() => {
+    setFrameRate(FALLBACK_FRAME_RATE);
+    steppedTimeRef.current = null;
+    if (!editorControls) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    const apply = (rate: number | null) => {
+      if (!cancelled && rate !== null) setFrameRate(rate);
+    };
+    void (async () => {
+      try {
+        if (isHlsSource(src)) {
+          const runtime = await loadHlsRuntime();
+          if (cancelled || runtime?.default.isSupported()) return;
+          apply(await loadPlaylistFrameRate(src, controller.signal));
+          return;
+        }
+        apply(await loadProgressiveFrameRate(src, controller.signal));
+      } catch {
+        // A missing frame rate still steps at the fallback rate.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [editorControls, src, sourceRevision]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -238,6 +293,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     (time: number) => {
       const video = videoRef.current;
       if (!video) return;
+      steppedTimeRef.current = null;
+      stepCorrectionRef.current = false;
       const actualDuration = duration || video.duration || 0;
       const next = actualDuration > 0 ? clamp(time, 0, actualDuration) : Math.max(time, 0);
       video.currentTime = next;
@@ -338,6 +395,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
   }, [controlsBelow, showControls]);
 
+  const stepByFrames = useEffectEvent((frames: number) => {
+    showControls();
+    const stepped = shuttleRef.current?.step(frames, frameRateRef.current);
+    if (!stepped) return;
+    stepCorrectionRef.current = false;
+    steppedTimeRef.current = stepped.time;
+    setCurrentTime(stepped.time);
+    reportTimeUpdate(stepped.time);
+  });
+
   const runShortcut = useEffectEvent((action: PlaybackAction) => {
     showControls();
     switch (action) {
@@ -363,16 +430,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         shuttleRef.current?.playAt(0.5);
         break;
       case "stepBackTen":
-        shuttleRef.current?.step(-10);
+        stepByFrames(-10);
         break;
       case "stepForwardTen":
-        shuttleRef.current?.step(10);
+        stepByFrames(10);
         break;
       case "stepBack":
-        shuttleRef.current?.step(-1);
+        stepByFrames(-1);
         break;
       case "stepForward":
-        shuttleRef.current?.step(1);
+        stepByFrames(1);
         break;
       case "seekBack":
         handleSeekBy(-5);
@@ -427,7 +494,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
   const copyTimestamp = useCallback(async () => {
     const timeToCopy = isScrubbing ? scrubTimeRef.current : currentTime;
-    const label = formatTimestamp(timeToCopy);
+    const label = editorControls
+      ? formatFrameTimecode(timeToCopy, frameRate)
+      : formatTimestamp(timeToCopy);
     try {
       await navigator.clipboard.writeText(label);
     } catch {
@@ -435,7 +504,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     }
     setContextMenu(null);
     showControls();
-  }, [currentTime, isScrubbing, showControls]);
+  }, [currentTime, editorControls, frameRate, isScrubbing, showControls]);
 
   const toggleLoop = useCallback(() => {
     const video = videoRef.current;
@@ -478,6 +547,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
 
       wasPlayingBeforeScrubRef.current = shuttleRef.current?.playing ?? !video.paused;
       shuttleRef.current?.pause();
+      steppedTimeRef.current = null;
+      stepCorrectionRef.current = false;
       setIsScrubbing(true);
 
       const nextTime = getTimeFromClientX(clientX);
@@ -626,15 +697,60 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       setDuration(video.duration || 0);
     };
 
+    const publishSettledTime = (seeking: boolean) => {
+      const settled = settledPlaybackTime({
+        intendedTime: steppedTimeRef.current,
+        reportedTime: video.currentTime || 0,
+        frameRate: frameRateRef.current,
+        seeking,
+      });
+      steppedTimeRef.current = settled.intendedTime;
+      setCurrentTime(settled.time);
+      reportTimeUpdate(settled.time);
+    };
+
+    const holdingSteppedFrame = () =>
+      steppedTimeRef.current !== null &&
+      video.paused &&
+      !isScrubbingRef.current &&
+      !(shuttleRef.current?.playing ?? false);
+
+    const correctSteppedFrame = () => {
+      const intended = steppedTimeRef.current;
+      if (intended === null || !holdingSteppedFrame() || video.seeking) return false;
+      const drifted =
+        Math.abs((video.currentTime || 0) - intended) > 0.5 / frameRateRef.current + 1e-4;
+      if (!drifted) {
+        stepCorrectionRef.current = false;
+        return false;
+      }
+      if (stepCorrectionRef.current) return false;
+      stepCorrectionRef.current = true;
+      video.currentTime = intended;
+      setCurrentTime(intended);
+      reportTimeUpdate(intended);
+      return true;
+    };
+
     const handleTimeUpdate = () => {
       if (cancelled || isScrubbingRef.current) return;
-      const time = video.currentTime || 0;
-      setCurrentTime(time);
-      reportTimeUpdate(time);
+      if (!holdingSteppedFrame()) {
+        if (!video.paused || shuttleRef.current?.playing) {
+          steppedTimeRef.current = null;
+          stepCorrectionRef.current = false;
+        }
+        publishSettledTime(video.seeking);
+        return;
+      }
+      if (correctSteppedFrame()) return;
+      setCurrentTime(steppedTimeRef.current ?? 0);
+      reportTimeUpdate(steppedTimeRef.current ?? 0);
     };
 
     const handlePlay = () => {
       if (cancelled) return;
+      steppedTimeRef.current = null;
+      stepCorrectionRef.current = false;
       setIsPlaying(true);
       setIsBuffering(false);
       showControls();
@@ -688,6 +804,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
       if (cancelled) return;
       waitingForResumeSeek = false;
       resetPlaybackHealth();
+      if (!holdingSteppedFrame()) {
+        if (!video.paused || shuttleRef.current?.playing) {
+          steppedTimeRef.current = null;
+          stepCorrectionRef.current = false;
+        }
+      } else if (correctSteppedFrame()) {
+        return;
+      } else if (steppedTimeRef.current !== null) {
+        setCurrentTime(steppedTimeRef.current);
+        reportTimeUpdate(steppedTimeRef.current);
+      }
+      if (!isScrubbingRef.current && !holdingSteppedFrame()) publishSettledTime(false);
       resumePlaybackIfReady();
     };
 
@@ -809,10 +937,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
               }));
             setQualityOptions(nextOptions);
             setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
+            if (editorControlsRef.current) {
+              const detected = frameRateFromLevels(hls.levels, hls.currentLevel);
+              if (detected !== null) setFrameRate(detected);
+            }
           });
-          hls.on(Hls.Events.LEVEL_SWITCHED, () => {
+          hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
             if (hls.autoLevelEnabled) {
               setSelectedQualityLevel(AUTO_QUALITY_LEVEL);
+            }
+            if (editorControlsRef.current) {
+              const detected = frameRateFromLevels(hls.levels, data.level);
+              if (detected !== null) setFrameRate(detected);
             }
           });
           hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -954,6 +1090,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   }, [qualityMenuOpen]);
 
   const displayTime = isScrubbing ? scrubTime : currentTime;
+  const canStepFrames = isMediaReady && duration > 0;
   const playedPercent = duration > 0 ? clamp(displayTime / duration, 0, 1) : 0;
   const canDownload = allowDownload && (Boolean(downloadUrl) || Boolean(onRequestDownload));
   const isHls = isHlsSource(src);
@@ -1055,6 +1192,39 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
         </button>
 
+        {editorControls && (
+          <div className="flex items-center gap-1" role="group" aria-label="Frame step">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                stepByFrames(-1);
+              }}
+              disabled={!canStepFrames || displayTime <= 0}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous frame"
+              title="Previous frame (,)"
+              aria-keyshortcuts=","
+            >
+              <StepBack className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                stepByFrames(1);
+              }}
+              disabled={!canStepFrames || (duration > 0 && displayTime >= duration - 0.0005)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 transition hover:border-white/25 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next frame"
+              title="Next frame (.)"
+              aria-keyshortcuts="."
+            >
+              <StepForward className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         <div className="hidden items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2 py-1 sm:flex">
           <button
             type="button"
@@ -1086,9 +1256,21 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           />
         </div>
 
-        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/90">
-          <span className="font-mono">
-            {formatDuration(displayTime)} / {formatDuration(duration || 0)}
+        <div
+          className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/90"
+          role={editorControls ? "timer" : undefined}
+          aria-live={editorControls && !isPlaying && !isScrubbing ? "polite" : undefined}
+          aria-atomic={editorControls ? true : undefined}
+          aria-label={
+            editorControls
+              ? `Timecode ${formatFrameTimecode(displayTime, frameRate)}, frame ${frameIndexAt(displayTime, frameRate)}`
+              : undefined
+          }
+        >
+          <span className="font-mono whitespace-nowrap tabular-nums">
+            {editorControls
+              ? `${formatFrameTimecode(displayTime, frameRate)} / ${formatFrameTimecode(duration || 0, frameRate)}`
+              : `${formatDuration(displayTime)} / ${formatDuration(duration || 0)}`}
           </span>
         </div>
 
@@ -1280,7 +1462,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
         aria-label="Video player"
         aria-description={
           editorControls
-            ? "Space toggles playback. K pauses. J and L shuttle backward and forward up to 32 times speed. Hold K and tap J or L to step, or hold both for half speed. Arrows step one frame; Shift and arrows step ten frames, using 30 fps. F toggles fullscreen. M toggles mute."
+            ? "Space toggles playback. K pauses. J and L shuttle backward and forward up to 32 times speed. Hold K and tap J or L to step, or hold both for half speed. Comma and period, or the frame buttons, step one frame. Arrows step one frame. Shift and arrows step ten frames. F toggles fullscreen. M toggles mute."
             : "Space toggles playback. K pauses. Arrows seek five seconds. F toggles fullscreen. M toggles mute."
         }
         onMouseMove={showControls}

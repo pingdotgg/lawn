@@ -1,3 +1,5 @@
+import { stepFrameTime } from "./frameStep";
+
 /** Reverse and 32x use timed seeks; native playback rates stay positive and at most 16x. */
 export function createShuttleController(
   video: HTMLVideoElement,
@@ -52,6 +54,12 @@ export function createShuttleController(
   function play() {
     const attempt = ++generation;
     stopSeeking();
+    // A frame step can still have an older seek in flight. Re-applying the
+    // current timestamp makes playback start from the frame that is showing.
+    if (video.seeking && Number.isFinite(video.currentTime)) {
+      const time = video.currentTime;
+      video.currentTime = time;
+    }
     if (rate < 0 || rate > 16) {
       if (rate < 0 && video.currentTime <= 0) return pause();
       if (rate > 0 && video.ended) video.currentTime = 0;
@@ -105,7 +113,14 @@ export function createShuttleController(
     step(frames: number, frameRate = 30) {
       pause();
       const duration = Number.isFinite(video.duration) ? video.duration : Infinity;
-      video.currentTime = Math.max(0, Math.min(duration, video.currentTime + frames / frameRate));
+      const next = stepFrameTime({
+        currentTime: video.currentTime,
+        frames,
+        frameRate,
+        duration,
+      });
+      video.currentTime = next.time;
+      return next;
     },
     dispose() {
       generation++;

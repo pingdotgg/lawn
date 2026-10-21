@@ -115,6 +115,10 @@ test("pause/resume preserves reverse speed and frame stepping stays paused at bo
   f.media.currentTime = 20;
   f.controller.step(1);
   assert.equal(f.media.currentTime, 20);
+  f.media.currentTime = 10;
+  f.controller.step(1, 24);
+  assert.equal(f.controller.playing, false);
+  assert.ok(Math.abs(f.media.currentTime - (10 + 1 / 24)) < 1e-8);
 });
 
 const event = {
