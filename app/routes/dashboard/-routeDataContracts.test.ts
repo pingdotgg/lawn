@@ -7,7 +7,8 @@ import { getDashboardIndexEssentialSpecs } from "./-index.data";
 import { getProjectEssentialSpecs } from "./-project.data";
 import { getSettingsEssentialSpecs } from "./-settings.data";
 import { getTeamEssentialSpecs } from "./-team.data";
-import { getVideoEssentialSpecs, threadComments } from "./-video.data";
+import { threadComments } from "@convex/commentThreads";
+import { getVideoEssentialSpecs } from "./-video.data";
 import { getProjectThumbnailUrl, selectProjectPresenceVideoIds } from "./-project";
 
 function names(specs: Array<{ query: unknown }>) {
