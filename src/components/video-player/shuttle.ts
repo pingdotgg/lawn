@@ -1,3 +1,5 @@
+import { DEFAULT_FRAME_RATE, steppedTime } from "./frame";
+
 /** Reverse and 32x use timed seeks; native playback rates stay positive and at most 16x. */
 export function createShuttleController(
   video: HTMLVideoElement,
@@ -102,10 +104,13 @@ export function createShuttleController(
       rate = next;
       play();
     },
-    step(frames: number, frameRate = 30) {
+    /** Pauses, steps whole frames, and returns the seek target. */
+    step(frames: number, frameRate = DEFAULT_FRAME_RATE) {
       pause();
-      const duration = Number.isFinite(video.duration) ? video.duration : Infinity;
-      video.currentTime = Math.max(0, Math.min(duration, video.currentTime + frames / frameRate));
+      const duration = Number.isFinite(video.duration) ? video.duration : undefined;
+      const time = steppedTime(video.currentTime, frames, frameRate, duration);
+      video.currentTime = time;
+      return time;
     },
     dispose() {
       generation++;
@@ -168,8 +173,9 @@ export function playbackShortcut(
   if (key === "m") return "mute";
   if (editor && key === "j") return "reverse";
   if (editor && key === "l") return "forward";
-  if (editor && key === ",") return "stepBack";
-  if (editor && key === ".") return "stepForward";
+  // Frame stepping is available in every player; it pauses before stepping.
+  if (key === ",") return "stepBack";
+  if (key === ".") return "stepForward";
   if (key === "arrowleft")
     return editor ? (event.shiftKey ? "stepBackTen" : "stepBack") : "seekBack";
   if (key === "arrowright")

@@ -108,13 +108,13 @@ test("pause/resume preserves reverse speed and frame stepping stays paused at bo
   assert.equal(f.controller.playing, true);
   f.controller.step(1);
   assert.equal(f.controller.playing, false);
-  assert.ok(Math.abs(f.media.currentTime - (10 + 1 / 30)) < 1e-8);
+  assert.ok(Math.abs(f.media.currentTime - 301.5 / 30) < 1e-8);
   f.media.currentTime = 0;
   f.controller.step(-1);
-  assert.equal(f.media.currentTime, 0);
+  assert.ok(Math.abs(f.media.currentTime - 0.5 / 30) < 1e-8);
   f.media.currentTime = 20;
   f.controller.step(1);
-  assert.equal(f.media.currentTime, 20);
+  assert.ok(Math.abs(f.media.currentTime - 599.5 / 30) < 1e-8);
 });
 
 const event = {
@@ -152,6 +152,30 @@ test("focused buttons keep native Space unless focus came from a pointer", () =>
   assert.equal(playbackShortcut({ ...event, key: " " }, button, true), null);
   assert.equal(playbackShortcut({ ...event, key: " " }, button, true, true), "toggle");
   assert.equal(playbackShortcut({ ...event, key: "." }, button, true), "stepForward");
+});
+
+test("comma and period step one frame in public and editor players alike", () => {
+  assert.equal(playbackShortcut({ ...event, key: "," }, null, false), "stepBack");
+  assert.equal(playbackShortcut({ ...event, key: "." }, null, false), "stepForward");
+  assert.equal(playbackShortcut({ ...event, key: "," }, null, true), "stepBack");
+  assert.equal(playbackShortcut({ ...event, key: "." }, null, true), "stepForward");
+  // Held keys keep stepping; typing in editable controls never steps.
+  assert.equal(playbackShortcut({ ...event, key: ".", repeat: true }, null, false), "stepForward");
+  assert.equal(playbackShortcut({ ...event, key: ".", ctrlKey: true }, null, false), null);
+  assert.equal(playbackShortcut({ ...event, key: "," }, { closest: () => ({}) }, false), null);
+});
+
+test("frame stepping uses the supplied rate and returns the mid-frame target", () => {
+  const f = fixture();
+  const time = f.controller.step(1, 24);
+  assert.equal(time, f.media.currentTime);
+  assert.ok(Math.abs(time - 241.5 / 24) < 1e-9);
+  assert.equal(f.controller.playing, false);
+  f.media.currentTime = 10.04;
+  f.controller.step(1, 30);
+  assert.ok(Math.abs(f.media.currentTime - 302.5 / 30) < 1e-9);
+  f.controller.step(-1, 30);
+  assert.ok(Math.abs(f.media.currentTime - 301.5 / 30) < 1e-9);
 });
 
 test("shuttling from a custom forward rate uses the standard speed ladder", () => {

@@ -24,7 +24,7 @@ function Harness() {
         </header>
         <div className="flex min-h-0 flex-1">
           <VideoPlayer
-            src={`/sample.mp4?source=${source}`}
+            src={`/${new URLSearchParams(location.search).get("sample") ?? "sample.mp4"}?source=${source}`}
             controlsBelow
             editorControls={!location.search.includes("public")}
             theaterMode={theaterMode}
