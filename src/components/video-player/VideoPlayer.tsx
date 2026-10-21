@@ -80,6 +80,8 @@ interface VideoPlayerProps {
   editorControls?: boolean;
   theaterMode?: boolean;
   onToggleTheater?: () => void;
+  /** Called with the HLS manifest frame rate when the stream reports one. */
+  onFrameRate?: (frameRate: number) => void;
 }
 
 export type VideoPlaybackIssue =
@@ -116,6 +118,21 @@ function isHlsSource(src: string) {
   return src.includes(".m3u8");
 }
 
+function highestLevelFrameRate(levels: ReadonlyArray<{ frameRate?: number; bitrate?: number }>) {
+  let selected: number | null = null;
+  let selectedBitrate = -1;
+  for (const level of levels) {
+    const rate = level.frameRate;
+    if (typeof rate !== "number" || !Number.isFinite(rate) || rate <= 0) continue;
+    const bitrate = level.bitrate ?? 0;
+    if (selected === null || bitrate > selectedBitrate) {
+      selected = rate;
+      selectedBitrate = bitrate;
+    }
+  }
+  return selected;
+}
+
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
   {
     src,
@@ -139,6 +156,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
     editorControls = false,
     theaterMode = false,
     onToggleTheater,
+    onFrameRate,
   },
   ref,
 ) {
@@ -183,6 +201,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
   });
   const reportTimeUpdate = useEffectEvent((time: number) => {
     onTimeUpdate?.(time);
+  });
+  const reportFrameRate = useEffectEvent((frameRate: number) => {
+    onFrameRate?.(frameRate);
   });
 
   useEffect(() => {
@@ -789,6 +810,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(funct
           hls.loadSource(src);
           hls.attachMedia(video);
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (cancelled) return;
+            const reportedFrameRate = highestLevelFrameRate(hls.levels);
+            if (reportedFrameRate !== null) reportFrameRate(reportedFrameRate);
             // Populate available manual quality levels and default to auto.
             const dedupedByHeight = new Map<number, { level: number; bitrate: number }>();
             hls.levels.forEach((levelInfo, levelIndex) => {

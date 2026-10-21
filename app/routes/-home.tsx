@@ -186,7 +186,7 @@ export default function Homepage() {
               {
                 step: "3",
                 action: "REVIEW",
-                desc: "Click to comment on exact frames. Export to your NLE.",
+                desc: "Click to comment on exact frames. Export them to Resolve.",
               },
             ].map((item, i) => (
               <div

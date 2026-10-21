@@ -18,9 +18,15 @@ export function triggerDownload(url: string, filename?: string) {
   anchor.remove();
 }
 
-export function triggerTextDownload(content: string, filename: string) {
+export function triggerTextDownload(
+  content: string,
+  filename: string,
+  options?: { mimeType?: string; bom?: boolean },
+) {
+  const mimeType = options?.mimeType ?? "text/csv";
+  const bom = options?.bom ?? mimeType.startsWith("text/csv");
   const url = URL.createObjectURL(
-    new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" }),
+    new Blob([...(bom ? ["\uFEFF"] : []), content], { type: `${mimeType};charset=utf-8` }),
   );
   const anchor = document.createElement("a");
   anchor.href = url;
